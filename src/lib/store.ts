@@ -14,7 +14,9 @@ import {
   ServiceStatus,
 } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const getApiUrl = () => {
+  return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
+};
 
 class ImfexStore {
   private products: Product[] = [];
@@ -42,15 +44,15 @@ class ImfexStore {
 
   // Live Sync with Supabase REST Backend API
   async fetchInitialDataFromBackend() {
-    if (!API_BASE_URL) return;
+    const baseUrl = getApiUrl();
     try {
       const [resProd, resCust, resOff, resProj, resServ, resProf] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/products`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/customers`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/offers`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/projects`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/service-tickets`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/profiles`).catch(() => null),
+        fetch(`${baseUrl}/api/products`).catch(() => null),
+        fetch(`${baseUrl}/api/customers`).catch(() => null),
+        fetch(`${baseUrl}/api/offers`).catch(() => null),
+        fetch(`${baseUrl}/api/projects`).catch(() => null),
+        fetch(`${baseUrl}/api/service-tickets`).catch(() => null),
+        fetch(`${baseUrl}/api/profiles`).catch(() => null),
       ]);
 
       if (resProd && resProd.ok) this.products = await resProd.json();
@@ -66,85 +68,44 @@ class ImfexStore {
     }
   }
 
-  // Strict Authentication via Backend REST API
+  // Pure REST API Authentication via Supabase Database
   async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password ? password.trim() : '';
 
-    if (!cleanPassword) {
+    if (!cleanPassword || !cleanEmail) {
       return null;
     }
 
-    if (API_BASE_URL) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
-        });
+    const baseUrl = getApiUrl();
+    try {
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          if (data.token) {
-            sessionStorage.setItem('imfex_auth_token', data.token);
-          }
-          this.currentUser = data.user;
-          sessionStorage.setItem('imfex_current_user', JSON.stringify(data.user));
-          await this.fetchInitialDataFromBackend();
-          return data.user;
-        } else {
-          return null; // Invalid password / credentials from database
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          sessionStorage.setItem('imfex_auth_token', data.token);
         }
-      } catch (err) {
-        console.warn('Backend API login error:', err);
-        return null;
+        this.currentUser = data.user;
+        sessionStorage.setItem('imfex_current_user', JSON.stringify(data.user));
+        await this.fetchInitialDataFromBackend();
+        return data.user;
+      } else {
+        return null; // Invalid credentials returned by Supabase backend API
       }
+    } catch (err) {
+      console.warn('Backend API login network error:', err);
+      return null;
     }
-
-    // Direct Database Credentials Check Fallback
-    const defaultPasswordMap: Record<string, string> = {
-      'admin@imfex.com': 'admin123',
-      'sales@imfex.com': 'sales123',
-      'tech@imfex.com': 'tech123',
-    };
-
-    const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
-    if (found) {
-      const expectedPassword = found.password || defaultPasswordMap[cleanEmail];
-      if (cleanPassword !== expectedPassword) {
-        return null;
-      }
-      this.currentUser = found;
-      sessionStorage.setItem('imfex_current_user', JSON.stringify(found));
-      return found;
-    }
-
-    return null;
   }
 
   login(email: string, password?: string): UserProfile | null {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password ? password.trim() : '';
-
-    if (!cleanPassword) return null;
-
-    const defaultPasswordMap: Record<string, string> = {
-      'admin@imfex.com': 'admin123',
-      'sales@imfex.com': 'sales123',
-      'tech@imfex.com': 'tech123',
-    };
-
-    const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
-    if (found) {
-      const expectedPassword = found.password || defaultPasswordMap[cleanEmail];
-      if (cleanPassword !== expectedPassword) {
-        return null;
-      }
-      this.currentUser = found;
-      sessionStorage.setItem('imfex_current_user', JSON.stringify(found));
-      return found;
-    }
-    return null;
+    // Legacy sync call - delegates to current user or null
+    return this.currentUser;
   }
 
   logout() {
@@ -185,13 +146,12 @@ class ImfexStore {
     };
     this.profiles.push(newUser);
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/profiles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newUser),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newUser),
+    }).catch(console.warn);
     return newUser;
   }
 
@@ -258,13 +218,12 @@ class ImfexStore {
       this.products.push(product);
     }
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/products`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    }).catch(console.warn);
     return product;
   }
 
@@ -289,13 +248,12 @@ class ImfexStore {
       this.customers.push(customer);
     }
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/customers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(customer),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/customers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(customer),
+    }).catch(console.warn);
     return customer;
   }
 
@@ -335,13 +293,12 @@ class ImfexStore {
       this.offers.push(offer);
     }
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/offers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(offer),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/offers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(offer),
+    }).catch(console.warn);
     return offer;
   }
 
@@ -429,13 +386,12 @@ class ImfexStore {
     };
     this.projects.push(newProject);
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newProject),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProject),
+    }).catch(console.warn);
     return newProject;
   }
 
@@ -520,13 +476,12 @@ class ImfexStore {
       this.serviceTickets.push(ticket);
     }
 
-    if (API_BASE_URL) {
-      fetch(`${API_BASE_URL}/api/service-tickets`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ticket),
-      }).catch(console.warn);
-    }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/service-tickets`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ticket),
+    }).catch(console.warn);
     return ticket;
   }
 }
