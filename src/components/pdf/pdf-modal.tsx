@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PrintableOfferDocument } from './printable-offer-document';
 import { Offer, Product } from '@/types';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { generateMultiPagePdf } from '@/lib/pdf-generator';
 
 interface PdfModalProps {
   isOpen: boolean;
@@ -31,25 +30,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
       const element = document.getElementById('printable-offer-document');
       if (!element) return;
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`${offer.offerNumber}_IMFEX_Quote.pdf`);
+      await generateMultiPagePdf(element, `${offer.offerNumber}_IMFEX_Quote.pdf`);
     } catch (err) {
       console.error('PDF Export Error:', err);
     } finally {
@@ -61,12 +42,35 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
     window.print();
   };
 
-  const handleSimulateEmail = () => {
+  const handleSendEmail = async () => {
     setEmailStatus('sending');
-    setTimeout(() => {
+    try {
+      const element = document.getElementById('printable-offer-document');
+      let pdfBase64 = '';
+      if (element) {
+        const result = await generateMultiPagePdf(element);
+        pdfBase64 = result.pdfBase64;
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
+      await fetch(`${API_BASE_URL}/api/email/send-offer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: offer.customer?.email || 'client@imfex.com',
+          customerName: offer.customer?.companyName || offer.customer?.name || 'Клиент',
+          offerNumber: offer.offerNumber,
+          totalAmount: offer.totalAmount,
+          pdfBase64: pdfBase64,
+        }),
+      }).catch(() => null);
+
       setEmailStatus('sent');
       setTimeout(() => setEmailStatus('idle'), 4000);
-    }, 1200);
+    } catch (err) {
+      console.error('Send Email Error:', err);
+      setEmailStatus('idle');
+    }
   };
 
   return (
@@ -98,9 +102,9 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
               Print
             </button>
 
-            {/* Email simulation button */}
+            {/* Email Quote Button */}
             <button
-              onClick={handleSimulateEmail}
+              onClick={handleSendEmail}
               disabled={emailStatus === 'sending'}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
             >

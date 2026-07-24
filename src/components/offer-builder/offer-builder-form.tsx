@@ -6,8 +6,7 @@ import { Customer, Offer, OfferItem, OfferStatus, Product, ServiceType } from '@
 import { imfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import {
   Plus,
@@ -276,22 +275,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     try {
       const element = document.getElementById('printable-offer-document') || document.getElementById('email-printable-offer-container');
       if (element) {
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-        });
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4',
-        });
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-        pdfBase64 = pdf.output('datauristring');
+        const result = await generateMultiPagePdf(element);
+        pdfBase64 = result.pdfBase64;
       }
     } catch (e) {
       console.warn('PDF capture notice:', e);
