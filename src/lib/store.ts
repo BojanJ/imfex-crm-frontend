@@ -113,6 +113,10 @@ class ImfexStore {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password ? password.trim() : '';
 
+    if (!cleanPassword) {
+      return null; // Always reject empty password
+    }
+
     // 1. If backend API URL is configured, authenticate via REST API
     if (API_BASE_URL) {
       try {
@@ -132,18 +136,26 @@ class ImfexStore {
           await this.fetchInitialDataFromBackend();
           return data.user;
         } else {
-          return null;
+          return null; // Invalid credentials returned by backend API
         }
       } catch (err) {
-        console.warn('Backend API login offline, using strict local auth:', err);
+        console.warn('Backend API login error:', err);
+        return null; // Reject if API call fails
       }
     }
 
     // 2. Local Strict Password Authentication Fallback
+    const defaultPasswordMap: Record<string, string> = {
+      'admin@imfex.com': 'admin123',
+      'sales@imfex.com': 'sales123',
+      'tech@imfex.com': 'tech123',
+    };
+
     const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
     if (found) {
-      if (found.password && found.password !== cleanPassword) {
-        return null;
+      const expectedPassword = found.password || defaultPasswordMap[cleanEmail] || 'admin123';
+      if (cleanPassword !== expectedPassword) {
+        return null; // Reject invalid password!
       }
       this.currentUser = found;
       this.saveToLocalStorage();
@@ -157,10 +169,19 @@ class ImfexStore {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password ? password.trim() : '';
 
+    if (!cleanPassword) return null;
+
+    const defaultPasswordMap: Record<string, string> = {
+      'admin@imfex.com': 'admin123',
+      'sales@imfex.com': 'sales123',
+      'tech@imfex.com': 'tech123',
+    };
+
     const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
     if (found) {
-      if (found.password && found.password !== cleanPassword) {
-        return null;
+      const expectedPassword = found.password || defaultPasswordMap[cleanEmail] || 'admin123';
+      if (cleanPassword !== expectedPassword) {
+        return null; // Reject invalid password!
       }
       this.currentUser = found;
       this.saveToLocalStorage();
