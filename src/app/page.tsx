@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { Offer, Customer, Project, ServiceTicket } from '@/types';
 import {
   TrendingUp,
@@ -25,18 +25,28 @@ import { PdfModal } from '@/components/pdf/pdf-modal';
 
 export default function DashboardPage() {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to live store updates
+
   const [offers, setOffers] = useState<Offer[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
 
-  useEffect(() => {
+  const refreshDashboard = () => {
     setOffers(imfexStore.getOffers());
     setCustomers(imfexStore.getCustomers());
     setProjects(imfexStore.getProjects());
     setServiceTickets(imfexStore.getServiceTickets());
+  };
+
+  useEffect(() => {
+    refreshDashboard();
   }, []);
+
+  useEffect(() => {
+    refreshDashboard();
+  }, [imfexStore.getOffers().length, imfexStore.getProjects().length, imfexStore.getCustomers().length]);
 
   const totalRevenue = offers
     .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')

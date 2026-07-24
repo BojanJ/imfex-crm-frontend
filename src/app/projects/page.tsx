@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import {
   Briefcase,
   Search,
@@ -15,6 +15,8 @@ import {
 
 export default function ProjectsPage() {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to live store updates
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -27,6 +29,10 @@ export default function ProjectsPage() {
   useEffect(() => {
     refreshList();
   }, []);
+
+  useEffect(() => {
+    refreshList();
+  }, [imfexStore.getProjects().length]);
 
   const filtered = projects.filter((p) => {
     const matchesSearch =

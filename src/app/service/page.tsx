@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { ServiceTicket } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import {
   Wrench,
   Plus,
@@ -14,6 +14,8 @@ import {
 
 export default function ServicePage() {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to live store updates
+
   const [tickets, setTickets] = useState<ServiceTicket[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -26,6 +28,10 @@ export default function ServicePage() {
   useEffect(() => {
     refreshList();
   }, []);
+
+  useEffect(() => {
+    refreshList();
+  }, [imfexStore.getServiceTickets().length]);
 
   const filtered = tickets.filter((t) => {
     const matchesSearch =

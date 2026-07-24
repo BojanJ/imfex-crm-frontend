@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import {
   Users,
@@ -24,6 +24,8 @@ import {
 
 export default function CustomersPage() {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to live store updates
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -40,6 +42,10 @@ export default function CustomersPage() {
   useEffect(() => {
     refreshList();
   }, []);
+
+  useEffect(() => {
+    refreshList();
+  }, [imfexStore.getCustomers().length]);
 
   const handleDelete = (id: string) => {
     if (confirm('Are you sure you want to delete this customer record?')) {
