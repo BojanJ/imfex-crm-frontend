@@ -30,7 +30,12 @@ class ImfexStore {
 
   constructor() {
     if (typeof window !== 'undefined') {
-      this.loadFromLocalStorage();
+      const storedUser = sessionStorage.getItem('imfex_current_user');
+      if (storedUser) {
+        try {
+          this.currentUser = JSON.parse(storedUser);
+        } catch (e) {}
+      }
       this.fetchInitialDataFromBackend();
     }
   }
@@ -56,68 +61,20 @@ class ImfexStore {
       if (resProf && resProf.ok) this.profiles = await resProf.json();
 
       this.isLoadedFromBackend = true;
-      this.saveToLocalStorage();
     } catch (e) {
       console.warn('Backend API sync notice:', e);
     }
   }
 
-  private loadFromLocalStorage() {
-    try {
-      const pr = localStorage.getItem('imfex_user_profiles');
-      if (pr) this.profiles = JSON.parse(pr);
-      const p = localStorage.getItem('imfex_products');
-      if (p) this.products = JSON.parse(p);
-      const c = localStorage.getItem('imfex_customers');
-      if (c) this.customers = JSON.parse(c);
-      const o = localStorage.getItem('imfex_offers');
-      if (o) this.offers = JSON.parse(o);
-      const proj = localStorage.getItem('imfex_projects');
-      if (proj) this.projects = JSON.parse(proj);
-      const st = localStorage.getItem('imfex_service_tickets');
-      if (st) this.serviceTickets = JSON.parse(st);
-      const ii = localStorage.getItem('imfex_installed_items');
-      if (ii) this.installedItems = JSON.parse(ii);
-      const doc = localStorage.getItem('imfex_documents');
-      if (doc) this.documents = JSON.parse(doc);
-      const user = localStorage.getItem('imfex_current_user');
-      if (user) this.currentUser = JSON.parse(user);
-    } catch (e) {
-      console.warn('LocalStorage error:', e);
-    }
-  }
-
-  private saveToLocalStorage() {
-    if (typeof window === 'undefined') return;
-    try {
-      localStorage.setItem('imfex_user_profiles', JSON.stringify(this.profiles));
-      localStorage.setItem('imfex_products', JSON.stringify(this.products));
-      localStorage.setItem('imfex_customers', JSON.stringify(this.customers));
-      localStorage.setItem('imfex_offers', JSON.stringify(this.offers));
-      localStorage.setItem('imfex_projects', JSON.stringify(this.projects));
-      localStorage.setItem('imfex_service_tickets', JSON.stringify(this.serviceTickets));
-      localStorage.setItem('imfex_installed_items', JSON.stringify(this.installedItems));
-      localStorage.setItem('imfex_documents', JSON.stringify(this.documents));
-      if (this.currentUser) {
-        localStorage.setItem('imfex_current_user', JSON.stringify(this.currentUser));
-      } else {
-        localStorage.removeItem('imfex_current_user');
-      }
-    } catch (e) {
-      console.warn('LocalStorage save error:', e);
-    }
-  }
-
-  // Strict Authentication API & Store Handler
+  // Strict Authentication via Backend REST API
   async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password ? password.trim() : '';
 
     if (!cleanPassword) {
-      return null; // Always reject empty password
+      return null;
     }
 
-    // 1. If backend API URL is configured, authenticate via REST API
     if (API_BASE_URL) {
       try {
         const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -129,22 +86,22 @@ class ImfexStore {
         if (res.ok) {
           const data = await res.json();
           if (data.token) {
-            localStorage.setItem('imfex_auth_token', data.token);
+            sessionStorage.setItem('imfex_auth_token', data.token);
           }
           this.currentUser = data.user;
-          this.saveToLocalStorage();
+          sessionStorage.setItem('imfex_current_user', JSON.stringify(data.user));
           await this.fetchInitialDataFromBackend();
           return data.user;
         } else {
-          return null; // Invalid credentials returned by backend API
+          return null; // Invalid password / credentials from database
         }
       } catch (err) {
         console.warn('Backend API login error:', err);
-        return null; // Reject if API call fails
+        return null;
       }
     }
 
-    // 2. Local Strict Password Authentication Fallback
+    // Direct Database Credentials Check Fallback
     const defaultPasswordMap: Record<string, string> = {
       'admin@imfex.com': 'admin123',
       'sales@imfex.com': 'sales123',
@@ -153,12 +110,12 @@ class ImfexStore {
 
     const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
     if (found) {
-      const expectedPassword = found.password || defaultPasswordMap[cleanEmail] || 'admin123';
+      const expectedPassword = found.password || defaultPasswordMap[cleanEmail];
       if (cleanPassword !== expectedPassword) {
-        return null; // Reject invalid password!
+        return null;
       }
       this.currentUser = found;
-      this.saveToLocalStorage();
+      sessionStorage.setItem('imfex_current_user', JSON.stringify(found));
       return found;
     }
 
@@ -179,12 +136,12 @@ class ImfexStore {
 
     const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
     if (found) {
-      const expectedPassword = found.password || defaultPasswordMap[cleanEmail] || 'admin123';
+      const expectedPassword = found.password || defaultPasswordMap[cleanEmail];
       if (cleanPassword !== expectedPassword) {
-        return null; // Reject invalid password!
+        return null;
       }
       this.currentUser = found;
-      this.saveToLocalStorage();
+      sessionStorage.setItem('imfex_current_user', JSON.stringify(found));
       return found;
     }
     return null;
@@ -193,9 +150,9 @@ class ImfexStore {
   logout() {
     this.currentUser = null;
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('imfex_auth_token');
+      sessionStorage.removeItem('imfex_auth_token');
+      sessionStorage.removeItem('imfex_current_user');
     }
-    this.saveToLocalStorage();
   }
 
   isAuthenticated(): boolean {
@@ -227,7 +184,6 @@ class ImfexStore {
       createdAt: new Date().toISOString(),
     };
     this.profiles.push(newUser);
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/profiles`, {
@@ -246,7 +202,6 @@ class ImfexStore {
       if (this.currentUser?.id === profile.id) {
         this.currentUser = profile;
       }
-      this.saveToLocalStorage();
     }
     return profile;
   }
@@ -257,7 +212,6 @@ class ImfexStore {
     if (user) {
       user.password = tempPass;
       user.mustChangePassword = true;
-      this.saveToLocalStorage();
     }
     return tempPass;
   }
@@ -270,7 +224,6 @@ class ImfexStore {
       if (this.currentUser?.id === userId) {
         this.currentUser.mustChangePassword = false;
       }
-      this.saveToLocalStorage();
       return true;
     }
     return false;
@@ -280,14 +233,12 @@ class ImfexStore {
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
       user.status = user.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
-      this.saveToLocalStorage();
     }
     return user;
   }
 
   deleteUserProfile(id: string) {
     this.profiles = this.profiles.filter((p) => p.id !== id);
-    this.saveToLocalStorage();
   }
 
   // Products
@@ -306,7 +257,6 @@ class ImfexStore {
     } else {
       this.products.push(product);
     }
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/products`, {
@@ -320,7 +270,6 @@ class ImfexStore {
 
   deleteProduct(id: string) {
     this.products = this.products.filter((p) => p.id !== id);
-    this.saveToLocalStorage();
   }
 
   // Customers
@@ -339,7 +288,6 @@ class ImfexStore {
     } else {
       this.customers.push(customer);
     }
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/customers`, {
@@ -353,7 +301,6 @@ class ImfexStore {
 
   deleteCustomer(id: string) {
     this.customers = this.customers.filter((c) => c.id !== id);
-    this.saveToLocalStorage();
   }
 
   // Offers & 4.1 Sales Workflow
@@ -387,7 +334,6 @@ class ImfexStore {
     } else {
       this.offers.push(offer);
     }
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/offers`, {
@@ -416,7 +362,6 @@ class ImfexStore {
 
   deleteOffer(id: string) {
     this.offers = this.offers.filter((o) => o.id !== id);
-    this.saveToLocalStorage();
   }
 
   // Documents & Client Documentation
@@ -431,7 +376,6 @@ class ImfexStore {
     } else {
       this.documents.push(doc);
     }
-    this.saveToLocalStorage();
     return doc;
   }
 
@@ -484,7 +428,6 @@ class ImfexStore {
       createdAt: new Date().toISOString(),
     };
     this.projects.push(newProject);
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/projects`, {
@@ -519,8 +462,6 @@ class ImfexStore {
         });
       }
     }
-
-    this.saveToLocalStorage();
     return project;
   }
 
@@ -540,7 +481,6 @@ class ImfexStore {
     } else {
       this.installedItems.push(item);
     }
-    this.saveToLocalStorage();
     return item;
   }
 
@@ -579,7 +519,6 @@ class ImfexStore {
     } else {
       this.serviceTickets.push(ticket);
     }
-    this.saveToLocalStorage();
 
     if (API_BASE_URL) {
       fetch(`${API_BASE_URL}/api/service-tickets`, {
