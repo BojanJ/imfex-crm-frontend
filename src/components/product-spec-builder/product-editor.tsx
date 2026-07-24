@@ -268,34 +268,36 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
 
           {/* Models Table */}
           <div className="border border-border rounded-xl overflow-hidden text-xs">
-            <table className="w-full text-left">
-              <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-                <tr>
-                  <th className="p-3">{t('products.models')}</th>
-                  <th className="p-3 text-right">{t('products.base_price')}</th>
-                  {isSuperAdmin && <th className="p-3 text-center">{t('offers.action')}</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {models.map((model) => (
-                  <tr key={model.id} className="hover:bg-muted/20">
-                    <td className="p-3 font-semibold text-foreground">{model.name}</td>
-                    <td className="p-3 text-right font-bold text-primary">€{Number(model.basePrice || 0).toFixed(2)}</td>
-                    {isSuperAdmin && (
-                      <td className="p-3 text-center">
-                        <button
-                          onClick={() => handleDeleteModel(model.id)}
-                          className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Model"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    )}
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[500px]">
+                <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+                  <tr>
+                    <th className="p-3">{t('products.models')}</th>
+                    <th className="p-3 text-right">{t('products.base_price')}</th>
+                    {isSuperAdmin && <th className="p-3 text-center">{t('offers.action')}</th>}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {models.map((model) => (
+                    <tr key={model.id} className="hover:bg-muted/20">
+                      <td className="p-3 font-semibold text-foreground">{model.name}</td>
+                      <td className="p-3 text-right font-bold text-primary">€{Number(model.basePrice || 0).toFixed(2)}</td>
+                      {isSuperAdmin && (
+                        <td className="p-3 text-center">
+                          <button
+                            onClick={() => handleDeleteModel(model.id)}
+                            className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Model"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

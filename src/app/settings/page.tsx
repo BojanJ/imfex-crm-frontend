@@ -136,74 +136,76 @@ export default function SettingsPage() {
           </div>
 
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden text-xs">
-            <table className="w-full text-left">
-              <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-                <tr>
-                  <th className="p-4">{t('users.full_name')}</th>
-                  <th className="p-4">{t('users.email')}</th>
-                  <th className="p-4">{t('users.role')}</th>
-                  <th className="p-4">{t('users.status')}</th>
-                  <th className="p-4 text-center">{t('offers.action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {profiles.map((usr) => (
-                  <tr key={usr.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-4 font-bold text-foreground flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-[11px]">
-                        {usr.fullName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span>{usr.fullName}</span>
-                    </td>
-                    <td className="p-4 font-medium text-muted-foreground">{usr.email}</td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                          usr.role === 'SUPER_ADMIN'
-                            ? 'bg-primary/10 text-primary'
-                            : 'bg-muted text-foreground'
-                        }`}
-                      >
-                        {usr.role === 'SUPER_ADMIN' ? 'Супер Администратор' : 'Продажен Агент'}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                          usr.status === 'DISABLED'
-                            ? 'bg-red-500/10 text-red-500'
-                            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {usr.status === 'DISABLED' ? t('users.disabled') : t('users.active')}
-                      </span>
-                    </td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => handleResetPassword(usr.id, usr.email)}
-                          className="px-2.5 py-1 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-lg text-[11px] flex items-center gap-1 cursor-pointer"
-                          title="Ресетирај Лозинка"
-                        >
-                          <KeyRound className="w-3.5 h-3.5 text-amber-500" /> {t('users.reset_password')}
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(usr.id)}
-                          className={`p-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
-                            usr.status === 'DISABLED'
-                              ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
-                              : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                          }`}
-                          title={usr.status === 'DISABLED' ? 'Овозможи' : 'Оневозможи'}
-                        >
-                          {usr.status === 'DISABLED' ? <Check className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </td>
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left min-w-[700px]">
+                <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+                  <tr>
+                    <th className="p-4">{t('users.full_name')}</th>
+                    <th className="p-4">{t('users.email')}</th>
+                    <th className="p-4">{t('users.role')}</th>
+                    <th className="p-4">{t('users.status')}</th>
+                    <th className="p-4 text-center">{t('offers.action')}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {profiles.map((usr) => (
+                    <tr key={usr.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="p-4 font-bold text-foreground flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-[11px]">
+                          {usr.fullName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span>{usr.fullName}</span>
+                      </td>
+                      <td className="p-4 font-medium text-muted-foreground">{usr.email}</td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                            usr.role === 'SUPER_ADMIN'
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-muted text-foreground'
+                          }`}
+                        >
+                          {usr.role === 'SUPER_ADMIN' ? 'Супер Администратор' : 'Продажен Агент'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                            usr.status === 'DISABLED'
+                              ? 'bg-red-500/10 text-red-500'
+                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          }`}
+                        >
+                          {usr.status === 'DISABLED' ? t('users.disabled') : t('users.active')}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleResetPassword(usr.id, usr.email)}
+                            className="px-2.5 py-1 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-lg text-[11px] flex items-center gap-1 cursor-pointer"
+                            title="Ресетирај Лозинка"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-amber-500" /> {t('users.reset_password')}
+                          </button>
+                          <button
+                            onClick={() => handleToggleStatus(usr.id)}
+                            className={`p-1.5 rounded-lg text-[11px] font-bold cursor-pointer ${
+                              usr.status === 'DISABLED'
+                                ? 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
+                                : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                            }`}
+                            title={usr.status === 'DISABLED' ? 'Овозможи' : 'Оневозможи'}
+                          >
+                            {usr.status === 'DISABLED' ? <Check className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

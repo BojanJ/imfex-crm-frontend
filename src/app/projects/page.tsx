@@ -190,45 +190,47 @@ export default function ProjectsPage() {
       ) : (
         /* View Mode 2: TABLE VIEW */
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden text-xs">
-          <table className="w-full text-left">
-            <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-              <tr>
-                <th className="p-4">{t('projects.project_number')}</th>
-                <th className="p-4">{t('offers.customer')}</th>
-                <th className="p-4">{t('projects.responsible')}</th>
-                <th className="p-4">{t('projects.status')}</th>
-                <th className="p-4">{t('projects.target_deadline')}</th>
-                <th className="p-4">{t('projects.installation_address')}</th>
-                <th className="p-4 text-center">{t('offers.action')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map((p) => (
-                <tr key={p.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="p-4 font-extrabold text-primary">{p.projectNumber}</td>
-                  <td className="p-4 font-bold text-foreground">
-                    {p.customer?.companyName || p.customer?.name}
-                  </td>
-                  <td className="p-4 text-muted-foreground">{p.responsibleUser?.fullName || 'Недоделено'}</td>
-                  <td className="p-4">
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-primary/10 text-primary">
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="p-4 text-amber-600 font-bold">{p.targetDeliveryDate || 'N/A'}</td>
-                  <td className="p-4 text-muted-foreground truncate max-w-xs">{p.installationAddress || 'N/A'}</td>
-                  <td className="p-4 text-center">
-                    <Link
-                      href={`/projects/${p.id}`}
-                      className="px-3 py-1.5 bg-primary text-primary-foreground font-bold rounded-lg text-xs hover:bg-primary/90 transition-all inline-flex items-center gap-1"
-                    >
-                      {t('projects.manage')} <ChevronRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </td>
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[800px]">
+              <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+                <tr>
+                  <th className="p-4">{t('projects.project_number')}</th>
+                  <th className="p-4">{t('offers.customer')}</th>
+                  <th className="p-4">{t('projects.responsible')}</th>
+                  <th className="p-4">{t('projects.status')}</th>
+                  <th className="p-4">{t('projects.target_deadline')}</th>
+                  <th className="p-4">{t('projects.installation_address')}</th>
+                  <th className="p-4 text-center">{t('offers.action')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-4 font-extrabold text-primary">{p.projectNumber}</td>
+                    <td className="p-4 font-bold text-foreground">
+                      {p.customer?.companyName || p.customer?.name}
+                    </td>
+                    <td className="p-4 text-muted-foreground">{p.responsibleUser?.fullName || 'Недоделено'}</td>
+                    <td className="p-4">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-primary/10 text-primary">
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="p-4 text-amber-600 font-bold">{p.targetDeliveryDate || 'N/A'}</td>
+                    <td className="p-4 text-muted-foreground truncate max-w-xs">{p.installationAddress || 'N/A'}</td>
+                    <td className="p-4 text-center">
+                      <Link
+                        href={`/projects/${p.id}`}
+                        className="px-3 py-1.5 bg-primary text-primary-foreground font-bold rounded-lg text-xs hover:bg-primary/90 transition-all inline-flex items-center gap-1"
+                      >
+                        {t('projects.manage')} <ChevronRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -269,54 +269,96 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="border border-border rounded-xl overflow-hidden text-xs">
-          <table className="w-full text-left">
-            <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-              <tr>
-                <th className="p-3.5">{t('offers.offer_number')}</th>
-                <th className="p-3.5">{t('offers.customer')}</th>
-                <th className="p-3.5">{t('offers.items')}</th>
-                <th className="p-3.5">{t('offers.status')}</th>
-                <th className="p-3.5 text-right">{t('offers.total')}</th>
-                <th className="p-3.5 text-center">{t('offers.action')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {offers.map((offer) => (
-                <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="p-3.5 font-extrabold text-primary">{offer.offerNumber}</td>
-                  <td className="p-3.5 font-semibold text-foreground">
-                    {offer.customer?.companyName || offer.customer?.name || 'Customer'}
-                  </td>
-                  <td className="p-3.5 text-muted-foreground">{offer.items.length} line item(s)</td>
-                  <td className="p-3.5">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                        offer.status === 'ACCEPTED'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : offer.status === 'SENT'
-                          ? 'bg-blue-500/10 text-blue-500'
-                          : 'bg-amber-500/10 text-amber-500'
-                      }`}
-                    >
-                      {offer.status}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-right font-black text-foreground">
-                    €{Number(offer.totalAmount).toFixed(2)}
-                  </td>
-                  <td className="p-3.5 text-center">
-                    <button
-                      onClick={() => setSelectedOfferForPdf(offer)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-blue-500" /> PDF
-                    </button>
-                  </td>
+        {/* Mobile Cards View */}
+        <div className="grid grid-cols-1 gap-4 md:hidden">
+          {offers.map((offer) => (
+            <div key={offer.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-3 shadow-xs">
+              <div className="flex justify-between items-center">
+                <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                    offer.status === 'ACCEPTED'
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      : offer.status === 'SENT'
+                      ? 'bg-blue-500/10 text-blue-500'
+                      : 'bg-amber-500/10 text-amber-500'
+                  }`}
+                >
+                  {offer.status}
+                </span>
+              </div>
+              <div className="space-y-1">
+                <p className="font-bold text-foreground">
+                  {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+                </p>
+                <p className="text-muted-foreground text-[10px]">{offer.items.length} line item(s)</p>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-border">
+                <span className="font-black text-foreground">
+                  €{Number(offer.totalAmount).toFixed(2)}
+                </span>
+                <button
+                  onClick={() => setSelectedOfferForPdf(offer)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-card hover:bg-muted text-foreground transition-colors border border-border"
+                >
+                  <FileText className="w-3.5 h-3.5 text-blue-500" /> PDF
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block border border-border rounded-xl overflow-hidden text-xs">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left min-w-[650px]">
+              <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+                <tr>
+                  <th className="p-3.5">{t('offers.offer_number')}</th>
+                  <th className="p-3.5">{t('offers.customer')}</th>
+                  <th className="p-3.5">{t('offers.items')}</th>
+                  <th className="p-3.5">{t('offers.status')}</th>
+                  <th className="p-3.5 text-right">{t('offers.total')}</th>
+                  <th className="p-3.5 text-center">{t('offers.action')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {offers.map((offer) => (
+                  <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="p-3.5 font-extrabold text-primary">{offer.offerNumber}</td>
+                    <td className="p-3.5 font-semibold text-foreground">
+                      {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+                    </td>
+                    <td className="p-3.5 text-muted-foreground">{offer.items.length} line item(s)</td>
+                    <td className="p-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                          offer.status === 'ACCEPTED'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : offer.status === 'SENT'
+                            ? 'bg-blue-500/10 text-blue-500'
+                            : 'bg-amber-500/10 text-amber-500'
+                        }`}
+                      >
+                        {offer.status}
+                      </span>
+                    </td>
+                    <td className="p-3.5 text-right font-black text-foreground">
+                      €{Number(offer.totalAmount).toFixed(2)}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <button
+                        onClick={() => setSelectedOfferForPdf(offer)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-blue-500" /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

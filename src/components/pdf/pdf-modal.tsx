@@ -77,7 +77,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-in fade-in duration-200 print:p-0 print:static print:bg-white">
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none print:max-w-none">
         {/* Modal Header (Hidden on Print) */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 text-primary rounded-lg">
               <FileText className="w-5 h-5" />
@@ -92,7 +92,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {/* Print Button */}
             <button
               onClick={handlePrint}

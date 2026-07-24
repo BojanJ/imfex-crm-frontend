@@ -115,68 +115,70 @@ export default function ServicePage() {
 
       {/* Service Tickets Table */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden text-xs">
-        <table className="w-full text-left">
-          <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-            <tr>
-              <th className="p-4">{t('service.ticket_number')}</th>
-              <th className="p-4">{t('offers.customer')}</th>
-              <th className="p-4">{t('service.defect')}</th>
-              <th className="p-4">{t('service.priority')}</th>
-              <th className="p-4">{t('service.status')}</th>
-              <th className="p-4">{t('service.technician')}</th>
-              <th className="p-4">{t('service.scheduled_date')}</th>
-              <th className="p-4 text-center">{t('offers.action')}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.map((ticket) => (
-              <tr key={ticket.id} className="hover:bg-muted/20 transition-colors">
-                <td className="p-4 font-extrabold text-primary">{ticket.ticketNumber}</td>
-                <td className="p-4">
-                  <p className="font-bold text-foreground">
-                    {ticket.customer?.companyName || ticket.customer?.name}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">{ticket.installedItem?.title || 'Опрема'}</p>
-                </td>
-                <td className="p-4 max-w-xs truncate text-foreground font-medium">
-                  {ticket.defectDescription}
-                </td>
-                <td className="p-4">
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                      ticket.priority === 'URGENT'
-                        ? 'bg-red-500/10 text-red-600 animate-pulse'
-                        : ticket.priority === 'HIGH'
-                        ? 'bg-amber-500/10 text-amber-600'
-                        : 'bg-blue-500/10 text-blue-600'
-                    }`}
-                  >
-                    {ticket.priority}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-muted text-foreground">
-                    {ticket.status}
-                  </span>
-                </td>
-                <td className="p-4 text-muted-foreground">
-                  {ticket.assignedTechnician?.fullName || 'Недоделен'}
-                </td>
-                <td className="p-4 font-bold text-foreground">
-                  {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleString() : 'Не е закажано'}
-                </td>
-                <td className="p-4 text-center">
-                  <Link
-                    href={`/service/${ticket.id}`}
-                    className="px-3 py-1.5 bg-primary text-primary-foreground font-bold rounded-lg text-xs hover:bg-primary/90 transition-all inline-flex items-center gap-1"
-                  >
-                    {t('projects.manage')} <ChevronRight className="w-3.5 h-3.5" />
-                  </Link>
-                </td>
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[900px]">
+            <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+              <tr>
+                <th className="p-4">{t('service.ticket_number')}</th>
+                <th className="p-4">{t('offers.customer')}</th>
+                <th className="p-4">{t('service.defect')}</th>
+                <th className="p-4">{t('service.priority')}</th>
+                <th className="p-4">{t('service.status')}</th>
+                <th className="p-4">{t('service.technician')}</th>
+                <th className="p-4">{t('service.scheduled_date')}</th>
+                <th className="p-4 text-center">{t('offers.action')}</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map((ticket) => (
+                <tr key={ticket.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="p-4 font-extrabold text-primary">{ticket.ticketNumber}</td>
+                  <td className="p-4">
+                    <p className="font-bold text-foreground">
+                      {ticket.customer?.companyName || ticket.customer?.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">{ticket.installedItem?.title || 'Опрема'}</p>
+                  </td>
+                  <td className="p-4 max-w-xs truncate text-foreground font-medium">
+                    {ticket.defectDescription}
+                  </td>
+                  <td className="p-4">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                        ticket.priority === 'URGENT'
+                          ? 'bg-red-500/10 text-red-600 animate-pulse'
+                          : ticket.priority === 'HIGH'
+                          ? 'bg-amber-500/10 text-amber-600'
+                          : 'bg-blue-500/10 text-blue-600'
+                      }`}
+                    >
+                      {ticket.priority}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-muted text-foreground">
+                      {ticket.status}
+                    </span>
+                  </td>
+                  <td className="p-4 text-muted-foreground">
+                    {ticket.assignedTechnician?.fullName || 'Недоделен'}
+                  </td>
+                  <td className="p-4 font-bold text-foreground">
+                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleString() : 'Не е закажано'}
+                  </td>
+                  <td className="p-4 text-center">
+                    <Link
+                      href={`/service/${ticket.id}`}
+                      className="px-3 py-1.5 bg-primary text-primary-foreground font-bold rounded-lg text-xs hover:bg-primary/90 transition-all inline-flex items-center gap-1"
+                    >
+                      {t('projects.manage')} <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -117,6 +117,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setIsDrawing(true);
   };
 
+  const startDrawingTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    if (!touch) return;
+    ctx.beginPath();
+    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    setIsDrawing(true);
+  };
+
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
@@ -125,6 +138,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!ctx) return;
     const rect = canvas.getBoundingClientRect();
     ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  };
+
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    if (!touch) return;
+    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
     ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 2.5;
     ctx.stroke();
@@ -431,6 +459,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   onMouseMove={draw}
                   onMouseUp={stopDrawing}
                   onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawingTouch}
+                  onTouchMove={drawTouch}
+                  onTouchEnd={stopDrawing}
                   className="bg-card border border-dashed border-border rounded-lg cursor-crosshair touch-none w-full max-w-lg"
                 />
               </div>
