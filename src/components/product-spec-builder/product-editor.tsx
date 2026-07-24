@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductModel, SpecificationKey, SpecificationOption, SpecInputType } from '@/types';
-import { imfexStore } from '@/lib/store';
-import { Plus, Trash2, ShieldAlert, Layers, Settings2 } from 'lucide-react';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2 } from 'lucide-react';
 
 interface ProductEditorProps {
   product: Product;
@@ -14,7 +14,10 @@ interface ProductEditorProps {
 
 export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate, isSuperAdmin }) => {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to store state changes
+
   const [activeTab, setActiveTab] = useState<'models' | 'specs'>('models');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Model state
   const [newModelName, setNewModelName] = useState('');
@@ -39,9 +42,10 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const specificationKeys = product.specificationKeys || [];
 
   // Model actions
-  const handleAddModel = (e: React.FormEvent) => {
+  const handleAddModel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newModelName.trim() || !isSuperAdmin) return;
+    setIsSaving(true);
 
     const newModel: ProductModel = {
       id: `mod-${Date.now()}`,
@@ -55,26 +59,30 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       models: [...models, newModel],
     };
 
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
     setNewModelName('');
     setNewModelPrice(0);
+    setIsSaving(false);
     onUpdate();
   };
 
-  const handleDeleteModel = (modelId: string) => {
+  const handleDeleteModel = async (modelId: string) => {
     if (!isSuperAdmin) return;
+    setIsSaving(true);
     const updatedProduct = {
       ...product,
       models: models.filter((m) => m.id !== modelId),
     };
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
+    setIsSaving(false);
     onUpdate();
   };
 
   // Spec actions
-  const handleAddSpecKey = (e: React.FormEvent) => {
+  const handleAddSpecKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSpecName.trim() || !isSuperAdmin) return;
+    setIsSaving(true);
 
     const newKey: SpecificationKey = {
       id: `spec-${Date.now()}`,
@@ -89,27 +97,31 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       specificationKeys: [...specificationKeys, newKey],
     };
 
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
     setNewSpecName('');
     setSelectedSpecId(newKey.id);
+    setIsSaving(false);
     onUpdate();
   };
 
-  const handleDeleteSpecKey = (keyId: string) => {
+  const handleDeleteSpecKey = async (keyId: string) => {
     if (!isSuperAdmin) return;
+    setIsSaving(true);
     const updatedProduct = {
       ...product,
       specificationKeys: specificationKeys.filter((k) => k.id !== keyId),
     };
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
     if (selectedSpecId === keyId) setSelectedSpecId(null);
+    setIsSaving(false);
     onUpdate();
   };
 
   // Option actions
-  const handleAddOption = (e: React.FormEvent) => {
+  const handleAddOption = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSpecId || !newOptionLabel.trim() || !isSuperAdmin) return;
+    setIsSaving(true);
 
     const newOpt: SpecificationOption = {
       id: `opt-${Date.now()}`,
@@ -133,14 +145,16 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       specificationKeys: updatedKeys,
     };
 
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
     setNewOptionLabel('');
     setNewOptionPrice(0);
+    setIsSaving(false);
     onUpdate();
   };
 
-  const handleDeleteOption = (specKeyId: string, optId: string) => {
+  const handleDeleteOption = async (specKeyId: string, optId: string) => {
     if (!isSuperAdmin) return;
+    setIsSaving(true);
     const updatedKeys = specificationKeys.map((key) => {
       if (key.id === specKeyId) {
         return {
@@ -156,22 +170,24 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       specificationKeys: updatedKeys,
     };
 
-    imfexStore.saveProduct(updatedProduct);
+    await imfexStore.saveProduct(updatedProduct);
+    setIsSaving(false);
     onUpdate();
   };
 
   const selectedKeyObj = specificationKeys.find((k) => k.id === selectedSpecId);
 
   return (
-    <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-6">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-xs space-y-6">
       {/* Product Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="bg-primary/10 text-primary text-[10px] font-extrabold px-2 py-0.5 rounded uppercase">
+            <span className="bg-primary/20 text-primary text-[10px] font-black px-2 py-0.5 rounded font-mono uppercase">
               {product.code}
             </span>
             <h2 className="font-extrabold text-xl">{product.name}</h2>
+            {isSaving && <Loader2 className="w-4 h-4 animate-spin text-primary ml-2" />}
           </div>
           <p className="text-xs text-muted-foreground mt-1">{product.description}</p>
         </div>
@@ -180,9 +196,9 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
         <div className="flex items-center bg-muted p-1 rounded-xl border border-border">
           <button
             onClick={() => setActiveTab('models')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === 'models'
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -191,9 +207,9 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
           </button>
           <button
             onClick={() => setActiveTab('specs')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === 'specs'
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-primary text-primary-foreground shadow-xs'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -221,7 +237,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 placeholder={t('products.new_model_placeholder')}
                 value={newModelName}
                 onChange={(e) => setNewModelName(e.target.value)}
-                className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
               />
               <div className="relative w-36">
                 <input
@@ -230,15 +246,17 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   placeholder={t('products.base_price')}
                   value={newModelPrice || ''}
                   onChange={(e) => setNewModelPrice(parseFloat(e.target.value))}
-                  className="w-full pl-6 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full pl-6 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                 />
-                <span className="absolute left-2.5 top-2 text-xs font-bold text-muted-foreground">€</span>
+                <span className="absolute left-2.5 top-2.5 text-xs font-bold text-muted-foreground">€</span>
               </div>
               <button
                 type="submit"
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+                disabled={isSaving}
+                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Plus className="w-3.5 h-3.5" /> {t('products.add_model')}
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                <span>{t('products.add_model')}</span>
               </button>
             </form>
           ) : (
@@ -267,7 +285,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       <td className="p-3 text-center">
                         <button
                           onClick={() => handleDeleteModel(model.id)}
-                          className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                          className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                           title="Delete Model"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -294,12 +312,12 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 placeholder={t('products.new_spec_placeholder')}
                 value={newSpecName}
                 onChange={(e) => setNewSpecName(e.target.value)}
-                className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+                className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
               />
               <select
                 value={newSpecType}
                 onChange={(e) => setNewSpecType(e.target.value as SpecInputType)}
-                className="px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
+                className="px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-bold"
               >
                 <option value="SELECT">SELECT (Единечен Избор)</option>
                 <option value="MULTISELECT">MULTISELECT (Повеќекратен Избор)</option>
@@ -308,9 +326,11 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               </select>
               <button
                 type="submit"
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+                disabled={isSaving}
+                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
-                <Plus className="w-3.5 h-3.5" /> {t('products.add_spec')}
+                {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                <span>{t('products.add_spec')}</span>
               </button>
             </form>
           )}
@@ -326,14 +346,14 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 <div
                   key={key.id}
                   onClick={() => setSelectedSpecId(key.id)}
-                  className={`p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${
+                  className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                     selectedSpecId === key.id
-                      ? 'border-primary bg-primary/10 font-bold text-primary shadow-sm'
+                      ? 'border-primary bg-primary/10 font-bold text-primary shadow-xs'
                       : 'border-border bg-card hover:bg-muted text-foreground'
                   }`}
                 >
                   <div>
-                    <p className="leading-tight">{key.name}</p>
+                    <p className="leading-tight font-extrabold">{key.name}</p>
                     <span className="text-[9px] font-extrabold text-muted-foreground uppercase">
                       {key.inputType} • {(key.options || []).length} опции
                     </span>
@@ -344,7 +364,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                         e.stopPropagation();
                         handleDeleteSpecKey(key.id);
                       }}
-                      className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                      className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -377,7 +397,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                         placeholder={t('products.option_label')}
                         value={newOptionLabel}
                         onChange={(e) => setNewOptionLabel(e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+                        className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                       />
                       <div className="relative w-36">
                         <input
@@ -386,22 +406,24 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                           placeholder={t('products.price_modifier')}
                           value={newOptionPrice || ''}
                           onChange={(e) => setNewOptionPrice(parseFloat(e.target.value))}
-                          className="w-full pl-6 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full pl-6 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                         />
-                        <span className="absolute left-2.5 top-2 text-xs font-bold text-muted-foreground">€</span>
+                        <span className="absolute left-2.5 top-2.5 text-xs font-bold text-muted-foreground">€</span>
                       </div>
                       <button
                         type="submit"
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+                        disabled={isSaving}
+                        className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
                       >
-                        <Plus className="w-3.5 h-3.5" /> {t('products.add_option')}
+                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                        <span>{t('products.add_option')}</span>
                       </button>
                     </form>
                   )}
 
                   {/* Options List */}
                   {selectedKeyObj.inputType === 'TEXT' || selectedKeyObj.inputType === 'NUMBER' ? (
-                    <div className="p-4 bg-muted/30 rounded-lg text-xs text-muted-foreground italic">
+                    <div className="p-4 bg-muted/30 rounded-xl text-xs text-muted-foreground italic">
                       Овој атрибут користи тип на внес {selectedKeyObj.inputType}. Продажните агенти ќе внесат сопствен текст/број за време на креирање понуда.
                     </div>
                   ) : (
@@ -409,11 +431,11 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       {(selectedKeyObj.options || []).map((opt) => (
                         <div
                           key={opt.id}
-                          className="flex items-center justify-between p-2.5 bg-muted/20 border border-border rounded-lg text-xs"
+                          className="flex items-center justify-between p-2.5 bg-muted/20 border border-border rounded-xl text-xs"
                         >
-                          <span className="font-medium text-foreground">{opt.label}</span>
+                          <span className="font-semibold text-foreground">{opt.label}</span>
                           <div className="flex items-center gap-3">
-                            <span className="font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                            <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20">
                               {Number(opt.priceModifier || 0) >= 0
                                 ? `+€${Number(opt.priceModifier || 0).toFixed(2)}`
                                 : `-€${Math.abs(Number(opt.priceModifier || 0)).toFixed(2)}`}
@@ -421,7 +443,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                             {isSuperAdmin && (
                               <button
                                 onClick={() => handleDeleteOption(selectedKeyObj.id, opt.id)}
-                                className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>

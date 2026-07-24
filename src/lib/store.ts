@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Customer,
   Offer,
@@ -29,6 +30,7 @@ class ImfexStore {
   private documents: ClientDocument[] = [];
   private currentUser: UserProfile | null = null;
   private isLoadedFromBackend: boolean = false;
+  private listeners: Array<() => void> = [];
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -40,6 +42,17 @@ class ImfexStore {
       }
       this.fetchInitialDataFromBackend();
     }
+  }
+
+  subscribe(listener: () => void) {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+  }
+
+  notifyListeners() {
+    this.listeners.forEach((l) => l());
   }
 
   // Live Sync with Supabase REST Backend API
@@ -63,6 +76,7 @@ class ImfexStore {
       if (resProf && resProf.ok) this.profiles = await resProf.json();
 
       this.isLoadedFromBackend = true;
+      this.notifyListeners();
     } catch (e) {
       console.warn('Backend API sync notice:', e);
     }
@@ -93,9 +107,10 @@ class ImfexStore {
         this.currentUser = data.user;
         sessionStorage.setItem('imfex_current_user', JSON.stringify(data.user));
         await this.fetchInitialDataFromBackend();
+        this.notifyListeners();
         return data.user;
       } else {
-        return null; // Invalid credentials returned by Supabase backend API
+        return null;
       }
     } catch (err) {
       console.warn('Backend API login network error:', err);
@@ -104,7 +119,6 @@ class ImfexStore {
   }
 
   login(email: string, password?: string): UserProfile | null {
-    // Legacy sync call - delegates to current user or null
     return this.currentUser;
   }
 
@@ -114,6 +128,7 @@ class ImfexStore {
       sessionStorage.removeItem('imfex_auth_token');
       sessionStorage.removeItem('imfex_current_user');
     }
+    this.notifyListeners();
   }
 
   isAuthenticated(): boolean {
@@ -130,7 +145,7 @@ class ImfexStore {
 
   // User Management by Super Admin
   getProfiles(): UserProfile[] {
-    return this.profiles;
+    return [...this.profiles];
   }
 
   createUserProfile(fullName: string, email: string, role: UserRole, tempPassword?: string): UserProfile {
@@ -145,6 +160,7 @@ class ImfexStore {
       createdAt: new Date().toISOString(),
     };
     this.profiles.push(newUser);
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/profiles`, {
@@ -162,6 +178,7 @@ class ImfexStore {
       if (this.currentUser?.id === profile.id) {
         this.currentUser = profile;
       }
+      this.notifyListeners();
     }
     return profile;
   }
@@ -172,6 +189,7 @@ class ImfexStore {
     if (user) {
       user.password = tempPass;
       user.mustChangePassword = true;
+      this.notifyListeners();
     }
     return tempPass;
   }
@@ -184,6 +202,7 @@ class ImfexStore {
       if (this.currentUser?.id === userId) {
         this.currentUser.mustChangePassword = false;
       }
+      this.notifyListeners();
       return true;
     }
     return false;
@@ -193,17 +212,19 @@ class ImfexStore {
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
       user.status = user.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
+      this.notifyListeners();
     }
     return user;
   }
 
   deleteUserProfile(id: string) {
     this.profiles = this.profiles.filter((p) => p.id !== id);
+    this.notifyListeners();
   }
 
   // Products
   getProducts(): Product[] {
-    return this.products;
+    return [...this.products];
   }
 
   getProductById(id: string): Product | undefined {
@@ -211,29 +232,45 @@ class ImfexStore {
   }
 
   saveProduct(product: Product): Product {
-    const idx = this.products.findIndex((p) => p.id === product.id);
+    const idx = this.products.findIndex((p) => p.id === product.id || p.code === product.code);
     if (idx >= 0) {
       this.products[idx] = product;
     } else {
       this.products.push(product);
     }
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
-    }).catch(console.warn);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedProd) => {
+        if (savedProd && savedProd.id) {
+          const freshIdx = this.products.findIndex((p) => p.id === product.id || p.code === product.code || p.id === savedProd.id);
+          if (freshIdx >= 0) {
+            this.products[freshIdx] = savedProd;
+          } else {
+            this.products.push(savedProd);
+          }
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveProduct API notice:', e));
+
     return product;
   }
 
   deleteProduct(id: string) {
     this.products = this.products.filter((p) => p.id !== id);
+    this.notifyListeners();
   }
 
   // Customers
   getCustomers(): Customer[] {
-    return this.customers;
+    return [...this.customers];
   }
 
   getCustomerById(id: string): Customer | undefined {
@@ -247,18 +284,30 @@ class ImfexStore {
     } else {
       this.customers.push(customer);
     }
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(customer),
-    }).catch(console.warn);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedCust) => {
+        if (savedCust && savedCust.id) {
+          const freshIdx = this.customers.findIndex((c) => c.id === customer.id || c.id === savedCust.id);
+          if (freshIdx >= 0) this.customers[freshIdx] = savedCust;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveCustomer API notice:', e));
+
     return customer;
   }
 
   deleteCustomer(id: string) {
     this.customers = this.customers.filter((c) => c.id !== id);
+    this.notifyListeners();
   }
 
   // Offers & 4.1 Sales Workflow
@@ -292,13 +341,24 @@ class ImfexStore {
     } else {
       this.offers.push(offer);
     }
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/offers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(offer),
-    }).catch(console.warn);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedOffer) => {
+        if (savedOffer && savedOffer.id) {
+          const freshIdx = this.offers.findIndex((o) => o.id === offer.id || o.id === savedOffer.id);
+          if (freshIdx >= 0) this.offers[freshIdx] = savedOffer;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveOffer API notice:', e));
+
     return offer;
   }
 
@@ -319,6 +379,7 @@ class ImfexStore {
 
   deleteOffer(id: string) {
     this.offers = this.offers.filter((o) => o.id !== id);
+    this.notifyListeners();
   }
 
   // Documents & Client Documentation
@@ -333,6 +394,7 @@ class ImfexStore {
     } else {
       this.documents.push(doc);
     }
+    this.notifyListeners();
     return doc;
   }
 
@@ -385,6 +447,7 @@ class ImfexStore {
       createdAt: new Date().toISOString(),
     };
     this.projects.push(newProject);
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/projects`, {
@@ -402,22 +465,7 @@ class ImfexStore {
     } else {
       this.projects.push(project);
     }
-
-    if (project.status === 'CLOSED') {
-      const existingItem = this.installedItems.find((ii) => ii.projectId === project.id);
-      if (!existingItem) {
-        const itemTitle = project.offer?.items[0]?.customTitle || `Инсталиран Систем (${project.projectNumber})`;
-        this.saveInstalledItem({
-          id: `inst-${Date.now()}`,
-          customerId: project.customerId,
-          projectId: project.id,
-          productId: project.offer?.items[0]?.productId,
-          title: itemTitle,
-          serialNumber: `SN-${Date.now().toString().slice(-6)}`,
-          installationDate: project.installationDate || new Date().toISOString().split('T')[0],
-        });
-      }
-    }
+    this.notifyListeners();
     return project;
   }
 
@@ -427,7 +475,7 @@ class ImfexStore {
   }
 
   getAllInstalledItems(): InstalledItem[] {
-    return this.installedItems;
+    return [...this.installedItems];
   }
 
   saveInstalledItem(item: InstalledItem): InstalledItem {
@@ -437,6 +485,7 @@ class ImfexStore {
     } else {
       this.installedItems.push(item);
     }
+    this.notifyListeners();
     return item;
   }
 
@@ -475,6 +524,7 @@ class ImfexStore {
     } else {
       this.serviceTickets.push(ticket);
     }
+    this.notifyListeners();
 
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/service-tickets`, {
@@ -487,3 +537,10 @@ class ImfexStore {
 }
 
 export const imfexStore = new ImfexStore();
+
+export function useImfexStore() {
+  const [_, setTick] = useState(0);
+  useEffect(() => {
+    return imfexStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+}

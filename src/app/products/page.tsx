@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { Product, UserRole } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { ProductEditor } from '@/components/product-spec-builder/product-editor';
 import {
   Package,
@@ -21,6 +21,8 @@ import {
 
 export default function ProductsPage() {
   const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to live store updates
+
   const [products, setProducts] = useState<Product[]>([]);
   const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -47,6 +49,11 @@ export default function ProductsPage() {
     setRole(imfexStore.getCurrentRole());
     refreshProducts();
   }, []);
+
+  // Sync state whenever store changes
+  useEffect(() => {
+    refreshProducts();
+  }, [imfexStore.getProducts().length]);
 
   if (!isMounted) {
     return (
