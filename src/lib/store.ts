@@ -328,7 +328,7 @@ class ImfexStore {
   private serviceTickets: ServiceTicket[] = INITIAL_SERVICE_TICKETS;
   private installedItems: InstalledItem[] = INITIAL_INSTALLED_ITEMS;
   private documents: ClientDocument[] = INITIAL_DOCUMENTS;
-  private currentUser: UserProfile | null = INITIAL_PROFILES[0];
+  private currentUser: UserProfile | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -414,8 +414,12 @@ class ImfexStore {
     this.saveToLocalStorage();
   }
 
+  isAuthenticated(): boolean {
+    return this.currentUser !== null;
+  }
+
   getCurrentUser(): UserProfile | null {
-    return this.currentUser || INITIAL_PROFILES[0];
+    return this.currentUser;
   }
 
   getCurrentRole(): UserRole {
