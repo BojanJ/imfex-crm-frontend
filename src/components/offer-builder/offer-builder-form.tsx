@@ -250,15 +250,55 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     setIsPdfModalOpen(true);
   };
 
-  const handleSendEmailSubmit = (e: React.FormEvent) => {
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [customEmailMessage, setCustomEmailMessage] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [emailErrorMsg, setEmailErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (selectedCustomerObj?.email) {
+      setRecipientEmail(selectedCustomerObj.email);
+    }
+  }, [selectedCustomerObj]);
+
+  const handleSendEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    handleSaveOffer('SENT');
+    setEmailErrorMsg('');
+    setIsSendingEmail(true);
+
+    const saved = handleSaveOffer('SENT');
     setStatus('SENT');
-    setEmailSuccessMsg('Quote successfully sent via email! Status updated to SENT and PDF saved to Client Documentation.');
-    setTimeout(() => {
-      setEmailSuccessMsg('');
-      setIsEmailModalOpen(false);
-    }, 2000);
+
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/email/send-offer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail || selectedCustomerObj?.email || 'nabavki@logistika.mk',
+          customerName: selectedCustomerObj?.name || 'Клиент',
+          offerNumber: saved.offerNumber,
+          totalAmount: totalAmount,
+          customMessage: customEmailMessage,
+        }),
+      });
+
+      if (res.ok) {
+        setEmailSuccessMsg('Понудата е успешно испратена по е-пошта со Resend API! Статусот е ажуриран во SENT.');
+        setTimeout(() => {
+          setEmailSuccessMsg('');
+          setIsEmailModalOpen(false);
+        }, 2200);
+      } else {
+        const data = await res.json();
+        setEmailErrorMsg(data.error || 'Настана грешка при испраќање на е-поштата.');
+      }
+    } catch (err: any) {
+      setEmailErrorMsg('Мрежна грешка при испраќање е-пошта.');
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   return (
@@ -711,11 +751,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base flex items-center gap-2 text-foreground">
-                <Mail className="w-5 h-5 text-emerald-500" /> Send Offer via E-mail
+                <Mail className="w-5 h-5 text-emerald-500" /> Испрати Понуда по Е-пошта (Resend API)
               </h3>
               <button
                 onClick={() => setIsEmailModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground text-sm font-bold"
+                className="text-muted-foreground hover:text-foreground text-sm font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -728,41 +768,52 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               </div>
             ) : (
               <form onSubmit={handleSendEmailSubmit} className="space-y-4 text-xs">
+                {emailErrorMsg && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-xs font-semibold flex items-center gap-2">
+                    <XCircle className="w-4 h-4 shrink-0" />
+                    <span>{emailErrorMsg}</span>
+                  </div>
+                )}
+
                 <div>
-                  <label className="block font-semibold mb-1 text-muted-foreground">Recipient Email Address</label>
+                  <label className="block font-semibold mb-1 text-foreground">Е-пошта на Примач *</label>
                   <input
                     type="email"
                     required
-                    defaultValue={selectedCustomerObj?.email || 'procurement@client.com'}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="nabavki@logistika.mk"
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background outline-none font-bold focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-1 text-muted-foreground">Email Subject</label>
+                  <label className="block font-semibold mb-1 text-foreground">Наслов на Пораката</label>
                   <input
                     type="text"
-                    required
-                    defaultValue={`Official Quote Proposal ${existingOffer?.offerNumber || 'OFF-2026-0001'} from IMFEX`}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold"
+                    readOnly
+                    value={`Комерцијална Понуда ${existingOffer?.offerNumber || 'OFF-2026-0001'} - ИМФЕКС ЕКСПОРТ-ИМПОРТ`}
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-muted text-muted-foreground outline-none font-bold cursor-not-allowed"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-1 text-muted-foreground">Message Body</label>
+                  <label className="block font-semibold mb-1 text-foreground">Дополнителна Белешка / Соопштение</label>
                   <textarea
-                    rows={4}
-                    defaultValue={`Dear ${selectedCustomerObj?.name || 'Customer'},\n\nPlease find attached our official quote proposal total amount €${totalAmount.toFixed(2)}. This quote is valid until ${validUntil}.\n\nBest regards,\nIMFEX Sales Team`}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
+                    rows={3}
+                    placeholder="Додадете сопствена белешка до клиентот за условите на понудата..."
+                    value={customEmailMessage}
+                    onChange={(e) => setCustomEmailMessage(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background outline-none font-medium focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
-                <div className="p-3 bg-muted/40 rounded-lg border border-border flex items-center justify-between text-muted-foreground text-[11px]">
+                <div className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5 font-semibold">
-                    <FileText className="w-4 h-4 text-red-500" /> Attached PDF: Quote_{existingOffer?.offerNumber || 'OFF-2026'}.pdf
+                    <FileText className="w-4 h-4 text-red-500" /> Прикачен PDF: Quote_${existingOffer?.offerNumber || 'OFF-2026'}.pdf
                   </span>
-                  <span className="font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded">
-                    Status will update to SENT
+                  <span className="font-extrabold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                    Статусот се менува во SENT
                   </span>
                 </div>
 
@@ -770,15 +821,17 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   <button
                     type="button"
                     onClick={() => setIsEmailModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-border bg-card hover:bg-muted font-bold"
+                    className="px-4 py-2 rounded-xl border border-border bg-card hover:bg-muted font-bold cursor-pointer"
                   >
-                    Cancel
+                    Откажи
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-bold hover:bg-emerald-700 shadow-md flex items-center gap-2"
+                    disabled={isSendingEmail}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
                   >
-                    <Mail className="w-4 h-4" /> Send Email Now
+                    <Mail className="w-4 h-4" />
+                    <span>{isSendingEmail ? 'Се испраќа...' : 'Испрати по Е-пошта'}</span>
                   </button>
                 </div>
               </form>
