@@ -6,6 +6,9 @@ import { Customer, Offer, OfferItem, OfferStatus, Product, ServiceType } from '@
 import { imfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import {
   Plus,
   Trash2,
@@ -269,6 +272,31 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const saved = handleSaveOffer('SENT');
     setStatus('SENT');
 
+    let pdfBase64 = '';
+    try {
+      const element = document.getElementById('printable-offer-document') || document.getElementById('email-printable-offer-container');
+      if (element) {
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+        });
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        pdfBase64 = pdf.output('datauristring');
+      }
+    } catch (e) {
+      console.warn('PDF capture notice:', e);
+    }
+
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
 
     try {
@@ -281,11 +309,12 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           offerNumber: saved.offerNumber,
           totalAmount: totalAmount,
           customMessage: customEmailMessage,
+          pdfBase64: pdfBase64,
         }),
       });
 
       if (res.ok) {
-        setEmailSuccessMsg('Понудата е успешно испратена по е-пошта со Resend API! Статусот е ажуриран во SENT.');
+        setEmailSuccessMsg('Понудата и PDF документот се успешно испратени по е-пошта! Статусот е ажуриран во SENT.');
         setTimeout(() => {
           setEmailSuccessMsg('');
           setIsEmailModalOpen(false);
@@ -855,6 +884,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           offer={savedOfferForPdf}
           products={products}
         />
+      )}
+
+      {/* Hidden Offscreen PDF Render Container for Email Dispatch Attachment */}
+      {savedOfferForPdf && (
+        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '800px' }} id="email-printable-offer-container">
+          <PrintableOfferDocument offer={savedOfferForPdf} products={products} />
+        </div>
       )}
     </div>
   );
