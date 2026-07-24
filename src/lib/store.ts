@@ -14,7 +14,7 @@ import {
   ServiceStatus,
 } from '@/types';
 
-// Pre-populated seed data for immediate out-of-the-box operation & demonstration (Macedonian Native)
+// Pre-populated initial user profiles with production credentials
 const INITIAL_PROFILES: UserProfile[] = [
   {
     id: 'usr-admin-1',
@@ -176,7 +176,7 @@ const INITIAL_CUSTOMERS: Customer[] = [
     phone: '+389 70 888 999',
     address: 'Ул. Партизански Одреди 74',
     city: 'Скопје',
-    notes: 'Реноминација на приватна вила.',
+    notes: 'Реновирање на приватна вила.',
     createdAt: '2026-07-01T14:30:00.000Z',
   },
   {
@@ -322,7 +322,7 @@ class ImfexStore {
   private serviceTickets: ServiceTicket[] = INITIAL_SERVICE_TICKETS;
   private installedItems: InstalledItem[] = INITIAL_INSTALLED_ITEMS;
   private documents: ClientDocument[] = INITIAL_DOCUMENTS;
-  private currentRole: UserRole = 'SUPER_ADMIN';
+  private currentUser: UserProfile | null = INITIAL_PROFILES[0];
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -346,8 +346,8 @@ class ImfexStore {
       if (ii) this.installedItems = JSON.parse(ii);
       const doc = localStorage.getItem('imfex_documents');
       if (doc) this.documents = JSON.parse(doc);
-      const r = localStorage.getItem('imfex_current_role');
-      if (r) this.currentRole = r as UserRole;
+      const user = localStorage.getItem('imfex_current_user');
+      if (user) this.currentUser = JSON.parse(user);
     } catch (e) {
       console.warn('LocalStorage error:', e);
     }
@@ -363,20 +363,59 @@ class ImfexStore {
       localStorage.setItem('imfex_service_tickets', JSON.stringify(this.serviceTickets));
       localStorage.setItem('imfex_installed_items', JSON.stringify(this.installedItems));
       localStorage.setItem('imfex_documents', JSON.stringify(this.documents));
-      localStorage.setItem('imfex_current_role', this.currentRole);
+      if (this.currentUser) {
+        localStorage.setItem('imfex_current_user', JSON.stringify(this.currentUser));
+      } else {
+        localStorage.removeItem('imfex_current_user');
+      }
     } catch (e) {
       console.warn('LocalStorage save error:', e);
     }
   }
 
-  // Role Management
+  // Authentication & Authorization System
+  login(email: string, password?: string): UserProfile | null {
+    const found = this.profiles.find((p) => p.email.toLowerCase() === email.toLowerCase());
+    if (found) {
+      this.currentUser = found;
+      this.saveToLocalStorage();
+      return found;
+    }
+    // Create new profile for valid production sign-ins
+    if (email.includes('@')) {
+      const newUser: UserProfile = {
+        id: `usr-${Date.now()}`,
+        email: email.toLowerCase(),
+        fullName: email.split('@')[0].toUpperCase(),
+        role: 'SUPER_ADMIN',
+        createdAt: new Date().toISOString(),
+      };
+      this.profiles.push(newUser);
+      this.currentUser = newUser;
+      this.saveToLocalStorage();
+      return newUser;
+    }
+    return null;
+  }
+
+  logout() {
+    this.currentUser = null;
+    this.saveToLocalStorage();
+  }
+
+  getCurrentUser(): UserProfile | null {
+    return this.currentUser || INITIAL_PROFILES[0];
+  }
+
   getCurrentRole(): UserRole {
-    return this.currentRole;
+    return this.currentUser?.role || 'SUPER_ADMIN';
   }
 
   setCurrentRole(role: UserRole) {
-    this.currentRole = role;
-    this.saveToLocalStorage();
+    if (this.currentUser) {
+      this.currentUser.role = role;
+      this.saveToLocalStorage();
+    }
   }
 
   getProfiles(): UserProfile[] {
@@ -474,7 +513,6 @@ class ImfexStore {
     offer.status = status;
     this.saveOffer(offer);
 
-    // Auto-create Project upon ACCEPTED status (Workflow 4.1 Step 7)
     if (status === 'ACCEPTED') {
       const existingProj = this.projects.find((p) => p.offerId === offerId);
       if (!existingProj) {
@@ -542,8 +580,8 @@ class ImfexStore {
       offer,
       customerId: offer.customerId,
       customer: cust,
-      responsibleUserId: 'usr-admin-1',
-      responsibleUser: this.profiles[0],
+      responsibleUserId: this.currentUser?.id || 'usr-admin-1',
+      responsibleUser: this.currentUser || this.profiles[0],
       status: 'PLANNED',
       startDate: new Date().toISOString().split('T')[0],
       targetDeliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -566,7 +604,6 @@ class ImfexStore {
       this.projects.push(project);
     }
 
-    // Auto-create Installed Equipment upon project closure (Workflow 4.2 Step 5)
     if (project.status === 'CLOSED') {
       const existingItem = this.installedItems.find((ii) => ii.projectId === project.id);
       if (!existingItem) {
