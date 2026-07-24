@@ -21,6 +21,8 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'admin@imfex.com',
     fullName: 'Супер Администратор',
     role: 'SUPER_ADMIN',
+    mustChangePassword: false,
+    status: 'ACTIVE',
     createdAt: new Date().toISOString(),
   },
   {
@@ -28,6 +30,8 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'sales@imfex.com',
     fullName: 'Менаџер за Продажба',
     role: 'USER',
+    mustChangePassword: false,
+    status: 'ACTIVE',
     createdAt: new Date().toISOString(),
   },
   {
@@ -35,6 +39,8 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'tech@imfex.com',
     fullName: 'Главен Теренски Техничар',
     role: 'USER',
+    mustChangePassword: false,
+    status: 'ACTIVE',
     createdAt: new Date().toISOString(),
   },
 ];
@@ -332,14 +338,16 @@ class ImfexStore {
 
   private loadFromLocalStorage() {
     try {
+      const pr = localStorage.getItem('imfex_user_profiles');
+      if (pr) this.profiles = JSON.parse(pr);
       const p = localStorage.getItem('imfex_products');
       if (p) this.products = JSON.parse(p);
       const c = localStorage.getItem('imfex_customers');
       if (c) this.customers = JSON.parse(c);
       const o = localStorage.getItem('imfex_offers');
       if (o) this.offers = JSON.parse(o);
-      const pr = localStorage.getItem('imfex_projects');
-      if (pr) this.projects = JSON.parse(pr);
+      const proj = localStorage.getItem('imfex_projects');
+      if (proj) this.projects = JSON.parse(proj);
       const st = localStorage.getItem('imfex_service_tickets');
       if (st) this.serviceTickets = JSON.parse(st);
       const ii = localStorage.getItem('imfex_installed_items');
@@ -356,6 +364,7 @@ class ImfexStore {
   private saveToLocalStorage() {
     if (typeof window === 'undefined') return;
     try {
+      localStorage.setItem('imfex_user_profiles', JSON.stringify(this.profiles));
       localStorage.setItem('imfex_products', JSON.stringify(this.products));
       localStorage.setItem('imfex_customers', JSON.stringify(this.customers));
       localStorage.setItem('imfex_offers', JSON.stringify(this.offers));
@@ -375,7 +384,7 @@ class ImfexStore {
 
   // Authentication & Authorization System
   login(email: string, password?: string): UserProfile | null {
-    const found = this.profiles.find((p) => p.email.toLowerCase() === email.toLowerCase());
+    const found = this.profiles.find((p) => p.email.toLowerCase() === email.toLowerCase() && p.status !== 'DISABLED');
     if (found) {
       this.currentUser = found;
       this.saveToLocalStorage();
@@ -388,6 +397,8 @@ class ImfexStore {
         email: email.toLowerCase(),
         fullName: email.split('@')[0].toUpperCase(),
         role: 'SUPER_ADMIN',
+        mustChangePassword: false,
+        status: 'ACTIVE',
         createdAt: new Date().toISOString(),
       };
       this.profiles.push(newUser);
@@ -411,15 +422,76 @@ class ImfexStore {
     return this.currentUser?.role || 'SUPER_ADMIN';
   }
 
-  setCurrentRole(role: UserRole) {
-    if (this.currentUser) {
-      this.currentUser.role = role;
-      this.saveToLocalStorage();
-    }
-  }
-
+  // User Management by Super Admin
   getProfiles(): UserProfile[] {
     return this.profiles;
+  }
+
+  createUserProfile(fullName: string, email: string, role: UserRole, tempPassword?: string): UserProfile {
+    const newUser: UserProfile = {
+      id: `usr-${Date.now()}`,
+      email: email.trim().toLowerCase(),
+      fullName: fullName.trim(),
+      role,
+      password: tempPassword || 'IMFEX123!',
+      mustChangePassword: true,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+    };
+    this.profiles.push(newUser);
+    this.saveToLocalStorage();
+    return newUser;
+  }
+
+  updateUserProfile(profile: UserProfile): UserProfile {
+    const idx = this.profiles.findIndex((p) => p.id === profile.id);
+    if (idx >= 0) {
+      this.profiles[idx] = profile;
+      if (this.currentUser?.id === profile.id) {
+        this.currentUser = profile;
+      }
+      this.saveToLocalStorage();
+    }
+    return profile;
+  }
+
+  resetUserPassword(userId: string, newTempPassword?: string): string {
+    const tempPass = newTempPassword || 'TempPass2026!';
+    const user = this.profiles.find((p) => p.id === userId);
+    if (user) {
+      user.password = tempPass;
+      user.mustChangePassword = true;
+      this.saveToLocalStorage();
+    }
+    return tempPass;
+  }
+
+  changeUserPassword(userId: string, newPassword: string): boolean {
+    const user = this.profiles.find((p) => p.id === userId);
+    if (user) {
+      user.password = newPassword;
+      user.mustChangePassword = false;
+      if (this.currentUser?.id === userId) {
+        this.currentUser.mustChangePassword = false;
+      }
+      this.saveToLocalStorage();
+      return true;
+    }
+    return false;
+  }
+
+  toggleUserStatus(userId: string): UserProfile | undefined {
+    const user = this.profiles.find((p) => p.id === userId);
+    if (user) {
+      user.status = user.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
+      this.saveToLocalStorage();
+    }
+    return user;
+  }
+
+  deleteUserProfile(id: string) {
+    this.profiles = this.profiles.filter((p) => p.id !== id);
+    this.saveToLocalStorage();
   }
 
   // Products

@@ -19,6 +19,9 @@ export interface UserProfile {
   email: string;
   fullName: string;
   role: UserRole;
+  password?: string;
+  mustChangePassword?: boolean;
+  status?: 'ACTIVE' | 'DISABLED';
   createdAt: string;
 }
 
