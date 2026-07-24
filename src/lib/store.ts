@@ -14,6 +14,8 @@ import {
   ServiceStatus,
 } from '@/types';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+
 // Pre-populated initial user profiles with production credentials
 const INITIAL_PROFILES: UserProfile[] = [
   {
@@ -21,6 +23,7 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'admin@imfex.com',
     fullName: 'Супер Администратор',
     role: 'SUPER_ADMIN',
+    password: 'admin123',
     mustChangePassword: false,
     status: 'ACTIVE',
     createdAt: new Date().toISOString(),
@@ -30,6 +33,7 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'sales@imfex.com',
     fullName: 'Менаџер за Продажба',
     role: 'USER',
+    password: 'sales123',
     mustChangePassword: false,
     status: 'ACTIVE',
     createdAt: new Date().toISOString(),
@@ -39,6 +43,7 @@ const INITIAL_PROFILES: UserProfile[] = [
     email: 'tech@imfex.com',
     fullName: 'Главен Теренски Техничар',
     role: 'USER',
+    password: 'tech123',
     mustChangePassword: false,
     status: 'ACTIVE',
     createdAt: new Date().toISOString(),
@@ -382,35 +387,72 @@ class ImfexStore {
     }
   }
 
-  // Authentication & Authorization System
-  login(email: string, password?: string): UserProfile | null {
-    const found = this.profiles.find((p) => p.email.toLowerCase() === email.toLowerCase() && p.status !== 'DISABLED');
+  // Strict Authentication API & Store Handler
+  async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password ? password.trim() : '';
+
+    // 1. If backend API URL is configured, authenticate via REST API
+    if (API_BASE_URL) {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            localStorage.setItem('imfex_auth_token', data.token);
+          }
+          this.currentUser = data.user;
+          this.saveToLocalStorage();
+          return data.user;
+        } else {
+          return null; // Invalid credentials returned by backend API
+        }
+      } catch (err) {
+        console.warn('Backend API login offline, using strict local auth:', err);
+      }
+    }
+
+    // 2. Local Strict Password Authentication Fallback
+    const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
     if (found) {
+      // Enforce strict password validation
+      if (found.password && found.password !== cleanPassword) {
+        return null; // Invalid password
+      }
       this.currentUser = found;
       this.saveToLocalStorage();
       return found;
     }
-    // Create new profile for valid production sign-ins
-    if (email.includes('@')) {
-      const newUser: UserProfile = {
-        id: `usr-${Date.now()}`,
-        email: email.toLowerCase(),
-        fullName: email.split('@')[0].toUpperCase(),
-        role: 'SUPER_ADMIN',
-        mustChangePassword: false,
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-      };
-      this.profiles.push(newUser);
-      this.currentUser = newUser;
+
+    return null;
+  }
+
+  login(email: string, password?: string): UserProfile | null {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password ? password.trim() : '';
+
+    const found = this.profiles.find((p) => p.email.toLowerCase() === cleanEmail && p.status !== 'DISABLED');
+    if (found) {
+      if (found.password && found.password !== cleanPassword) {
+        return null; // Reject invalid password
+      }
+      this.currentUser = found;
       this.saveToLocalStorage();
-      return newUser;
+      return found;
     }
     return null;
   }
 
   logout() {
     this.currentUser = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('imfex_auth_token');
+    }
     this.saveToLocalStorage();
   }
 
@@ -423,7 +465,7 @@ class ImfexStore {
   }
 
   getCurrentRole(): UserRole {
-    return this.currentUser?.role || 'SUPER_ADMIN';
+    return this.currentUser?.role || 'USER';
   }
 
   // User Management by Super Admin

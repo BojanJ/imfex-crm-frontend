@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Sparkles,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -20,20 +21,23 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const user = imfexStore.login(email.trim(), password.trim());
+    try {
+      const user = await imfexStore.loginAsync(email, password);
       if (user) {
-        router.push('/');
+        router.replace('/');
       } else {
         setErrorMessage('Грешна е-пошта или лозинка. Ве молиме обидете се повторно.');
         setIsLoading(false);
       }
-    }, 400);
+    } catch (err) {
+      setErrorMessage('Настана грешка при најавата. Ве молиме проверете ја вашата интернет врска.');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -101,8 +105,17 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-extrabold text-xs hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <span>{t('login.submit')}</span>
-              <ArrowRight className="w-4 h-4" />
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Се врши проверка...</span>
+                </>
+              ) : (
+                <>
+                  <span>{t('login.submit')}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         </div>
