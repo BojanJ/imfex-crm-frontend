@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductModel, SpecificationKey, SpecificationOption, SpecInputType } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2, Edit2, Save, CheckCircle2, XCircle } from 'lucide-react';
 
 interface ProductEditorProps {
   product: Product;
@@ -33,6 +33,54 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   );
   const [newOptionLabel, setNewOptionLabel] = useState('');
   const [newOptionPrice, setNewOptionPrice] = useState(0);
+
+  // Edit product states
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(product.name);
+  const [editCode, setEditCode] = useState(product.code);
+  const [editDesc, setEditDesc] = useState(product.description || '');
+  const [editIsActive, setEditIsActive] = useState(product.isActive !== false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync edit state when product updates or changes
+  React.useEffect(() => {
+    setEditName(product.name);
+    setEditCode(product.code);
+    setEditDesc(product.description || '');
+    setEditIsActive(product.isActive !== false);
+    setIsEditing(false);
+    setErrorMsg(null);
+  }, [product]);
+
+  const handleSaveProductDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim() || !editCode.trim() || !isSuperAdmin) return;
+
+    // Check for code conflict locally
+    const isCodeConflict = imfexStore.getProducts().some(
+      (p) => p.id !== product.id && p.code.toLowerCase() === editCode.trim().toLowerCase()
+    );
+    if (isCodeConflict) {
+      setErrorMsg(t('products.code_exists_error'));
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorMsg(null);
+
+    const updatedProduct = {
+      ...product,
+      name: editName.trim(),
+      code: editCode.trim().toUpperCase(),
+      description: editDesc.trim(),
+      isActive: editIsActive,
+    };
+
+    imfexStore.saveProduct(updatedProduct);
+    setIsSaving(false);
+    setIsEditing(false);
+    onUpdate();
+  };
 
   if (!product) {
     return <div className="p-8 text-center text-xs text-muted-foreground">Нема податоци за производот.</div>;
@@ -180,43 +228,166 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   return (
     <div className="bg-card border border-border rounded-2xl p-6 shadow-xs space-y-6">
       {/* Product Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="bg-primary/20 text-primary text-[10px] font-black px-2 py-0.5 rounded font-mono uppercase">
-              {product.code}
-            </span>
-            <h2 className="font-extrabold text-xl">{product.name}</h2>
-            {isSaving && <Loader2 className="w-4 h-4 animate-spin text-primary ml-2" />}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">{product.description}</p>
-        </div>
+      <div className="border-b border-border pb-4">
+        {isEditing ? (
+          <form onSubmit={handleSaveProductDetails} className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
+                <Settings2 className="w-4 h-4 text-primary" />
+                <span>{t('products.edit_product')}</span>
+              </h3>
+              {errorMsg && (
+                <span className="text-xs text-red-500 font-semibold">{errorMsg}</span>
+              )}
+            </div>
 
-        {/* Tab Controls */}
-        <div className="flex items-center bg-muted p-1 rounded-xl border border-border">
-          <button
-            onClick={() => setActiveTab('models')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === 'models'
-                ? 'bg-primary text-primary-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            {t('products.models')} ({models.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('specs')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === 'specs'
-                ? 'bg-primary text-primary-foreground shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Settings2 className="w-3.5 h-3.5" />
-            {t('products.specifications')} ({specificationKeys.length})
-          </button>
-        </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">{t('products.product_name')} *</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">{t('products.product_code')} *</label>
+                <input
+                  type="text"
+                  required
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none uppercase font-mono font-bold focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="text-xs">
+              <label className="block font-bold mb-1 text-muted-foreground">{t('products.description')}</label>
+              <textarea
+                rows={2}
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none resize-none focus:ring-2 focus:ring-primary font-medium"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-muted-foreground">{t('products.status')}:</span>
+                <button
+                  type="button"
+                  onClick={() => setEditIsActive(!editIsActive)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-black transition-all cursor-pointer ${
+                    editIsActive
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {editIsActive ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>{t('products.active')}</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3 h-3" />
+                      <span>{t('products.inactive')}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setErrorMsg(null);
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-border cursor-pointer hover:bg-muted/40 transition-colors"
+                >
+                  {t('products.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{t('products.save_changes')}</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        ) : (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-primary/20 text-primary text-[10px] font-black px-2 py-0.5 rounded font-mono uppercase">
+                  {product.code}
+                </span>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border ${
+                    product.isActive !== false
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400'
+                  }`}
+                >
+                  {product.isActive !== false ? t('products.active') : t('products.inactive')}
+                </span>
+                <h2 className="font-extrabold text-xl">{product.name}</h2>
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      setIsEditing(true);
+                      setEditName(product.name);
+                      setEditCode(product.code);
+                      setEditDesc(product.description || '');
+                      setEditIsActive(product.isActive !== false);
+                      setErrorMsg(null);
+                    }}
+                    className="p-1 text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                    title={t('products.edit_details')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+                {isSaving && <Loader2 className="w-4 h-4 animate-spin text-primary ml-2" />}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{product.description}</p>
+            </div>
+
+            {/* Tab Controls */}
+            <div className="flex items-center bg-muted p-1 rounded-xl border border-border self-start sm:self-auto">
+              <button
+                onClick={() => setActiveTab('models')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'models'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                {t('products.models')} ({models.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('specs')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  activeTab === 'specs'
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                {t('products.specifications')} ({specificationKeys.length})
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Models Tab */}
