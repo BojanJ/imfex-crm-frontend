@@ -17,11 +17,24 @@ import {
   User,
   Ban,
   Check,
+  RefreshCw,
+  Database,
 } from 'lucide-react';
 
 export default function SettingsPage() {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY'>('USERS');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatusMsg, setSyncStatusMsg] = useState('');
+
+  const handleSyncDatabase = async () => {
+    setIsSyncing(true);
+    setSyncStatusMsg('Syncing with PostgreSQL database and purging corrupted records...');
+    await imfexStore.purgeCorruptedAndSyncBackend();
+    setIsSyncing(false);
+    setSyncStatusMsg('Database clean & synchronization complete!');
+    setTimeout(() => setSyncStatusMsg(''), 4000);
+  };
 
   // User Management State
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -284,6 +297,30 @@ export default function SettingsPage() {
               className="flex items-center gap-1.5 px-5 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
             >
               <Save className="w-4 h-4" /> {t('settings.save_settings')}
+            </button>
+          </div>
+
+          <div className="border-t border-border pt-6 mt-6 space-y-3">
+            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+              <Database className="w-4 h-4 text-primary" /> Live Database Synchronization & Maintenance
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Clean corrupted question-mark records and synchronize all customers, offers, and projects directly with the live PostgreSQL database.
+            </p>
+            {syncStatusMsg && (
+              <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-600 rounded-xl font-semibold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                {syncStatusMsg}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleSyncDatabase}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing with Database...' : 'Clean & Sync Database Records'}
             </button>
           </div>
         </form>

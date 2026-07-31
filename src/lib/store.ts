@@ -92,6 +92,16 @@ class ImfexStore {
     }
   }
 
+  async purgeCorruptedAndSyncBackend() {
+    const baseUrl = getApiUrl();
+    try {
+      await fetch(`${baseUrl}/api/admin/clean-database`, { method: 'POST' }).catch(() => null);
+      await this.fetchInitialDataFromBackend();
+    } catch (e) {
+      console.warn('Purge & sync notice:', e);
+    }
+  }
+
   // Pure REST API Authentication via Supabase Database
   async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();
