@@ -102,6 +102,22 @@ class ImfexStore {
     }
   }
 
+  async resetDatabaseToFreshState() {
+    const baseUrl = getApiUrl();
+    try {
+      await fetch(`${baseUrl}/api/admin/reset-database`, { method: 'POST' }).catch(() => null);
+      this.products = [];
+      this.customers = [];
+      this.offers = [];
+      this.projects = [];
+      this.serviceTickets = [];
+      await this.fetchInitialDataFromBackend();
+      this.notifyListeners();
+    } catch (e) {
+      console.warn('Database reset notice:', e);
+    }
+  }
+
   // Pure REST API Authentication via Supabase Database
   async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();

@@ -19,6 +19,8 @@ import {
   Check,
   RefreshCw,
   Database,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -26,6 +28,8 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY'>('USERS');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleSyncDatabase = async () => {
     setIsSyncing(true);
@@ -34,6 +38,15 @@ export default function SettingsPage() {
     setIsSyncing(false);
     setSyncStatusMsg('Database clean & synchronization complete!');
     setTimeout(() => setSyncStatusMsg(''), 4000);
+  };
+
+  const handleExecuteFullReset = async () => {
+    setIsResetting(true);
+    await imfexStore.resetDatabaseToFreshState();
+    setIsResetting(false);
+    setShowResetModal(false);
+    setSyncStatusMsg('Database cleanly reset to 0 records. Only admin & sales users remain active.');
+    setTimeout(() => setSyncStatusMsg(''), 5000);
   };
 
   // User Management State
@@ -313,17 +326,78 @@ export default function SettingsPage() {
                 {syncStatusMsg}
               </div>
             )}
-            <button
-              type="button"
-              onClick={handleSyncDatabase}
-              disabled={isSyncing}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'Syncing with Database...' : 'Clean & Sync Database Records'}
-            </button>
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSyncDatabase}
+                disabled={isSyncing}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing with Database...' : 'Clean & Sync Database Records'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowResetModal(true)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-all cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Reset System (0 Data, 2 Users Only)
+              </button>
+            </div>
           </div>
         </form>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+          <div className="bg-card border border-rose-500/30 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2 bg-rose-500/10 rounded-xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base">Wipe All Test Data & Reset System?</h3>
+                <p className="text-[11px] text-muted-foreground">Danger Zone - Irreversible Database Action</p>
+              </div>
+            </div>
+
+            <p className="text-muted-foreground leading-relaxed">
+              This action will permanently delete <strong>all test Customers, Products, Offers, Projects, Service Tickets, and Documents</strong>.
+            </p>
+
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 font-semibold space-y-1">
+              <p className="font-bold">What will remain:</p>
+              <ul className="list-disc list-inside text-[11px] space-y-0.5">
+                <li><code>admin@imfex.com</code> (Super Admin)</li>
+                <li><code>sales@imfex.com</code> (Sales Manager)</li>
+                <li>0 Business Records (Fresh Database State)</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                disabled={isResetting}
+                className="px-4 py-2 font-bold rounded-xl border border-border bg-card hover:bg-muted cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteFullReset}
+                disabled={isResetting}
+                className="flex items-center gap-2 px-5 py-2 font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-lg cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                {isResetting ? 'Wiping Database...' : 'Yes, Reset Database Now'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create User Modal */}
