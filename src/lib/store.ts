@@ -16,7 +16,7 @@ import {
   CalendarEvent,
 } from '@/types';
 
-const getApiUrl = () => {
+export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
 };
 
@@ -31,7 +31,7 @@ class ImfexStore {
   private documents: ClientDocument[] = [];
   private calendarEvents: CalendarEvent[] = [];
   private currentUser: UserProfile | null = null;
-  private isLoadedFromBackend: boolean = false;
+  public isLoadedFromBackend: boolean = false;
   private listeners: Array<() => void> = [];
 
   constructor() {
