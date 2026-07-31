@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus, UserProfile } from '@/types';
 import { imfexStore } from '@/lib/store';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Briefcase,
   ArrowLeft,
@@ -241,34 +242,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <div className="space-y-3">
               <div>
                 <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.status')}</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'PLANNED', label: t('projects.planned') },
+                    { value: 'PROCUREMENT', label: t('projects.in_procurement') },
+                    { value: 'PRODUCTION', label: t('projects.in_production') },
+                    { value: 'INSTALLATION', label: t('projects.scheduled') },
+                    { value: 'COMPLETED', label: t('projects.completed') },
+                    { value: 'CLOSED', label: t('projects.closed') },
+                  ]}
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as ProjectStatus)}
+                  onChange={(val) => setStatus(val as ProjectStatus)}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background font-extrabold text-primary outline-none"
-                >
-                  <option value="PLANNED">{t('projects.planned')}</option>
-                  <option value="PROCUREMENT">{t('projects.in_procurement')}</option>
-                  <option value="PRODUCTION">{t('projects.in_production')}</option>
-                  <option value="INSTALLATION">{t('projects.scheduled')}</option>
-                  <option value="COMPLETED">{t('projects.completed')}</option>
-                  <option value="CLOSED">{t('projects.closed')}</option>
-                </select>
+                />
               </div>
 
               <div>
                 <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.responsible')}</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: '', label: '-- Избери Одговорно Лице --' },
+                    ...profiles.map((p) => ({
+                      value: p.id,
+                      label: `${p.fullName} (${p.role})`,
+                    })),
+                  ]}
                   value={responsibleUserId}
-                  onChange={(e) => setResponsibleUserId(e.target.value)}
+                  onChange={(val) => setResponsibleUserId(val)}
+                  placeholder="-- Избери Одговорно Лице --"
+                  searchPlaceholder="Пребарај лице..."
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
-                >
-                  <option value="">-- Избери Одговорно Лице --</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullName} ({p.role})
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2">
@@ -314,16 +318,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-semibold mb-1 text-muted-foreground">Статус на Набавка</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'NOT_STARTED', label: 'НЕ Е ЗАПОЧНАТО' },
+                    { value: 'ORDERED', label: 'ПОРАЧАНО ОД ФАБРИКА' },
+                    { value: 'IN_PRODUCTION', label: 'ВО ПРОИЗВОДСТВО' },
+                    { value: 'DELIVERED', label: 'ИСПОРАЧАНО ВО МАГАЦИН' },
+                  ]}
                   value={procurementStatus}
-                  onChange={(e) => setProcurementStatus(e.target.value)}
+                  onChange={(val) => setProcurementStatus(val)}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
-                >
-                  <option value="NOT_STARTED">НЕ Е ЗАПОЧНАТО</option>
-                  <option value="ORDERED">ПОРАЧАНО ОД ФАБРИКА</option>
-                  <option value="IN_PRODUCTION">ВО ПРОИЗВОДСТВО</option>
-                  <option value="DELIVERED">ИСПОРАЧАНО ВО МАГАЦИН</option>
-                </select>
+                />
               </div>
 
               <div>

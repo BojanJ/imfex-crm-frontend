@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore } from '@/lib/store';
 import { UserProfile, UserRole } from '@/types';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Settings,
   Building2,
@@ -320,14 +321,15 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block font-semibold mb-1">{t('users.role')}</label>
-                <select
+                <SearchableSelect
+                  options={[
+                    { value: 'USER', label: 'Продажен Агент (USER)' },
+                    { value: 'SUPER_ADMIN', label: 'Супер Администратор (SUPER_ADMIN)' },
+                  ]}
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as UserRole)}
+                  onChange={(val) => setNewRole(val as UserRole)}
                   className="w-full px-3 py-1.5 rounded-lg border border-border bg-background font-bold outline-none"
-                >
-                  <option value="USER">Продажен Агент (USER)</option>
-                  <option value="SUPER_ADMIN">Супер Администратор (SUPER_ADMIN)</option>
-                </select>
+                />
               </div>
 
               <div>

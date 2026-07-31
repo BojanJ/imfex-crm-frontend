@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Customer, InstalledItem, ServicePriority, ServiceTicket } from '@/types';
 import { imfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Wrench,
   ArrowLeft,
@@ -123,17 +124,18 @@ export default function NewServiceTicketPage() {
             </button>
           </div>
 
-          <select
+          <SearchableSelect
+            options={customers.map((c) => ({
+              value: c.id,
+              label: `${c.companyName || c.name} (${c.customerType})`,
+              sublabel: c.email ? `${c.email} • ${c.phone || ''}` : undefined,
+            }))}
             value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-sm"
-          >
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.companyName || c.name} ({c.customerType})
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setSelectedCustomerId(val)}
+            placeholder="Select Customer Account..."
+            searchPlaceholder="Search customer..."
+            className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-xs"
+          />
 
           {selectedCustObj && (
             <div className="p-3 bg-muted/40 rounded-lg border border-border text-muted-foreground">
@@ -150,17 +152,17 @@ export default function NewServiceTicketPage() {
           </label>
 
           {customerInstalledItems.length > 0 ? (
-            <select
+            <SearchableSelect
+              options={customerInstalledItems.map((item) => ({
+                value: item.id,
+                label: `${item.title} (SN: ${item.serialNumber || 'N/A'}) - Installed ${item.installationDate}`,
+              }))}
               value={selectedInstalledItemId}
-              onChange={(e) => setSelectedInstalledItemId(e.target.value)}
+              onChange={(val) => setSelectedInstalledItemId(val)}
+              placeholder="Select Installed Equipment..."
+              searchPlaceholder="Search equipment..."
               className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-xs"
-            >
-              {customerInstalledItems.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.title} (SN: {item.serialNumber || 'N/A'}) - Installed {item.installationDate}
-                </option>
-              ))}
-            </select>
+            />
           ) : (
             <p className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-600 rounded-lg italic">
               No previous installed equipment recorded for this client. The service request will be logged under general site maintenance.

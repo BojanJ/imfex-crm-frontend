@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductModel, SpecificationKey, SpecificationOption, SpecInputType } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2, Edit2, Save, CheckCircle2, XCircle } from 'lucide-react';
 
 interface ProductEditorProps {
@@ -487,16 +488,19 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 onChange={(e) => setNewSpecName(e.target.value)}
                 className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
               />
-              <select
-                value={newSpecType}
-                onChange={(e) => setNewSpecType(e.target.value as SpecInputType)}
-                className="px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-bold"
-              >
-                <option value="SELECT">SELECT (Единечен Избор)</option>
-                <option value="MULTISELECT">MULTISELECT (Повеќекратен Избор)</option>
-                <option value="TEXT">TEXT (Текст Внес)</option>
-                <option value="NUMBER">NUMBER (Бројчен Внес)</option>
-              </select>
+              <div className="w-48">
+                <SearchableSelect
+                  options={[
+                    { value: 'SELECT', label: 'SELECT (Единечен Избор)' },
+                    { value: 'MULTISELECT', label: 'MULTISELECT (Повеќекратен Избор)' },
+                    { value: 'TEXT', label: 'TEXT (Текст Внес)' },
+                    { value: 'NUMBER', label: 'NUMBER (Бројчен Внес)' },
+                  ]}
+                  value={newSpecType}
+                  onChange={(val) => setNewSpecType(val as SpecInputType)}
+                  className="px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-bold"
+                />
+              </div>
               <button
                 type="submit"
                 disabled={isSaving}

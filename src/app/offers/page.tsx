@@ -16,6 +16,8 @@ import {
   Briefcase,
 } from 'lucide-react';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+
 export default function OffersPage() {
   const { t } = useI18n();
   useImfexStore(); // Auto-subscribe to live store updates from Supabase REST API
@@ -24,6 +26,14 @@ export default function OffersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
+
+  const statusOptions = [
+    { value: 'DRAFT', label: t('offers.draft') },
+    { value: 'SENT', label: t('offers.sent') },
+    { value: 'ACCEPTED', label: t('offers.accepted') },
+    { value: 'REJECTED', label: t('offers.rejected') },
+    { value: 'EXPIRED', label: t('offers.expired') },
+  ];
 
   const refreshList = () => {
     setOffers(imfexStore.getOffers());
@@ -126,27 +136,24 @@ export default function OffersPage() {
                 <div key={offer.id} className="p-5 space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
-                    <select
-                      value={offer.status}
-                      onChange={(e) => handleSetStatus(offer.id, e.target.value)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
-                        offer.status === 'ACCEPTED'
-                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
-                          : offer.status === 'SENT'
-                          ? 'bg-blue-500/10 text-blue-500'
-                          : offer.status === 'REJECTED'
-                          ? 'bg-red-500/10 text-red-500'
-                          : offer.status === 'EXPIRED'
-                          ? 'bg-gray-500/10 text-gray-500'
-                          : 'bg-amber-500/10 text-amber-500'
-                      }`}
-                    >
-                      <option value="DRAFT">{t('offers.draft')}</option>
-                      <option value="SENT">{t('offers.sent')}</option>
-                      <option value="ACCEPTED">{t('offers.accepted')}</option>
-                      <option value="REJECTED">{t('offers.rejected')}</option>
-                      <option value="EXPIRED">{t('offers.expired')}</option>
-                    </select>
+                    <div className="w-32">
+                      <SearchableSelect
+                        options={statusOptions}
+                        value={offer.status}
+                        onChange={(val) => handleSetStatus(offer.id, val)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
+                          offer.status === 'ACCEPTED'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
+                            : offer.status === 'SENT'
+                            ? 'bg-blue-500/10 text-blue-500'
+                            : offer.status === 'REJECTED'
+                            ? 'bg-red-500/10 text-red-500'
+                            : offer.status === 'EXPIRED'
+                            ? 'bg-gray-500/10 text-gray-500'
+                            : 'bg-amber-500/10 text-amber-500'
+                        }`}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -241,27 +248,24 @@ export default function OffersPage() {
                         {(offer.items || []).length} item(s) configured
                       </td>
                       <td className="p-4">
-                        <select
-                          value={offer.status}
-                          onChange={(e) => handleSetStatus(offer.id, e.target.value)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
-                            offer.status === 'ACCEPTED'
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
-                              : offer.status === 'SENT'
-                              ? 'bg-blue-500/10 text-blue-500'
-                              : offer.status === 'REJECTED'
-                              ? 'bg-red-500/10 text-red-500'
-                              : offer.status === 'EXPIRED'
-                              ? 'bg-gray-500/10 text-gray-500'
-                              : 'bg-amber-500/10 text-amber-500'
-                          }`}
-                        >
-                          <option value="DRAFT">{t('offers.draft')}</option>
-                          <option value="SENT">{t('offers.sent')}</option>
-                          <option value="ACCEPTED">{t('offers.accepted')}</option>
-                          <option value="REJECTED">{t('offers.rejected')}</option>
-                          <option value="EXPIRED">{t('offers.expired')}</option>
-                        </select>
+                        <div className="w-32">
+                          <SearchableSelect
+                            options={statusOptions}
+                            value={offer.status}
+                            onChange={(val) => handleSetStatus(offer.id, val)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
+                              offer.status === 'ACCEPTED'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
+                                : offer.status === 'SENT'
+                                ? 'bg-blue-500/10 text-blue-500'
+                                : offer.status === 'REJECTED'
+                                ? 'bg-red-500/10 text-red-500'
+                                : offer.status === 'EXPIRED'
+                                ? 'bg-gray-500/10 text-gray-500'
+                                : 'bg-amber-500/10 text-amber-500'
+                            }`}
+                          />
+                        </div>
                       </td>
                       <td className="p-4 text-muted-foreground">
                         {Number(offer.discountRate || 0) > 0 && (

@@ -8,6 +8,7 @@ import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Plus,
   Trash2,
@@ -377,17 +378,18 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1">Choose Client Account</label>
-              <select
+              <SearchableSelect
+                options={customers.map((c) => ({
+                  value: c.id,
+                  label: `${c.companyName || c.name} (${c.customerType})`,
+                  sublabel: c.email ? `${c.email} • ${c.phone || ''}` : undefined,
+                }))}
                 value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                onChange={(val) => setSelectedCustomerId(val)}
+                placeholder="Choose Client Account..."
+                searchPlaceholder="Search client account..."
                 className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none font-semibold focus:ring-2 focus:ring-primary"
-              >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.companyName || c.name} ({c.customerType})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             {selectedCustomerObj && (
@@ -410,23 +412,24 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold mb-1">Quote Status Workflow</label>
-              <select
+              <SearchableSelect
+                options={[
+                  { value: 'DRAFT', label: 'DRAFT' },
+                  { value: 'SENT', label: 'SENT' },
+                  { value: 'ACCEPTED', label: 'ACCEPTED (Auto-Creates Project)' },
+                  { value: 'REJECTED', label: 'REJECTED' },
+                  { value: 'EXPIRED', label: 'EXPIRED' },
+                ]}
                 value={status}
-                onChange={(e) => {
-                  const newSt = e.target.value as OfferStatus;
+                onChange={(val) => {
+                  const newSt = val as OfferStatus;
                   setStatus(newSt);
                   if (newSt === 'ACCEPTED') {
                     alert('Quote marked as ACCEPTED! An Operational Project will be automatically generated upon save.');
                   }
                 }}
                 className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-bold text-primary outline-none"
-              >
-                <option value="DRAFT">DRAFT</option>
-                <option value="SENT">SENT</option>
-                <option value="ACCEPTED">ACCEPTED (Auto-Creates Project)</option>
-                <option value="REJECTED">REJECTED</option>
-                <option value="EXPIRED">EXPIRED</option>
-              </select>
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -554,10 +557,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       </label>
                       <div>
                         <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Product Family</label>
-                        <select
+                        <SearchableSelect
+                          options={products.map((p) => ({
+                            value: p.id,
+                            label: `${p.name} (${p.code})`,
+                          }))}
                           value={item.productId || ''}
-                          onChange={(e) => {
-                            const pId = e.target.value;
+                          onChange={(pId) => {
                             const pObj = products.find((p) => p.id === pId);
                             const firstMod = pObj?.models[0];
                             handleUpdateItem(idx, {
@@ -567,30 +573,26 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                               specifications: [],
                             });
                           }}
+                          placeholder="Select Product Family..."
+                          searchPlaceholder="Search products..."
                           className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
-                        >
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.code})
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </div>
 
                       {selectedProd && (
                         <div>
                           <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Model Variant</label>
-                          <select
+                          <SearchableSelect
+                            options={selectedProd.models.map((m) => ({
+                              value: m.id,
+                              label: `${m.name} - (€${Number(m.basePrice).toFixed(2)})`,
+                            }))}
                             value={item.productModelId || ''}
-                            onChange={(e) => handleUpdateItem(idx, { productModelId: e.target.value })}
+                            onChange={(val) => handleUpdateItem(idx, { productModelId: val })}
+                            placeholder="Select Model Variant..."
+                            searchPlaceholder="Search model variants..."
                             className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
-                          >
-                            {selectedProd.models.map((m) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} - (€{Number(m.basePrice).toFixed(2)})
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       )}
 
@@ -640,18 +642,20 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                 </label>
 
                                 {key.inputType === 'SELECT' || key.inputType === 'MULTISELECT' ? (
-                                  <select
+                                  <SearchableSelect
+                                    options={[
+                                      { value: '', label: '-- Select Option --' },
+                                      ...key.options.map((opt) => ({
+                                        value: opt.id,
+                                        label: `${opt.label} ${opt.priceModifier !== 0 ? `(+€${opt.priceModifier})` : ''}`,
+                                      })),
+                                    ]}
                                     value={specSel?.specificationOptionId || ''}
-                                    onChange={(e) => handleSpecOptionChange(idx, key.id, e.target.value)}
+                                    onChange={(val) => handleSpecOptionChange(idx, key.id, val)}
+                                    placeholder="-- Select Option --"
+                                    searchPlaceholder="Search options..."
                                     className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
-                                  >
-                                    <option value="">-- Select Option --</option>
-                                    {key.options.map((opt) => (
-                                      <option key={opt.id} value={opt.id}>
-                                        {opt.label} {opt.priceModifier !== 0 ? `(+€${opt.priceModifier})` : ''}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  />
                                 ) : (
                                   <input
                                     type={key.inputType === 'NUMBER' ? 'number' : 'text'}

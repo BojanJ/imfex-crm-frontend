@@ -11,6 +11,8 @@ import {
   LogOut,
 } from 'lucide-react';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
+
 interface NavbarProps {
   onMobileMenuToggle?: () => void;
 }
@@ -27,6 +29,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
     imfexStore.logout();
     window.location.href = '/login';
   };
+
+  const languageOptions = [
+    { value: 'mk', label: 'MK (МК)' },
+    { value: 'en', label: 'EN' },
+  ];
 
   return (
     <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
@@ -53,16 +60,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
 
       <div className="flex items-center gap-2 sm:gap-4">
         {/* Language Switcher (EN & MK) */}
-        <div className="flex items-center border border-border rounded-lg bg-card px-2.5 py-1 gap-1 text-xs font-medium">
-          <Globe className="w-3.5 h-3.5 text-muted-foreground" />
-          <select
+        <div className="flex items-center border border-border rounded-lg bg-card px-2 py-0.5 gap-1.5 text-xs font-medium min-w-[110px]">
+          <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <SearchableSelect
+            options={languageOptions}
             value={locale}
-            onChange={(e) => setLocale(e.target.value as Locale)}
-            className="bg-transparent text-foreground outline-none cursor-pointer font-bold"
-          >
-            <option value="mk">MK (МК)</option>
-            <option value="en">EN</option>
-          </select>
+            onChange={(val) => setLocale(val as Locale)}
+            className="border-0 bg-transparent py-0 px-1 text-xs font-bold text-foreground shadow-none"
+            searchPlaceholder="Language..."
+          />
         </div>
 
         {/* User Profile & Sign-out */}

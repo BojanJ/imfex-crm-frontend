@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfile } from '@/types';
 import { imfexStore } from '@/lib/store';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Wrench,
   ArrowLeft,
@@ -166,47 +167,51 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
 
             <div>
               <label className="block font-semibold mb-1 text-muted-foreground">{t('service.status')}</label>
-              <select
+              <SearchableSelect
+                options={[
+                  { value: 'OPEN', label: 'ОТВОРЕНО' },
+                  { value: 'ASSIGNED', label: 'ДОДЕЛЕНО' },
+                  { value: 'IN_PROGRESS', label: 'ВО ТЕК' },
+                  { value: 'COMPLETED', label: 'ЗАВРШЕНО' },
+                  { value: 'CLOSED', label: 'ЗАТВОРЕНО' },
+                ]}
                 value={status}
-                onChange={(e) => setStatus(e.target.value as ServiceStatus)}
+                onChange={(val) => setStatus(val as ServiceStatus)}
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-extrabold text-primary outline-none"
-              >
-                <option value="OPEN">ОТВОРЕНО</option>
-                <option value="ASSIGNED">ДОДЕЛЕНО</option>
-                <option value="IN_PROGRESS">ВО ТЕК</option>
-                <option value="COMPLETED">ЗАВРШЕНО</option>
-                <option value="CLOSED">ЗАТВОРЕНО</option>
-              </select>
+              />
             </div>
 
             <div>
               <label className="block font-semibold mb-1 text-muted-foreground">{t('service.priority')}</label>
-              <select
+              <SearchableSelect
+                options={[
+                  { value: 'LOW', label: 'НИЗОК' },
+                  { value: 'MEDIUM', label: 'СРЕДЕН' },
+                  { value: 'HIGH', label: 'ВИСОК' },
+                  { value: 'URGENT', label: 'ИТНО' },
+                ]}
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as ServicePriority)}
+                onChange={(val) => setPriority(val as ServicePriority)}
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none text-red-500"
-              >
-                <option value="LOW">НИЗОК</option>
-                <option value="MEDIUM">СРЕДЕН</option>
-                <option value="HIGH">ВИСОК</option>
-                <option value="URGENT">ИТНО</option>
-              </select>
+              />
             </div>
 
             <div>
               <label className="block font-semibold mb-1 text-muted-foreground">{t('service.technician')}</label>
-              <select
+              <SearchableSelect
+                options={[
+                  { value: '', label: '-- Додели Техничар --' },
+                  ...profiles.map((p) => ({
+                    value: p.id,
+                    label: `${p.fullName} (${p.role})`,
+                  })),
+                ]}
                 value={assignedTechnicianId}
-                onChange={(e) => setAssignedTechnicianId(e.target.value)}
+                onChange={(val) => setAssignedTechnicianId(val)}
+                placeholder="-- Додели Техничар --"
+                searchPlaceholder="Пребарај техничар..."
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
-              >
-                <option value="">-- Додели Техничар --</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.fullName} ({p.role})
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             <div>
