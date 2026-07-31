@@ -13,6 +13,7 @@ import {
   ProjectStatus,
   ServicePriority,
   ServiceStatus,
+  CalendarEvent,
 } from '@/types';
 
 const getApiUrl = () => {
@@ -28,6 +29,7 @@ class ImfexStore {
   private serviceTickets: ServiceTicket[] = [];
   private installedItems: InstalledItem[] = [];
   private documents: ClientDocument[] = [];
+  private calendarEvents: CalendarEvent[] = [];
   private currentUser: UserProfile | null = null;
   private isLoadedFromBackend: boolean = false;
   private listeners: Array<() => void> = [];
@@ -40,6 +42,14 @@ class ImfexStore {
           this.currentUser = JSON.parse(storedUser);
         } catch (e) {}
       }
+
+      const storedEvents = localStorage.getItem('imfex_calendar_events');
+      if (storedEvents) {
+        try {
+          this.calendarEvents = JSON.parse(storedEvents);
+        } catch (e) {}
+      }
+
       this.fetchInitialDataFromBackend();
     }
   }
@@ -533,6 +543,77 @@ class ImfexStore {
       body: JSON.stringify(ticket),
     }).catch(console.warn);
     return ticket;
+  }
+
+  // Calendar Events Management
+  getCalendarEvents(): CalendarEvent[] {
+    const customEvents = [...this.calendarEvents];
+
+    // Project Events (Generated from Projects targetDeliveryDate / startDate / installationDate)
+    const projectEvents: CalendarEvent[] = this.projects
+      .filter((p) => p.targetDeliveryDate || p.startDate || p.installationDate)
+      .map((p) => {
+        const cust = p.customer || this.getCustomerById(p.customerId);
+        const eventDate = p.targetDeliveryDate || p.installationDate || p.startDate || p.createdAt;
+        return {
+          id: `proj-event-${p.id}`,
+          title: `Project: ${p.projectNumber}`,
+          description: `Status: ${p.status} | Client: ${cust?.companyName || cust?.name || 'N/A'}`,
+          startDate: eventDate,
+          allDay: true,
+          eventType: 'PROJECT',
+          customerId: p.customerId,
+          customer: cust,
+          projectId: p.id,
+          location: p.installationAddress,
+          color: p.status === 'COMPLETED' ? 'emerald' : p.status === 'INSTALLATION' ? 'amber' : 'blue',
+          createdAt: p.createdAt,
+        };
+      });
+
+    // Service Ticket Events (Generated from Service Tickets scheduledDate)
+    const serviceEvents: CalendarEvent[] = this.serviceTickets
+      .filter((s) => s.scheduledDate)
+      .map((s) => {
+        const cust = s.customer || this.getCustomerById(s.customerId);
+        return {
+          id: `serv-event-${s.id}`,
+          title: `Service: ${s.ticketNumber} (${s.priority})`,
+          description: `Defect: ${s.defectDescription} | Tech: ${s.assignedTechnician?.fullName || 'Unassigned'}`,
+          startDate: s.scheduledDate!,
+          allDay: !s.scheduledDate?.includes('T'),
+          eventType: 'SERVICE',
+          customerId: s.customerId,
+          customer: cust,
+          serviceTicketId: s.id,
+          color: s.priority === 'URGENT' || s.priority === 'HIGH' ? 'red' : 'purple',
+          createdAt: s.createdAt,
+        };
+      });
+
+    return [...customEvents, ...projectEvents, ...serviceEvents];
+  }
+
+  saveCalendarEvent(event: CalendarEvent): CalendarEvent {
+    const idx = this.calendarEvents.findIndex((e) => e.id === event.id);
+    if (idx >= 0) {
+      this.calendarEvents[idx] = event;
+    } else {
+      this.calendarEvents.push(event);
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+    }
+    this.notifyListeners();
+    return event;
+  }
+
+  deleteCalendarEvent(id: string) {
+    this.calendarEvents = this.calendarEvents.filter((e) => e.id !== id);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+    }
+    this.notifyListeners();
   }
 }
 

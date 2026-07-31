@@ -12,6 +12,7 @@ import {
   Settings,
   Briefcase,
   Wrench,
+  Calendar,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -63,6 +64,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t('nav.service'),
       href: '/service',
       icon: Wrench,
+    },
+    {
+      label: t('nav.calendar'),
+      href: '/calendar',
+      icon: Calendar,
     },
     {
       label: t('nav.settings'),

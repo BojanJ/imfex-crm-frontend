@@ -185,3 +185,22 @@ export interface ServiceTicket {
   closedAt?: string;
   createdAt: string;
 }
+
+export type CalendarEventType = 'EVENT' | 'PROJECT' | 'SERVICE' | 'MEETING' | 'INSTALLATION' | 'MAINTENANCE';
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startDate: string; // ISO date string (YYYY-MM-DD or YYYY-MM-DDTHH:mm)
+  endDate?: string;
+  allDay?: boolean;
+  eventType: CalendarEventType;
+  customerId?: string;
+  customer?: Customer;
+  projectId?: string;
+  serviceTicketId?: string;
+  location?: string;
+  color?: string;
+  createdAt: string;
+}
