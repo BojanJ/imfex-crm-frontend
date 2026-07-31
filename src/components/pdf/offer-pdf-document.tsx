@@ -300,8 +300,8 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
                 </Text>
                 
                 <Text style={styles.colQty}>{item.quantity}</Text>
-                <Text style={styles.colPrice}>{Number(item.unitPrice).toFixed(2)} €</Text>
-                <Text style={styles.colTotal}>{Number(item.totalPrice).toFixed(2)} €</Text>
+                <Text style={styles.colPrice}>{Number(item.unitPrice || 0).toFixed(2)} €</Text>
+                <Text style={styles.colTotal}>{Number(item.totalPrice || 0).toFixed(2)} €</Text>
               </View>
             );
           })}
@@ -312,15 +312,15 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
           <View style={styles.totalsBox}>
             <View style={styles.summaryRow}>
               <Text style={{ color: '#475569' }}>Subtotal:</Text>
-              <Text style={{ fontWeight: 'bold' }}>{Number(offer.subtotal).toFixed(2)} €</Text>
+              <Text style={{ fontWeight: 'bold' }}>{Number(offer.subtotal || 0).toFixed(2)} €</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={{ color: '#475569' }}>Tax ({offer.taxRate}%):</Text>
-              <Text style={{ fontWeight: 'bold' }}>{Number(offer.taxAmount).toFixed(2)} €</Text>
+              <Text style={{ color: '#475569' }}>Tax ({offer.taxRate || 18}%):</Text>
+              <Text style={{ fontWeight: 'bold' }}>{Number(offer.taxAmount || 0).toFixed(2)} €</Text>
             </View>
             <View style={styles.grandTotalRow}>
               <Text>TOTAL AMOUNT:</Text>
-              <Text style={{ color: '#2563eb' }}>{Number(offer.totalAmount).toFixed(2)} €</Text>
+              <Text style={{ color: '#2563eb' }}>{Number(offer.totalAmount || 0).toFixed(2)} €</Text>
             </View>
           </View>
         </View>

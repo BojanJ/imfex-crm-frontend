@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Customer, Offer, OfferItem, OfferStatus, Product, ServiceType } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { useI18n } from '@/lib/i18n-context';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
@@ -34,6 +35,9 @@ interface OfferBuilderFormProps {
 
 export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffer }) => {
   const router = useRouter();
+  const { t } = useI18n();
+  useImfexStore(); // Auto-subscribe to store updates
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
@@ -48,23 +52,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   );
 
   const [items, setItems] = useState<OfferItem[]>(
-    existingOffer?.items || [
-      {
-        id: `item-${Date.now()}`,
-        serviceTypes: ['PRODUCT', 'INSTALLATION'],
-        productId: 'prod-gar-01',
-        productModelId: 'mod-gar-1',
-        customTitle: 'Main Entrance Sectional Garage Door',
-        widthMm: 4000,
-        heightMm: 3000,
-        quantity: 1,
-        unitPrice: 945,
-        totalPrice: 945,
-        specifications: [
-          { specificationKeyId: 'spec-gar-panel', specificationOptionId: 'opt-gar-p2' },
-        ],
-      },
-    ]
+    existingOffer?.items || []
   );
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -73,15 +61,45 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [emailSuccessMsg, setEmailSuccessMsg] = useState('');
   const [savedOfferForPdf, setSavedOfferForPdf] = useState<Offer | null>(existingOffer || null);
 
+  // Sync customers and products when store updates
   useEffect(() => {
-    setCustomers(imfexStore.getCustomers());
+    const custs = imfexStore.getCustomers();
     const prods = imfexStore.getProducts();
+    setCustomers(custs);
     setProducts(prods);
 
-    if (!selectedCustomerId && customers.length > 0) {
-      setSelectedCustomerId(customers[0].id);
+    if (existingOffer) {
+      if (existingOffer.customerId) {
+        setSelectedCustomerId(existingOffer.customerId);
+      }
+      if (existingOffer.items && existingOffer.items.length > 0) {
+        setItems(existingOffer.items);
+      }
+    } else {
+      if (!selectedCustomerId && custs.length > 0) {
+        setSelectedCustomerId(custs[0].id);
+      }
+      if (items.length === 0 && prods.length > 0) {
+        const firstProd = prods[0];
+        const firstModel = firstProd?.models[0];
+        setItems([
+          {
+            id: `item-${Date.now()}`,
+            serviceTypes: ['PRODUCT', 'INSTALLATION'],
+            productId: firstProd.id,
+            productModelId: firstModel?.id,
+            customTitle: `${firstProd.name}`,
+            widthMm: 4000,
+            heightMm: 3000,
+            quantity: 1,
+            unitPrice: Number(firstModel?.basePrice || 945),
+            totalPrice: Number(firstModel?.basePrice || 945),
+            specifications: [],
+          },
+        ]);
+      }
     }
-  }, []);
+  }, [imfexStore.getCustomers().length, imfexStore.getProducts().length, existingOffer?.id]);
 
   const refreshCustomers = () => {
     const list = imfexStore.getCustomers();
@@ -722,21 +740,21 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="flex items-center gap-6 text-xs">
             <div>
               <span className="text-muted-foreground block text-[10px] uppercase font-bold">Subtotal</span>
-              <span className="font-bold text-sm">€{subtotal.toFixed(2)}</span>
+              <span className="font-bold text-sm">€{Number(subtotal || 0).toFixed(2)}</span>
             </div>
             {discountRate > 0 && (
               <div>
                 <span className="text-muted-foreground block text-[10px] uppercase font-bold text-emerald-600">Discount ({discountRate}%)</span>
-                <span className="font-bold text-sm text-emerald-600">-€{discountAmount.toFixed(2)}</span>
+                <span className="font-bold text-sm text-emerald-600">-€{Number(discountAmount || 0).toFixed(2)}</span>
               </div>
             )}
             <div>
               <span className="text-muted-foreground block text-[10px] uppercase font-bold">VAT ({taxRate}%)</span>
-              <span className="font-bold text-sm text-muted-foreground">€{taxAmount.toFixed(2)}</span>
+              <span className="font-bold text-sm text-muted-foreground">€{Number(taxAmount || 0).toFixed(2)}</span>
             </div>
             <div className="pl-4 border-l border-border">
               <span className="text-muted-foreground block text-[10px] uppercase font-extrabold text-primary">Grand Total</span>
-              <span className="font-black text-xl text-primary">€{totalAmount.toFixed(2)}</span>
+              <span className="font-black text-xl text-primary">€{Number(totalAmount || 0).toFixed(2)}</span>
             </div>
           </div>
 
