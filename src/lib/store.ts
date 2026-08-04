@@ -723,17 +723,20 @@ class ImfexStore {
   getCalendarEvents(): CalendarEvent[] {
     const customEvents = [...this.calendarEvents];
 
-    // Project Events (Generated from Projects targetDeliveryDate / startDate / installationDate)
-    const projectEvents: CalendarEvent[] = this.projects
-      .filter((p) => p.targetDeliveryDate || p.startDate || p.installationDate)
-      .map((p) => {
-        const cust = p.customer || this.getCustomerById(p.customerId);
-        const eventDate = p.targetDeliveryDate || p.installationDate || p.startDate || p.createdAt;
-        return {
-          id: `proj-event-${p.id}`,
-          title: `Project: ${p.projectNumber}`,
-          description: `Status: ${p.status} | Client: ${cust?.companyName || cust?.name || 'N/A'}`,
-          startDate: eventDate,
+    // Project Events (Generated from Projects startDate, installationDate, and targetDeliveryDate)
+    const projectEvents: CalendarEvent[] = [];
+    this.projects.forEach((p) => {
+      const cust = p.customer || this.getCustomerById(p.customerId);
+      const clientName = cust?.companyName || cust?.name || 'N/A';
+
+      // 1. Project Start Event (appears on project start date)
+      const startDateStr = p.startDate ? (typeof p.startDate === 'string' ? p.startDate.split('T')[0] : new Date(p.startDate).toISOString().split('T')[0]) : null;
+      if (startDateStr) {
+        projectEvents.push({
+          id: `proj-start-${p.id}`,
+          title: `Project Start: ${p.projectNumber}`,
+          description: `Status: ${p.status} | Client: ${clientName}`,
+          startDate: startDateStr,
           allDay: true,
           eventType: 'PROJECT',
           customerId: p.customerId,
@@ -742,8 +745,66 @@ class ImfexStore {
           location: p.installationAddress,
           color: p.status === 'COMPLETED' ? 'emerald' : p.status === 'INSTALLATION' ? 'amber' : 'blue',
           createdAt: p.createdAt,
-        };
-      });
+        });
+      }
+
+      // 2. Installation Event (if installation date is set and different from start date)
+      const installDateStr = p.installationDate ? (typeof p.installationDate === 'string' ? p.installationDate.split('T')[0] : new Date(p.installationDate).toISOString().split('T')[0]) : null;
+      if (installDateStr && installDateStr !== startDateStr) {
+        projectEvents.push({
+          id: `proj-install-${p.id}`,
+          title: `Installation: ${p.projectNumber}`,
+          description: `Status: ${p.status} | Contact: ${p.installationContact || clientName}`,
+          startDate: installDateStr,
+          allDay: true,
+          eventType: 'INSTALLATION',
+          customerId: p.customerId,
+          customer: cust,
+          projectId: p.id,
+          location: p.installationAddress,
+          color: 'amber',
+          createdAt: p.createdAt,
+        });
+      }
+
+      // 3. Target Delivery Event (if target delivery date is set and different from start/installation date)
+      const deliveryDateStr = p.targetDeliveryDate ? (typeof p.targetDeliveryDate === 'string' ? p.targetDeliveryDate.split('T')[0] : new Date(p.targetDeliveryDate).toISOString().split('T')[0]) : null;
+      if (deliveryDateStr && deliveryDateStr !== startDateStr && deliveryDateStr !== installDateStr) {
+        projectEvents.push({
+          id: `proj-delivery-${p.id}`,
+          title: `Target Delivery: ${p.projectNumber}`,
+          description: `Status: ${p.status} | Client: ${clientName}`,
+          startDate: deliveryDateStr,
+          allDay: true,
+          eventType: 'PROJECT',
+          customerId: p.customerId,
+          customer: cust,
+          projectId: p.id,
+          location: p.installationAddress,
+          color: p.status === 'COMPLETED' ? 'emerald' : 'purple',
+          createdAt: p.createdAt,
+        });
+      }
+
+      // Fallback: If project has no start/install/delivery dates, show on createdAt date
+      if (!startDateStr && !installDateStr && !deliveryDateStr && p.createdAt) {
+        const createdDateStr = p.createdAt.split('T')[0];
+        projectEvents.push({
+          id: `proj-created-${p.id}`,
+          title: `Project: ${p.projectNumber}`,
+          description: `Status: ${p.status} | Client: ${clientName}`,
+          startDate: createdDateStr,
+          allDay: true,
+          eventType: 'PROJECT',
+          customerId: p.customerId,
+          customer: cust,
+          projectId: p.id,
+          location: p.installationAddress,
+          color: 'blue',
+          createdAt: p.createdAt,
+        });
+      }
+    });
 
     // Service Ticket Events (Generated from Service Tickets scheduledDate)
     const serviceEvents: CalendarEvent[] = this.serviceTickets
