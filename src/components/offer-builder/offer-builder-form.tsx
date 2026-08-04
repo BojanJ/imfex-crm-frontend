@@ -54,7 +54,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   );
 
   const [items, setItems] = useState<OfferItem[]>(
-    existingOffer?.items || []
+    (existingOffer?.items || []).map((it) => ({ ...it, specifications: it.specifications || [] }))
   );
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -75,7 +75,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         setSelectedCustomerId(existingOffer.customerId);
       }
       if (existingOffer.items && existingOffer.items.length > 0) {
-        setItems(existingOffer.items);
+        setItems(existingOffer.items.map((it) => ({ ...it, specifications: it.specifications || [] })));
       }
     } else {
       if (urlCustomerId) {
@@ -118,7 +118,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const model = product.models.find((m) => m.id === item.productModelId);
     let price = Number(model?.basePrice || 0);
 
-    item.specifications.forEach((specSel) => {
+    (item.specifications || []).forEach((specSel) => {
       const key = product.specificationKeys.find((k) => k.id === specSel.specificationKeyId);
       if (key && specSel.specificationOptionId) {
         const option = key.options.find((o) => o.id === specSel.specificationOptionId);
@@ -197,7 +197,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     customValue?: string
   ) => {
     const item = items[itemIndex];
-    const existingSpecs = [...item.specifications];
+    const existingSpecs = [...(item.specifications || [])];
     const specIdx = existingSpecs.findIndex((s) => s.specificationKeyId === specKeyId);
 
     if (specIdx >= 0) {
@@ -655,7 +655,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {selectedProd?.specificationKeys.map((key) => {
-                            const specSel = item.specifications.find((s) => s.specificationKeyId === key.id);
+                            const specSel = (item.specifications || []).find((s) => s.specificationKeyId === key.id);
 
                             return (
                               <div key={key.id} className="space-y-1">

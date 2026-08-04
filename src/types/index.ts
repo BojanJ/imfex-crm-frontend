@@ -89,7 +89,7 @@ export interface OfferItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  specifications: OfferItemSpecSelection[];
+  specifications?: OfferItemSpecSelection[];
 }
 
 export interface Offer {
