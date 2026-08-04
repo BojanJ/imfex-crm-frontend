@@ -69,13 +69,16 @@ class ImfexStore {
   async fetchInitialDataFromBackend() {
     const baseUrl = getApiUrl();
     try {
-      const [resProd, resCust, resOff, resProj, resServ, resProf] = await Promise.all([
+      const [resProd, resCust, resOff, resProj, resServ, resProf, resCal, resInst, resDocs] = await Promise.all([
         fetch(`${baseUrl}/api/products`).catch(() => null),
         fetch(`${baseUrl}/api/customers`).catch(() => null),
         fetch(`${baseUrl}/api/offers`).catch(() => null),
         fetch(`${baseUrl}/api/projects`).catch(() => null),
         fetch(`${baseUrl}/api/service-tickets`).catch(() => null),
         fetch(`${baseUrl}/api/profiles`).catch(() => null),
+        fetch(`${baseUrl}/api/calendar-events`).catch(() => null),
+        fetch(`${baseUrl}/api/installed-items`).catch(() => null),
+        fetch(`${baseUrl}/api/client-documents`).catch(() => null),
       ]);
 
       if (resProd && resProd.ok) this.products = await resProd.json();
@@ -84,6 +87,17 @@ class ImfexStore {
       if (resProj && resProj.ok) this.projects = await resProj.json();
       if (resServ && resServ.ok) this.serviceTickets = await resServ.json();
       if (resProf && resProf.ok) this.profiles = await resProf.json();
+      if (resInst && resInst.ok) this.installedItems = await resInst.json();
+      if (resDocs && resDocs.ok) this.documents = await resDocs.json();
+      if (resCal && resCal.ok) {
+        const dbEvents = await resCal.json();
+        if (Array.isArray(dbEvents) && dbEvents.length > 0) {
+          this.calendarEvents = dbEvents;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+          }
+        }
+      }
 
       this.isLoadedFromBackend = true;
       this.notifyListeners();
@@ -111,6 +125,12 @@ class ImfexStore {
       this.offers = [];
       this.projects = [];
       this.serviceTickets = [];
+      this.installedItems = [];
+      this.documents = [];
+      this.calendarEvents = [];
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('imfex_calendar_events');
+      }
       await this.fetchInitialDataFromBackend();
       this.notifyListeners();
     } catch (e) {
@@ -216,6 +236,12 @@ class ImfexStore {
       }
       this.notifyListeners();
     }
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/profiles/${profile.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile),
+    }).catch(console.warn);
     return profile;
   }
 
@@ -226,6 +252,12 @@ class ImfexStore {
       user.password = tempPass;
       user.mustChangePassword = true;
       this.notifyListeners();
+      const baseUrl = getApiUrl();
+      fetch(`${baseUrl}/api/profiles/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: tempPass }),
+      }).catch(console.warn);
     }
     return tempPass;
   }
@@ -239,6 +271,12 @@ class ImfexStore {
         this.currentUser.mustChangePassword = false;
       }
       this.notifyListeners();
+      const baseUrl = getApiUrl();
+      fetch(`${baseUrl}/api/profiles/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      }).catch(console.warn);
       return true;
     }
     return false;
@@ -249,6 +287,12 @@ class ImfexStore {
     if (user) {
       user.status = user.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
       this.notifyListeners();
+      const baseUrl = getApiUrl();
+      fetch(`${baseUrl}/api/profiles/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: user.status }),
+      }).catch(console.warn);
     }
     return user;
   }
@@ -256,6 +300,8 @@ class ImfexStore {
   deleteUserProfile(id: string) {
     this.profiles = this.profiles.filter((p) => p.id !== id);
     this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/profiles/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Products
@@ -302,6 +348,8 @@ class ImfexStore {
   deleteProduct(id: string) {
     this.products = this.products.filter((p) => p.id !== id);
     this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/products/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Customers
@@ -344,6 +392,8 @@ class ImfexStore {
   deleteCustomer(id: string) {
     this.customers = this.customers.filter((c) => c.id !== id);
     this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/customers/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Offers & 4.1 Sales Workflow
@@ -416,6 +466,8 @@ class ImfexStore {
   deleteOffer(id: string) {
     this.offers = this.offers.filter((o) => o.id !== id);
     this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/offers/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Documents & Client Documentation
@@ -431,7 +483,29 @@ class ImfexStore {
       this.documents.push(doc);
     }
     this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/client-documents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(doc),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedDoc) => {
+        if (savedDoc && savedDoc.id) {
+          const freshIdx = this.documents.findIndex((d) => d.id === doc.id || d.id === savedDoc.id);
+          if (freshIdx >= 0) this.documents[freshIdx] = savedDoc;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveDocument API notice:', e));
     return doc;
+  }
+
+  deleteDocument(id: string) {
+    this.documents = this.documents.filter((d) => d.id !== id);
+    this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/client-documents/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Projects & 4.2 Operational Workflow
@@ -477,7 +551,7 @@ class ImfexStore {
       startDate: new Date().toISOString().split('T')[0],
       targetDeliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       procurementStatus: 'NOT_STARTED',
-      procurementNotes: `Генерирано од прифатена понуда ${offer.offerNumber}. Ставки: ${offer.items.map((i) => i.customTitle).join(', ')}`,
+      procurementNotes: `Генерирано од прифатена понуда ${offer.offerNumber}. Ставки: ${offer.items?.map((i) => i.customTitle).join(', ') || ''}`,
       installationAddress: cust?.address ? `${cust.address}, ${cust.city || ''}` : '',
       installationContact: `${cust?.name || ''} (${cust?.phone || ''})`,
       createdAt: new Date().toISOString(),
@@ -490,7 +564,16 @@ class ImfexStore {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProject),
-    }).catch(console.warn);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedProj) => {
+        if (savedProj && savedProj.id) {
+          const freshIdx = this.projects.findIndex((p) => p.id === newProject.id || p.projectNumber === newProject.projectNumber || p.id === savedProj.id);
+          if (freshIdx >= 0) this.projects[freshIdx] = savedProj;
+          this.notifyListeners();
+        }
+      })
+      .catch(console.warn);
     return newProject;
   }
 
@@ -502,7 +585,31 @@ class ImfexStore {
       this.projects.push(project);
     }
     this.notifyListeners();
+
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(project),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedProj) => {
+        if (savedProj && savedProj.id) {
+          const freshIdx = this.projects.findIndex((p) => p.id === project.id || p.projectNumber === project.projectNumber || p.id === savedProj.id);
+          if (freshIdx >= 0) this.projects[freshIdx] = savedProj;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveProject API notice:', e));
+
     return project;
+  }
+
+  deleteProject(id: string) {
+    this.projects = this.projects.filter((p) => p.id !== id);
+    this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/projects/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Installed Equipment Registry
@@ -522,7 +629,31 @@ class ImfexStore {
       this.installedItems.push(item);
     }
     this.notifyListeners();
+
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/installed-items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(item),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedItem) => {
+        if (savedItem && savedItem.id) {
+          const freshIdx = this.installedItems.findIndex((i) => i.id === item.id || i.id === savedItem.id);
+          if (freshIdx >= 0) this.installedItems[freshIdx] = savedItem;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveInstalledItem API notice:', e));
+
     return item;
+  }
+
+  deleteInstalledItem(id: string) {
+    this.installedItems = this.installedItems.filter((i) => i.id !== id);
+    this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/installed-items/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Service Tickets & 4.3 Service Workflow
@@ -567,8 +698,25 @@ class ImfexStore {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ticket),
-    }).catch(console.warn);
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedTicket) => {
+        if (savedTicket && savedTicket.id) {
+          const freshIdx = this.serviceTickets.findIndex((t) => t.id === ticket.id || t.ticketNumber === ticket.ticketNumber || t.id === savedTicket.id);
+          if (freshIdx >= 0) this.serviceTickets[freshIdx] = savedTicket;
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveServiceTicket API notice:', e));
+
     return ticket;
+  }
+
+  deleteServiceTicket(id: string) {
+    this.serviceTickets = this.serviceTickets.filter((st) => st.id !== id);
+    this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/service-tickets/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Calendar Events Management
@@ -631,6 +779,14 @@ class ImfexStore {
       localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
     }
     this.notifyListeners();
+
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/calendar-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    }).catch(console.warn);
+
     return event;
   }
 
@@ -640,6 +796,11 @@ class ImfexStore {
       localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
     }
     this.notifyListeners();
+
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/calendar-events/${id}`, {
+      method: 'DELETE',
+    }).catch(console.warn);
   }
 }
 

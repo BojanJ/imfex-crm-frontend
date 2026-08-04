@@ -315,6 +315,8 @@ export default function CalendarPage() {
               { id: 'PROJECT', label: 'Projects' },
               { id: 'SERVICE', label: 'Service' },
               { id: 'MEETING', label: 'Meetings' },
+              { id: 'INSTALLATION', label: 'Installations' },
+              { id: 'MAINTENANCE', label: 'Maintenance' },
             ].map((f) => (
               <button
                 key={f.id}

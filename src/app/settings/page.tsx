@@ -365,7 +365,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-muted-foreground leading-relaxed">
-              This action will permanently delete <strong>all test Customers, Products, Offers, Projects, Service Tickets, and Documents</strong>.
+              This action will permanently delete <strong>all test Customers, Products, Offers, Projects, Service Tickets, Documents, and Calendar Events</strong>.
             </p>
 
             <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 font-semibold space-y-1">

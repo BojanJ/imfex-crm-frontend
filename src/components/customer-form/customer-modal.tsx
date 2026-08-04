@@ -76,8 +76,9 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         ? `${firstName.trim()} ${lastName.trim()}`.trim() || 'Unnamed Individual'
         : name.trim() || companyName.trim() || 'Unnamed Company';
 
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cust-${Date.now()}`;
     const payload: Customer = {
-      id: customerToEdit?.id || `cust-${Date.now()}`,
+      id: customerToEdit?.id || newId,
       customerType,
       name: finalName,
       companyName: customerType !== 'INDIVIDUAL' ? companyName : undefined,
