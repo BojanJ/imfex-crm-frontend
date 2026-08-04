@@ -54,7 +54,12 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   );
 
   const [items, setItems] = useState<OfferItem[]>(
-    (existingOffer?.items || []).map((it) => ({ ...it, specifications: it.specifications || [] }))
+    (existingOffer?.items || []).map((it) => ({
+      ...it,
+      specifications: (it.specifications && it.specifications.length > 0)
+        ? it.specifications
+        : ((it as any).offerItemSpecifications || []),
+    }))
   );
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -75,7 +80,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         setSelectedCustomerId(existingOffer.customerId);
       }
       if (existingOffer.items && existingOffer.items.length > 0) {
-        setItems(existingOffer.items.map((it) => ({ ...it, specifications: it.specifications || [] })));
+        setItems(
+          existingOffer.items.map((it) => ({
+            ...it,
+            specifications: (it.specifications && it.specifications.length > 0)
+              ? it.specifications
+              : ((it as any).offerItemSpecifications || []),
+          }))
+        );
       }
     } else {
       if (urlCustomerId) {

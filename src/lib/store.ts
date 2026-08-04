@@ -83,7 +83,20 @@ class ImfexStore {
 
       if (resProd && resProd.ok) this.products = await resProd.json();
       if (resCust && resCust.ok) this.customers = await resCust.json();
-      if (resOff && resOff.ok) this.offers = await resOff.json();
+      if (resOff && resOff.ok) {
+        const dbOffers = await resOff.json();
+        if (Array.isArray(dbOffers)) {
+          this.offers = dbOffers.map((o: any) => ({
+            ...o,
+            items: (o.items || []).map((it: any) => ({
+              ...it,
+              specifications: (it.specifications && it.specifications.length > 0)
+                ? it.specifications
+                : (it.offerItemSpecifications || []),
+            })),
+          }));
+        }
+      }
       if (resProj && resProj.ok) this.projects = await resProj.json();
       if (resServ && resServ.ok) this.serviceTickets = await resServ.json();
       if (resProf && resProf.ok) this.profiles = await resProf.json();
@@ -438,8 +451,17 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedOffer) => {
         if (savedOffer && savedOffer.id) {
+          const formatted = {
+            ...savedOffer,
+            items: (savedOffer.items || []).map((it: any) => ({
+              ...it,
+              specifications: (it.specifications && it.specifications.length > 0)
+                ? it.specifications
+                : (it.offerItemSpecifications || []),
+            })),
+          };
           const freshIdx = this.offers.findIndex((o) => o.id === offer.id || o.id === savedOffer.id);
-          if (freshIdx >= 0) this.offers[freshIdx] = savedOffer;
+          if (freshIdx >= 0) this.offers[freshIdx] = formatted;
           this.notifyListeners();
         }
       })
