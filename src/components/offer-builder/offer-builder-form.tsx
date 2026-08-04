@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Customer, Offer, OfferItem, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
@@ -35,13 +35,15 @@ interface OfferBuilderFormProps {
 
 export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffer }) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlCustomerId = searchParams ? searchParams.get('customerId') : null;
   const { t } = useI18n();
   useImfexStore(); // Auto-subscribe to store updates
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    existingOffer?.customerId || ''
+    existingOffer?.customerId || urlCustomerId || ''
   );
 
   const [status, setStatus] = useState<OfferStatus>(existingOffer?.status || 'DRAFT');
@@ -76,7 +78,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         setItems(existingOffer.items);
       }
     } else {
-      if (!selectedCustomerId && custs.length > 0) {
+      if (urlCustomerId) {
+        setSelectedCustomerId(urlCustomerId);
+      } else if (!selectedCustomerId && custs.length > 0) {
         setSelectedCustomerId(custs[0].id);
       }
       if (items.length === 0 && prods.length > 0) {

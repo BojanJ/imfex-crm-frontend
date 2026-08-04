@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
@@ -170,6 +171,13 @@ export default function CustomersPage() {
                     </div>
 
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/offers/new?customerId=${customer.id}`}
+                        className="p-1.5 text-emerald-600 hover:bg-emerald-500/10 rounded-lg"
+                        title="Create Offer for Customer"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </Link>
                       <button
                         onClick={() => {
                           setEditingCustomer(customer);
@@ -210,9 +218,15 @@ export default function CustomersPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-border flex items-center justify-between text-[11px] font-bold text-primary">
-                  <span>{t('customers.view_history')}</span>
-                  <span>→</span>
+                <div className="pt-2 border-t border-border flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-primary">{t('customers.view_history')} →</span>
+                  <Link
+                    href={`/offers/new?customerId=${customer.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                  >
+                    + {t('offers.create_offer') || 'Create Offer'}
+                  </Link>
                 </div>
               </div>
             );
@@ -235,12 +249,21 @@ export default function CustomersPage() {
                 </p>
               </div>
 
-              <button
-                onClick={() => setActiveCustomerDetail(null)}
-                className="text-xs text-muted-foreground hover:text-foreground font-bold border border-border px-2.5 py-1 rounded-lg"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/offers/new?customerId=${activeCustomerDetail.id}`}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+                >
+                  <FileText className="w-4 h-4" /> {t('offers.create_offer') || 'Create Offer'}
+                </Link>
+
+                <button
+                  onClick={() => setActiveCustomerDetail(null)}
+                  className="text-xs text-muted-foreground hover:text-foreground font-bold border border-border px-2.5 py-1.5 rounded-xl hover:bg-muted"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Sub-tabs */}
