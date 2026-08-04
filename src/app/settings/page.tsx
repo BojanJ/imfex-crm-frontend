@@ -23,6 +23,8 @@ import {
   Trash2,
 } from 'lucide-react';
 
+import { toast } from '@/components/ui/toastr';
+
 export default function SettingsPage() {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY'>('USERS');
@@ -36,6 +38,7 @@ export default function SettingsPage() {
     setSyncStatusMsg('Syncing with PostgreSQL database and purging corrupted records...');
     await imfexStore.purgeCorruptedAndSyncBackend();
     setIsSyncing(false);
+    toast.success('Синхронизацијата е завршена!', 'Базата на податоци е успешно синхронизирана со PostgreSQL.');
     setSyncStatusMsg('Database clean & synchronization complete!');
     setTimeout(() => setSyncStatusMsg(''), 4000);
   };
@@ -45,6 +48,7 @@ export default function SettingsPage() {
     await imfexStore.resetDatabaseToFreshState();
     setIsResetting(false);
     setShowResetModal(false);
+    toast.warning('Базата е ресетирана!', 'Базата е поставена на чиста состојба.');
     setSyncStatusMsg('Database cleanly reset to 0 records. Only admin & sales users remain active.');
     setTimeout(() => setSyncStatusMsg(''), 5000);
   };

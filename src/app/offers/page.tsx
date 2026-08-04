@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { toast } from '@/components/ui/toastr';
 
 export default function OffersPage() {
   const { t } = useI18n();
@@ -49,15 +50,18 @@ export default function OffersPage() {
   }, [imfexStore.getOffers().length]);
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this offer record?')) {
+    if (confirm('Дали сте сигурни дека сакате да ја избришете оваа понуда?')) {
       imfexStore.deleteOffer(id);
       refreshList();
+      toast.info('Понудата е избришана');
     }
   };
 
   const handleSetStatus = (id: string, st: any) => {
+    const offer = offers.find((o) => o.id === id);
     imfexStore.setOfferStatus(id, st);
     refreshList();
+    toast.success('Статусот е ажуриран!', `Понудата ${offer?.offerNumber || ''} е поставена во ${st}.`);
   };
 
   const filtered = offers.filter((o) => {

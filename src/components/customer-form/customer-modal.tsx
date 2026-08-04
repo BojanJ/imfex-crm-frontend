@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Customer, CustomerType } from '@/types';
 import { imfexStore } from '@/lib/store';
 import { X, Building2, User, UserCheck, ShieldCheck } from 'lucide-react';
+import { toast } from '@/components/ui/toastr';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -92,6 +93,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     };
 
     imfexStore.saveCustomer(payload);
+    toast.success('Клиентот е зачуван!', `Клиентот ${finalName} е снимен во базата.`);
     onSaveSuccess();
     onClose();
   };

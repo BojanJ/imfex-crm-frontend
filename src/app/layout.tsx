@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { I18nProvider } from '@/lib/i18n-context';
+import { ToastProvider } from '@/components/ui/toastr';
 import { LayoutWrapper } from '@/components/layout-wrapper';
 
 export const metadata: Metadata = {
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="bg-background text-foreground antialiased min-h-screen">
         <I18nProvider>
-          <LayoutWrapper>{children}</LayoutWrapper>
+          <ToastProvider>
+            <LayoutWrapper>{children}</LayoutWrapper>
+          </ToastProvider>
         </I18nProvider>
       </body>
     </html>

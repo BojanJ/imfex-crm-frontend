@@ -23,6 +23,8 @@ import {
   FileText,
 } from 'lucide-react';
 
+import { toast } from '@/components/ui/toastr';
+
 export default function CustomersPage() {
   const { t } = useI18n();
   useImfexStore(); // Auto-subscribe to live store updates
@@ -49,10 +51,11 @@ export default function CustomersPage() {
   }, [imfexStore.getCustomers().length]);
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this customer record?')) {
+    if (confirm('Дали сте сигурни дека сакате да го избришете овој клиент?')) {
       imfexStore.deleteCustomer(id);
       if (activeCustomerDetail?.id === id) setActiveCustomerDetail(null);
       refreshList();
+      toast.info('Клиентот е избришан');
     }
   };
 

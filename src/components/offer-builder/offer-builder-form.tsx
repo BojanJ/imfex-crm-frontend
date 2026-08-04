@@ -274,6 +274,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       createdAt: new Date().toISOString(),
     });
 
+    toast.success('Понудата е зачувана!', `Понудата ${saved.offerNumber} е снимена во базата.`);
     return saved;
   };
 
@@ -334,16 +335,19 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       });
 
       if (res.ok) {
+        toast.success('Е-пошта е испратена!', `Понудата ${saved.offerNumber} и PDF се испратени до ${recipientEmail || selectedCustomerObj?.email || 'клиентот'}.`);
         setEmailSuccessMsg('Понудата и PDF документот се успешно испратени по е-пошта! Статусот е ажуриран во SENT.');
         setTimeout(() => {
           setEmailSuccessMsg('');
           setIsEmailModalOpen(false);
-        }, 2200);
+        }, 1500);
       } else {
         const data = await res.json();
+        toast.error('Грешка при испраќање', data.error || 'Настана грешка при испраќање на е-поштата.');
         setEmailErrorMsg(data.error || 'Настана грешка при испраќање на е-поштата.');
       }
     } catch (err: any) {
+      toast.error('Мрежна грешка', 'Неуспешно испраќање на е-пошта.');
       setEmailErrorMsg('Мрежна грешка при испраќање е-пошта.');
     } finally {
       setIsSendingEmail(false);
