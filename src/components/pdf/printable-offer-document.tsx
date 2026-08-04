@@ -132,77 +132,91 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
             <p className="text-xs text-slate-500 font-semibold mt-0.5">Конфигурација на понуденото решение</p>
           </div>
 
-          {/* Key Parameters Grid (6 Cards) */}
+          {/* Key Parameters Grid */}
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">КАТЕГОРИЈА</p>
-              <p className="font-black text-slate-900 text-sm mt-0.5">{firstProduct?.name || 'Резидентна гаражна врата'}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">ВКУПНО СТАВКИ</p>
+              <p className="font-black text-slate-900 text-sm mt-0.5">{offer.items?.length || 0} Конфигурирани ставки</p>
             </div>
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">БРЕНД</p>
-              <p className="font-black text-slate-900 text-sm mt-0.5">HÖRMANN / IMFEX</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">ГЛАВЕН ПРОИЗВОД</p>
+              <p className="font-black text-slate-900 text-sm mt-0.5">{firstProduct?.name || 'IMFEX Системи'}</p>
             </div>
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
               <p className="text-[10px] font-bold text-slate-400 uppercase">МОДЕЛ</p>
-              <p className="font-black text-slate-900 text-sm mt-0.5">{firstModel?.name || 'RenoMatic 42'}</p>
+              <p className="font-black text-slate-900 text-sm mt-0.5">{firstModel?.name || 'Премиум Конфигурација'}</p>
             </div>
             <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">ДИМЕНЗИИ</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase">ДИМЕНЗИИ НА ГЛАВНА СТАВКА</p>
               <p className="font-black text-slate-900 text-sm mt-0.5">
-                {firstItem?.widthMm && firstItem?.heightMm ? `${firstItem.widthMm} x ${firstItem.heightMm} mm` : '3000 x 2280 mm'}
+                {firstItem?.widthMm && firstItem?.heightMm ? `${firstItem.widthMm} x ${firstItem.heightMm} mm` : 'По барање'}
               </p>
             </div>
           </div>
 
-          {/* Detailed Configuration Table */}
-          <div className="space-y-2 pt-4">
-            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">ИЗБРАНА КОНФИГУРАЦИЈА</h3>
-            <div className="border border-slate-200 rounded-xl overflow-hidden text-xs">
-              <table className="w-full text-left">
-                <tbody className="divide-y divide-slate-200">
-                  <tr className="bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-700 w-1/2">Структура на панел</td>
-                    <td className="p-3 font-black text-slate-900">M-Line Стуко втиснат</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-bold text-slate-700">Боја на панел</td>
-                    <td className="p-3 font-black text-slate-900">RAL 7016 - Anthracite Grey (Антрацит)</td>
-                  </tr>
-                  <tr className="bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-700">Систем на водилки</td>
-                    <td className="p-3 font-black text-slate-900">Стандардни двојни челични водилки</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-bold text-slate-700">Автоматика и мотор</td>
-                    <td className="p-3 font-black text-slate-900">Motorline Professional - 800N Брз погон</td>
-                  </tr>
-                  <tr className="bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-700">Далечински управувачи</td>
-                    <td className="p-3 font-black text-slate-900">2 парчиња (4-канални)</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-bold text-slate-700">Безбедносни фотоќелии</td>
-                    <td className="p-3 font-black text-slate-900">Вклучени (Опто-сензор систем)</td>
-                  </tr>
-                  <tr className="bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-700">Прозорци / Инокс детали</td>
-                    <td className="p-3 font-black text-slate-900">Без прозорци</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-bold text-slate-700">Пешачка врата во панел</td>
-                    <td className="p-3 font-black text-slate-900">Не</td>
-                  </tr>
-                  <tr className="bg-slate-50/50">
-                    <td className="p-3 font-bold text-slate-700">Професионална Монтажа</td>
-                    <td className="p-3 font-black text-emerald-600">Вклучена со теренски увид</td>
-                  </tr>
-                  <tr>
-                    <td className="p-3 font-bold text-slate-700">Транспорт и Достава</td>
-                    <td className="p-3 font-black text-emerald-600">Вклучен - Скопје и околина</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          {/* Detailed Configuration per Item */}
+          <div className="space-y-4 pt-4">
+            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+              ДЕТАЛНА ТЕХНИЧКА СПЕЦИФИКАЦИЈА ПО СТАВКИ
+            </h3>
+            
+            {offer.items.map((item, idx) => {
+              const product = products.find((p) => p.id === item.productId);
+              const model = product?.models.find((m) => m.id === item.productModelId);
+              const specs = (item.specifications && item.specifications.length > 0)
+                ? item.specifications
+                : ((item as any).offerItemSpecifications || []);
+
+              return (
+                <div key={item.id || idx} className="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                    <div>
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-wider">
+                        СТАВКА #{idx + 1}
+                      </span>
+                      <h4 className="text-sm font-black text-slate-900">
+                        {item.customTitle || (product ? `${product.name} ${model ? `- ${model.name}` : ''}` : 'Понудена ставка')}
+                      </h4>
+                    </div>
+                    {item.widthMm && item.heightMm && (
+                      <span className="bg-slate-900 text-white font-mono text-[10px] font-bold px-2.5 py-1 rounded-lg">
+                        {item.widthMm} x {item.heightMm} mm
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-1.5 flex-wrap">
+                    {item.serviceTypes.map((st) => (
+                      <span key={st} className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded">
+                        {st}
+                      </span>
+                    ))}
+                  </div>
+
+                  {specs.length > 0 ? (
+                    <div className="border border-slate-200 rounded-lg overflow-hidden bg-white text-xs">
+                      <table className="w-full text-left divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100">
+                          {specs.map((s: any, sIdx: number) => {
+                            const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
+                            const opt = key?.options.find((o) => o.id === s.specificationOptionId);
+                            const label = opt?.label || s.customValue || 'Избрано';
+                            return (
+                              <tr key={sIdx} className={sIdx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                                <td className="p-2.5 font-bold text-slate-700 w-1/2">{key?.name || 'Спецификација'}</td>
+                                <td className="p-2.5 font-black text-slate-900">{label}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 italic">Стандардна спецификација согласно спецификациите на производителот.</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -251,6 +265,15 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                 {offer.items.map((item, idx) => {
                   const product = products.find((p) => p.id === item.productId);
                   const model = product?.models.find((m) => m.id === item.productModelId);
+                  const specs = (item.specifications && item.specifications.length > 0)
+                    ? item.specifications
+                    : ((item as any).offerItemSpecifications || []);
+
+                  const specSummary = specs.map((s: any) => {
+                    const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
+                    const opt = key?.options.find((o) => o.id === s.specificationOptionId);
+                    return `${key?.name || 'Спецификација'}: ${opt?.label || s.customValue || 'Избрано'}`;
+                  }).join(' | ');
 
                   return (
                     <tr key={item.id || idx} className="hover:bg-slate-50">
@@ -259,6 +282,16 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                         <p className="font-black text-slate-900 text-xs">
                           {item.customTitle || (product ? `${product.name} - ${model?.name || ''}` : 'Ставка')}
                         </p>
+                        {item.widthMm && item.heightMm && (
+                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            Димензии: {item.widthMm} x {item.heightMm} mm
+                          </p>
+                        )}
+                        {specSummary ? (
+                          <p className="text-[10px] text-slate-600 font-medium mt-0.5 bg-slate-100/70 p-1 rounded">
+                            {specSummary}
+                          </p>
+                        ) : null}
                         <div className="flex gap-1 mt-1">
                           {item.serviceTypes.map((st) => (
                             <span key={st} className="bg-slate-100 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-200">

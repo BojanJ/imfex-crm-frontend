@@ -187,10 +187,10 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
             <Text style={styles.tagline}>INDUSTRIAL & RESIDENTIAL DOORS, WINDOWS & SHUTTERS</Text>
           </View>
           <View style={styles.companyMeta}>
-            <Text style={{ fontWeight: 'bold', fontSize: 9, color: '#0f172a' }}>IMFEX Solutions Ltd.</Text>
-            <Text>100 Commercial Boulevard, Suite 400</Text>
-            <Text>Tax VAT ID: EX-99201928</Text>
-            <Text>Email: info@imfex.com | Web: www.imfex.com</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 9, color: '#0f172a' }}>IMFEX EXPORT-IMPORT DOOEL</Text>
+            <Text>Ul. Kacanicki Pat bb, Skopje</Text>
+            <Text>Tax / VAT ID: MK4030012345678</Text>
+            <Text>Email: info@imfex.com | Web: www.imfexgroup.mk</Text>
           </View>
         </View>
 
@@ -265,8 +265,12 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
             const product = products.find((p) => p.id === item.productId);
             const model = product?.models.find((m) => m.id === item.productModelId);
 
+            const specs = (item.specifications && item.specifications.length > 0)
+              ? item.specifications
+              : ((item as any).offerItemSpecifications || []);
+
             // Spec text formatting
-            const specSummary = (item.specifications || []).map((s) => {
+            const specSummary = specs.map((s: any) => {
               const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
               const opt = key?.options.find((o) => o.id === s.specificationOptionId);
               return `${key?.name || 'Spec'}: ${opt?.label || s.customValue || 'Selected'}`;
