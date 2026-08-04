@@ -10,6 +10,7 @@ import { PdfModal } from '@/components/pdf/pdf-modal';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { toast } from '@/components/ui/toastr';
 import {
   Plus,
   Trash2,
