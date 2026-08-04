@@ -35,7 +35,9 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const selectId = useId();
 
@@ -44,13 +46,49 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const targetNode = event.target as Node;
+      const isInsideContainer = containerRef.current?.contains(targetNode);
+      const isInsidePopover = popoverRef.current?.contains(targetNode);
+      if (!isInsideContainer && !isInsidePopover) {
         setIsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Update fixed popover position relative to viewport trigger button
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const updatePosition = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const dropHeight = 240;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const showAbove = spaceBelow < dropHeight && rect.top > dropHeight;
+
+        const popoverWidth = Math.max(rect.width, 200);
+        const maxLeft = window.innerWidth - popoverWidth - 12;
+        const calculatedLeft = Math.max(12, Math.min(rect.left, maxLeft));
+
+        setCoords({
+          top: showAbove ? Math.max(12, rect.top - dropHeight - 4) : rect.bottom + 4,
+          left: calculatedLeft,
+          width: popoverWidth,
+        });
+      }
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
 
   // Auto focus search input when opening
   useEffect(() => {
@@ -113,9 +151,21 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
       {/* Dropdown Popover */}
       {isOpen && (
         <div
+          ref={popoverRef}
           id={selectId}
           role="listbox"
-          className="absolute z-50 mt-1 w-full min-w-[200px] max-h-64 rounded-xl border border-border bg-card shadow-xl overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-100"
+          style={
+            coords
+              ? {
+                  position: 'fixed',
+                  top: `${coords.top}px`,
+                  left: `${coords.left}px`,
+                  width: `${coords.width}px`,
+                  zIndex: 99999,
+                }
+              : { position: 'absolute', zIndex: 99999 }
+          }
+          className="max-h-64 rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-100"
         >
           {/* Search Box */}
           <div className="p-2 border-b border-border bg-muted/30 sticky top-0 z-10 flex items-center gap-2">
