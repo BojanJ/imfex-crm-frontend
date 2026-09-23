@@ -14,6 +14,7 @@ import {
   ServicePriority,
   ServiceStatus,
   CalendarEvent,
+  ProductCategory,
 } from '@/types';
 
 export const getApiUrl = () => {
@@ -21,6 +22,7 @@ export const getApiUrl = () => {
 };
 
 class ImfexStore {
+  private categories: ProductCategory[] = [];
   private products: Product[] = [];
   private customers: Customer[] = [];
   private offers: Offer[] = [];
@@ -69,7 +71,8 @@ class ImfexStore {
   async fetchInitialDataFromBackend() {
     const baseUrl = getApiUrl();
     try {
-      const [resProd, resCust, resOff, resProj, resServ, resProf, resCal, resInst, resDocs] = await Promise.all([
+      const [resCat, resProd, resCust, resOff, resProj, resServ, resProf, resCal, resInst, resDocs] = await Promise.all([
+        fetch(`${baseUrl}/api/categories`).catch(() => null),
         fetch(`${baseUrl}/api/products`).catch(() => null),
         fetch(`${baseUrl}/api/customers`).catch(() => null),
         fetch(`${baseUrl}/api/offers`).catch(() => null),
@@ -81,6 +84,7 @@ class ImfexStore {
         fetch(`${baseUrl}/api/client-documents`).catch(() => null),
       ]);
 
+      if (resCat && resCat.ok) this.categories = await resCat.json();
       if (resProd && resProd.ok) this.products = await resProd.json();
       if (resCust && resCust.ok) this.customers = await resCust.json();
       if (resOff && resOff.ok) {
@@ -133,6 +137,7 @@ class ImfexStore {
     const baseUrl = getApiUrl();
     try {
       await fetch(`${baseUrl}/api/admin/reset-database`, { method: 'POST' }).catch(() => null);
+      this.categories = [];
       this.products = [];
       this.customers = [];
       this.offers = [];
@@ -315,6 +320,50 @@ class ImfexStore {
     this.notifyListeners();
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/profiles/${id}`, { method: 'DELETE' }).catch(console.warn);
+  }
+
+  // Categories
+  getCategories(): ProductCategory[] {
+    return [...this.categories];
+  }
+
+  saveCategory(category: ProductCategory): ProductCategory {
+    const idx = this.categories.findIndex((c) => c.id === category.id);
+    if (idx >= 0) {
+      this.categories[idx] = category;
+    } else {
+      this.categories.push(category);
+    }
+    this.notifyListeners();
+
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(category),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((savedCat) => {
+        if (savedCat && savedCat.id) {
+          const freshIdx = this.categories.findIndex((c) => c.id === category.id || c.id === savedCat.id);
+          if (freshIdx >= 0) {
+            this.categories[freshIdx] = savedCat;
+          } else {
+            this.categories.push(savedCat);
+          }
+          this.notifyListeners();
+        }
+      })
+      .catch((e) => console.warn('saveCategory API notice:', e));
+
+    return category;
+  }
+
+  deleteCategory(id: string) {
+    this.categories = this.categories.filter((c) => c.id !== id);
+    this.notifyListeners();
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Products

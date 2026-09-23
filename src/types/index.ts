@@ -47,8 +47,18 @@ export interface ProductModel {
   basePrice: number;
 }
 
+export interface ProductCategory {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  children?: ProductCategory[];
+  createdAt?: string;
+}
+
 export interface Product {
   id: string;
+  categoryId?: string | null;
+  category?: ProductCategory;
   name: string;
   code: string;
   description?: string;
@@ -81,6 +91,7 @@ export interface OfferItem {
   id: string;
   offerId?: string;
   serviceTypes: ServiceType[];
+  categoryId?: string;
   productId?: string;
   productModelId?: string;
   customTitle?: string;

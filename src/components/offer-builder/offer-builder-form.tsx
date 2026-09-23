@@ -43,6 +43,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
     existingOffer?.customerId || urlCustomerId || ''
   );
@@ -76,8 +77,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   useEffect(() => {
     const custs = imfexStore.getCustomers();
     const prods = imfexStore.getProducts();
+    const cats = imfexStore.getCategories();
     setCustomers(custs);
     setProducts(prods);
+    setCategories(cats);
 
     if (existingOffer) {
       if (existingOffer.customerId) {
@@ -157,6 +160,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       const current = { ...copy[index], ...updatedFields };
 
       if (
+        updatedFields.categoryId !== undefined ||
         updatedFields.productId !== undefined ||
         updatedFields.productModelId !== undefined ||
         updatedFields.specifications !== undefined ||
@@ -178,6 +182,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const newItem: OfferItem = {
       id: `item-${Date.now()}`,
       serviceTypes: ['PRODUCT', 'INSTALLATION'],
+      categoryId: firstProd?.categoryId || undefined,
       productId: firstProd?.id,
       productModelId: firstModel?.id,
       customTitle: firstProd ? `${firstProd.name}` : 'New Offer Item',
@@ -609,28 +614,57 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
                         Product & Base Model
                       </label>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Product Family</label>
-                        <SearchableSelect
-                          options={products.map((p) => ({
-                            value: p.id,
-                            label: `${p.name} (${p.code})`,
-                          }))}
-                          value={item.productId || ''}
-                          onChange={(pId) => {
-                            const pObj = products.find((p) => p.id === pId);
-                            const firstMod = pObj?.models[0];
-                            handleUpdateItem(idx, {
-                              productId: pId,
-                              productModelId: firstMod?.id,
-                              customTitle: pObj?.name || item.customTitle,
-                              specifications: [],
-                            });
-                          }}
-                          placeholder="Select Product Family..."
-                          searchPlaceholder="Search products..."
-                          className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Category (Optional)</label>
+                          <SearchableSelect
+                            options={[
+                              { value: '', label: 'All Categories' },
+                              ...categories.map((c) => ({
+                                value: c.id,
+                                label: c.name,
+                              }))
+                            ]}
+                            value={item.categoryId || ''}
+                            onChange={(cId) => {
+                              handleUpdateItem(idx, {
+                                categoryId: cId || undefined,
+                                productId: undefined,
+                                productModelId: undefined,
+                                specifications: [],
+                              });
+                            }}
+                            placeholder="All Categories"
+                            searchPlaceholder="Search categories..."
+                            className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Product Family</label>
+                          <SearchableSelect
+                            options={products
+                              .filter(p => !item.categoryId || p.categoryId === item.categoryId)
+                              .map((p) => ({
+                                value: p.id,
+                                label: `${p.name} (${p.code})`,
+                              }))}
+                            value={item.productId || ''}
+                            onChange={(pId) => {
+                              const pObj = products.find((p) => p.id === pId);
+                              const firstMod = pObj?.models[0];
+                              handleUpdateItem(idx, {
+                                categoryId: pObj?.categoryId || item.categoryId,
+                                productId: pId,
+                                productModelId: firstMod?.id,
+                                customTitle: pObj?.name || item.customTitle,
+                                specifications: [],
+                              });
+                            }}
+                            placeholder="Select Product Family..."
+                            searchPlaceholder="Search products..."
+                            className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
+                          />
+                        </div>
                       </div>
 
                       {selectedProd && (

@@ -39,14 +39,18 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(product.name);
   const [editCode, setEditCode] = useState(product.code);
+  const [editCategoryId, setEditCategoryId] = useState(product.categoryId || null);
   const [editDesc, setEditDesc] = useState(product.description || '');
   const [editIsActive, setEditIsActive] = useState(product.isActive !== false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const categories = imfexStore.getCategories();
 
   // Sync edit state when product updates or changes
   React.useEffect(() => {
     setEditName(product.name);
     setEditCode(product.code);
+    setEditCategoryId(product.categoryId || null);
     setEditDesc(product.description || '');
     setEditIsActive(product.isActive !== false);
     setIsEditing(false);
@@ -73,6 +77,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       ...product,
       name: editName.trim(),
       code: editCode.trim().toUpperCase(),
+      categoryId: editCategoryId,
       description: editDesc.trim(),
       isActive: editIsActive,
     };
@@ -242,7 +247,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="block font-bold mb-1 text-muted-foreground">{t('products.product_name')} *</label>
                 <input
@@ -262,6 +267,21 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none uppercase font-mono font-bold focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">Категорија</label>
+                <SearchableSelect
+                  options={[
+                    { value: '', label: '-- Без Категорија --' },
+                    ...categories.map((c) => ({ value: c.id, label: c.name }))
+                  ]}
+                  value={editCategoryId || ''}
+                  onChange={(val) => setEditCategoryId(val || null)}
+                  placeholder="Избери категорија..."
+                  searchPlaceholder="Пребарај..."
+                  className="w-full px-3 py-1 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                 />
               </div>
             </div>
@@ -347,6 +367,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       setIsEditing(true);
                       setEditName(product.name);
                       setEditCode(product.code);
+                      setEditCategoryId(product.categoryId || null);
                       setEditDesc(product.description || '');
                       setEditIsActive(product.isActive !== false);
                       setErrorMsg(null);

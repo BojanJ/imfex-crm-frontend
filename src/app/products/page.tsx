@@ -24,14 +24,17 @@ export default function ProductsPage() {
   useImfexStore(); // Auto-subscribe to live store updates
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState(imfexStore.getCategories());
   const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [isMounted, setIsMounted] = useState(false);
 
   // New product state
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newProdName, setNewProdName] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
   const [newProdDesc, setNewProdDesc] = useState('');
@@ -39,6 +42,7 @@ export default function ProductsPage() {
   const refreshProducts = () => {
     const list = imfexStore.getProducts() || [];
     setProducts(list);
+    setCategories(imfexStore.getCategories());
     if (list.length > 0) {
       setSelectedProductId((prev) => (prev && list.some((p) => p.id === prev) ? prev : list[0].id));
     }
@@ -53,7 +57,7 @@ export default function ProductsPage() {
   // Sync state whenever store changes
   useEffect(() => {
     refreshProducts();
-  }, [imfexStore.getProducts().length]);
+  }, [imfexStore.getProducts().length, imfexStore.getCategories().length]);
 
   if (!isMounted) {
     return (
@@ -109,8 +113,13 @@ export default function ProductsPage() {
         : statusFilter === 'ACTIVE'
         ? p.isActive !== false
         : p.isActive === false;
+        
+    const matchesCategory =
+      categoryFilter === 'ALL'
+        ? true
+        : p.categoryId === categoryFilter;
 
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesStatus && matchesCategory;
   });
 
   const selectedProduct = products.find((p) => p.id === selectedProductId) || filteredProducts[0] || products[0];
@@ -130,12 +139,20 @@ export default function ProductsPage() {
         </div>
 
         {isSuperAdmin ? (
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" /> {t('products.create_product')}
-          </button>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => setShowCategoryModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card text-foreground hover:bg-muted transition-all shadow-sm cursor-pointer"
+            >
+              <Layers className="w-4 h-4 text-primary" /> Категории
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> {t('products.create_product')}
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-semibold">
             <ShieldAlert className="w-4 h-4" />
@@ -159,6 +176,21 @@ export default function ProductsPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
               />
+            </div>
+            
+            <div className="relative">
+              <Layers className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold appearance-none cursor-pointer"
+              >
+                <option value="ALL">Сите Категории</option>
+                <option value="">-- Без Категорија --</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-[11px] font-bold">
@@ -325,6 +357,83 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Categories Modal */}
+      {showCategoryModal && (
+        <CategoriesModal onClose={() => setShowCategoryModal(false)} />
+      )}
+    </div>
+  );
+}
+
+// Categories Management Modal Component
+function CategoriesModal({ onClose }: { onClose: () => void }) {
+  const [categories, setCategories] = useState(imfexStore.getCategories());
+  const [newCatName, setNewCatName] = useState('');
+  
+  useEffect(() => {
+    const unsubscribe = imfexStore.subscribe(() => {
+      setCategories(imfexStore.getCategories());
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    imfexStore.saveCategory({
+      id: `cat-${Date.now()}`,
+      name: newCatName.trim()
+    });
+    setNewCatName('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+      <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+        <div className="flex items-center justify-between">
+          <h3 className="font-extrabold text-base flex items-center gap-2">
+            <Layers className="w-5 h-5 text-primary" />
+            <span>Менаџирање со Категории</span>
+          </h3>
+          <button onClick={onClose} className="p-1 hover:bg-muted rounded-lg text-muted-foreground">
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleAdd} className="flex gap-2">
+          <input
+            type="text"
+            required
+            placeholder="Име на категорија (пр. Автоматики)"
+            value={newCatName}
+            onChange={(e) => setNewCatName(e.target.value)}
+            className="flex-1 px-3 py-2 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
+          />
+          <button type="submit" className="px-4 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md">
+            Додади
+          </button>
+        </form>
+
+        <div className="space-y-2 max-h-64 overflow-y-auto pt-2">
+          {categories.length === 0 ? (
+            <div className="text-center text-muted-foreground p-4">Нема внесено категории.</div>
+          ) : (
+            categories.map(c => (
+              <div key={c.id} className="flex items-center justify-between p-3 border border-border rounded-xl bg-muted/20">
+                <span className="font-bold">{c.name}</span>
+                <button
+                  onClick={() => imfexStore.deleteCategory(c.id)}
+                  className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors"
+                  title="Избриши категорија"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
