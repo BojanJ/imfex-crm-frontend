@@ -58,14 +58,10 @@ export default function CalendarPage() {
     setCustomers(imfexStore.getCustomers());
   }, []);
 
-  const allEvents = useMemo(() => {
-    return imfexStore.getCalendarEvents();
-  }, [imfexStore.getCalendarEvents().length]);
-
-  const filteredEvents = useMemo(() => {
-    if (filterType === 'ALL') return allEvents;
-    return allEvents.filter((e) => e.eventType === filterType);
-  }, [allEvents, filterType]);
+  const allEvents = imfexStore.getCalendarEvents();
+  const filteredEvents = filterType === 'ALL' 
+    ? allEvents 
+    : allEvents.filter((e) => e.eventType === filterType);
 
   // Navigation handlers
   const handlePrev = () => {
