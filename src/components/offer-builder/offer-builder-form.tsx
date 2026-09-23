@@ -53,6 +53,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [validUntil, setValidUntil] = useState<string>(
     existingOffer?.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
+  const [offerDate, setOfferDate] = useState<string>(
+    existingOffer?.createdAt ? existingOffer.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+  );
 
   const [items, setItems] = useState<OfferItem[]>(
     (existingOffer?.items || []).map((it) => ({
@@ -231,7 +234,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   };
 
   // Calculations with Discount (Workflow 4.1.3)
-  const subtotal = items.reduce((acc, i) => acc + (i.totalPrice || 0), 0);
+  const subtotal = items.reduce((acc, i) => acc + Number(i.totalPrice || 0), 0);
   const discountAmount = Math.round(((subtotal * discountRate) / 100) * 100) / 100;
   const taxableSubtotal = Math.max(0, subtotal - discountAmount);
   const taxAmount = Math.round(((taxableSubtotal * taxRate) / 100) * 100) / 100;
@@ -255,7 +258,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       taxAmount,
       totalAmount,
       validUntil,
-      createdAt: existingOffer?.createdAt || new Date().toISOString(),
+      createdAt: offerDate ? new Date(offerDate).toISOString() : (existingOffer?.createdAt || new Date().toISOString()),
       items,
     };
 
@@ -464,6 +467,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   const newSt = val as OfferStatus;
                   setStatus(newSt);
                   if (newSt === 'ACCEPTED') {
+                    setOfferDate(new Date().toISOString().split('T')[0]);
                     alert('Quote marked as ACCEPTED! An Operational Project will be automatically generated upon save.');
                   }
                 }}
@@ -499,14 +503,25 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold mb-1">Quote Validity Date</label>
-              <input
-                type="date"
-                value={validUntil}
-                onChange={(e) => setValidUntil(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold mb-1">Issue Date</label>
+                <input
+                  type="date"
+                  value={offerDate}
+                  onChange={(e) => setOfferDate(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold mb-1">Quote Validity Date</label>
+                <input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                />
+              </div>
             </div>
           </div>
         </div>

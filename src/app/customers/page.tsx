@@ -317,7 +317,7 @@ export default function CustomersPage() {
                           <div>
                             <p className="font-bold text-foreground">{doc.title}</p>
                             <p className="text-[10px] text-muted-foreground">
-                              {new Date(doc.createdAt).toLocaleDateString()} • {doc.fileType}
+                              {new Date(doc.createdAt).toLocaleDateString('en-GB')} • {doc.fileType}
                             </p>
                           </div>
                         </div>

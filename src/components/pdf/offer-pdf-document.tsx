@@ -233,11 +233,11 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Date Created: </Text>
-              {new Date(offer.createdAt).toLocaleDateString()}
+              {new Date(offer.createdAt).toLocaleDateString('en-GB')}
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Valid Until: </Text>
-              {offer.validUntil ? new Date(offer.validUntil).toLocaleDateString() : '30 Days from issue'}
+              {offer.validUntil ? new Date(offer.validUntil).toLocaleDateString('en-GB') : '30 Days from issue'}
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Status: </Text>

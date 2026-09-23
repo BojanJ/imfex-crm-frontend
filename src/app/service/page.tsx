@@ -149,7 +149,9 @@ export default function ServicePage() {
                           ? 'bg-red-500/10 text-red-600 animate-pulse'
                           : ticket.priority === 'HIGH'
                           ? 'bg-amber-500/10 text-amber-600'
-                          : 'bg-blue-500/10 text-blue-600'
+                          : ticket.priority === 'MEDIUM'
+                          ? 'bg-blue-500/10 text-blue-600'
+                          : 'bg-green-500/10 text-green-600'
                       }`}
                     >
                       {ticket.priority}
@@ -164,7 +166,7 @@ export default function ServicePage() {
                     {ticket.assignedTechnician?.fullName || 'Недоделен'}
                   </td>
                   <td className="p-4 font-bold text-foreground">
-                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleString() : 'Не е закажано'}
+                    {ticket.scheduledDate ? new Date(ticket.scheduledDate).toLocaleString('en-GB') : 'Не е закажано'}
                   </td>
                   <td className="p-4 text-center">
                     <Link
