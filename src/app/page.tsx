@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   const totalRevenue = offers
     .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')
-    .reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+    .reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
 
   const acceptedCount = offers.filter((o) => o.status === 'ACCEPTED').length;
   const acceptanceRate = offers.length > 0 ? Math.round((acceptedCount / offers.length) * 100) : 0;
@@ -109,7 +109,7 @@ export default function DashboardPage() {
               <Euro className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-foreground">€{totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-foreground">€{totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5" /> {t('dashboard.pipeline_growth')}
           </p>

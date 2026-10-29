@@ -92,8 +92,17 @@ class ImfexStore {
         if (Array.isArray(dbOffers)) {
           this.offers = dbOffers.map((o: any) => ({
             ...o,
+            taxRate: Number(o.taxRate || 0),
+            discountRate: Number(o.discountRate || 0),
+            discountAmount: Number(o.discountAmount || 0),
+            subtotal: Number(o.subtotal || 0),
+            taxAmount: Number(o.taxAmount || 0),
+            totalAmount: Number(o.totalAmount || 0),
             items: (o.items || []).map((it: any) => ({
               ...it,
+              quantity: Number(it.quantity || 1),
+              unitPrice: Number(it.unitPrice || 0),
+              totalPrice: Number(it.totalPrice || 0),
               specifications: (it.specifications && it.specifications.length > 0)
                 ? it.specifications
                 : (it.offerItemSpecifications || []),
@@ -462,6 +471,12 @@ class ImfexStore {
   getOffers(): Offer[] {
     return this.offers.map((o) => ({
       ...o,
+      taxRate: Number(o.taxRate || 0),
+      discountRate: Number(o.discountRate || 0),
+      discountAmount: Number(o.discountAmount || 0),
+      subtotal: Number(o.subtotal || 0),
+      taxAmount: Number(o.taxAmount || 0),
+      totalAmount: Number(o.totalAmount || 0),
       customer: o.customer || this.getCustomerById(o.customerId),
     }));
   }
@@ -471,6 +486,12 @@ class ImfexStore {
     if (!o) return undefined;
     return {
       ...o,
+      taxRate: Number(o.taxRate || 0),
+      discountRate: Number(o.discountRate || 0),
+      discountAmount: Number(o.discountAmount || 0),
+      subtotal: Number(o.subtotal || 0),
+      taxAmount: Number(o.taxAmount || 0),
+      totalAmount: Number(o.totalAmount || 0),
       customer: o.customer || this.getCustomerById(o.customerId),
     };
   }
@@ -502,8 +523,17 @@ class ImfexStore {
         if (savedOffer && savedOffer.id) {
           const formatted = {
             ...savedOffer,
+            taxRate: Number(savedOffer.taxRate || 0),
+            discountRate: Number(savedOffer.discountRate || 0),
+            discountAmount: Number(savedOffer.discountAmount || 0),
+            subtotal: Number(savedOffer.subtotal || 0),
+            taxAmount: Number(savedOffer.taxAmount || 0),
+            totalAmount: Number(savedOffer.totalAmount || 0),
             items: (savedOffer.items || []).map((it: any) => ({
               ...it,
+              quantity: Number(it.quantity || 1),
+              unitPrice: Number(it.unitPrice || 0),
+              totalPrice: Number(it.totalPrice || 0),
               specifications: (it.specifications && it.specifications.length > 0)
                 ? it.specifications
                 : (it.offerItemSpecifications || []),
