@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfile } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Wrench,
@@ -17,6 +17,7 @@ import {
   FileText,
   Clock,
   Printer,
+  Loader2,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const resolvedParams = use(params);
   const router = useRouter();
   const ticketId = resolvedParams?.id;
+  useImfexStore(); // Auto-subscribe to live store updates
 
   const [ticket, setTicket] = useState<ServiceTicket | null>(null);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -36,25 +38,48 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const [laborHours, setLaborHours] = useState<number>(0);
   const [solution, setSolution] = useState<string>('');
   const [partsConsumed, setPartsConsumed] = useState<ConsumedPart[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
+  const applyTicketData = (t: ServiceTicket) => {
+    setTicket(t);
+    setStatus(t.status);
+    setPriority(t.priority);
+    setAssignedTechnicianId(t.assignedTechnicianId || '');
+    setScheduledDate(t.scheduledDate || '');
+    setLaborHours(Number(t.laborHours || 0));
+    setSolution(t.solution || '');
+    setPartsConsumed(t.partsConsumed || []);
+  };
+
   useEffect(() => {
     setProfiles(imfexStore.getProfiles());
-    if (ticketId) {
-      const t = imfexStore.getServiceTicketById(ticketId);
-      if (t) {
-        setTicket(t);
-        setStatus(t.status);
-        setPriority(t.priority);
-        setAssignedTechnicianId(t.assignedTechnicianId || '');
-        setScheduledDate(t.scheduledDate || '');
-        setLaborHours(t.laborHours || 0);
-        setSolution(t.solution || '');
-        setPartsConsumed(t.partsConsumed || []);
-      }
+    if (!ticketId) return;
+
+    // 1. Check local store
+    const local = imfexStore.getServiceTicketById(ticketId);
+    if (local) {
+      applyTicketData(local);
+      setIsLoading(false);
+      return;
     }
-  }, [ticketId]);
+
+    // 2. Fetch directly from backend API
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/service-tickets/${ticketId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.id) {
+          applyTicketData(data);
+        } else {
+          const storeFound = imfexStore.getServiceTicketById(ticketId);
+          if (storeFound) applyTicketData(storeFound);
+        }
+      })
+      .catch((err) => console.warn('Fetch service ticket notice:', err))
+      .finally(() => setIsLoading(false));
+  }, [ticketId, imfexStore.isLoadedFromBackend, imfexStore.getServiceTickets().length]);
 
   const handleSaveTicket = (overridingStatus?: ServiceStatus) => {
     if (!ticket) return;
@@ -107,10 +132,37 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setPartsConsumed((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const totalPartsCost = partsConsumed.reduce((acc, p) => acc + p.quantity * p.unitCost, 0);
+  const totalPartsCost = partsConsumed.reduce(
+    (acc, p) => acc + (Number(p.quantity) || 0) * (Number(p.unitCost) || 0),
+    0
+  );
+
+  if (isLoading && !ticket && !imfexStore.isLoadedFromBackend) {
+    return (
+      <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+        <span>Се вчитуваат детали за сервисот од базата...</span>
+      </div>
+    );
+  }
 
   if (!ticket) {
-    return <div className="p-12 text-center text-xs text-muted-foreground">Се вчитуваат детали за сервисот...</div>;
+    return (
+      <div className="bg-card border border-border rounded-xl p-12 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm text-xs">
+        <p className="text-sm font-bold text-red-500">Сервисниот тикет не е пронајден</p>
+        <p className="text-muted-foreground">
+          Бараниот тикет (ID: <code className="font-mono">{ticketId}</code>) не постои или е избришан.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={() => router.push('/service')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" /> Назад кон Сервис
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

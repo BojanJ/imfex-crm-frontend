@@ -34,7 +34,24 @@ export default function EditOfferPage({ params }: { params: Promise<{ id: string
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.id) {
-          setOffer(data);
+          setOffer({
+            ...data,
+            taxRate: Number(data.taxRate || 0),
+            discountRate: Number(data.discountRate || 0),
+            discountAmount: Number(data.discountAmount || 0),
+            subtotal: Number(data.subtotal || 0),
+            taxAmount: Number(data.taxAmount || 0),
+            totalAmount: Number(data.totalAmount || 0),
+            items: (data.items || []).map((it: any) => ({
+              ...it,
+              quantity: Number(it.quantity || 1),
+              unitPrice: Number(it.unitPrice || 0),
+              totalPrice: Number(it.totalPrice || 0),
+              specifications: (it.specifications && it.specifications.length > 0)
+                ? it.specifications
+                : (it.offerItemSpecifications || []),
+            })),
+          });
         } else {
           const storeFound = imfexStore.getOfferById(id);
           if (storeFound) setOffer(storeFound);

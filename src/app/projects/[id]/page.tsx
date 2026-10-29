@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus, UserProfile } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   Briefcase,
@@ -18,6 +18,7 @@ import {
   FileCheck,
   PenTool,
   Building2,
+  Loader2,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const resolvedParams = use(params);
   const router = useRouter();
   const projectId = resolvedParams?.id;
+  useImfexStore(); // Auto-subscribe to store state changes
 
   const [project, setProject] = useState<Project | null>(null);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -47,31 +49,54 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [photos, setPhotos] = useState<string[]>([]);
   const [signatureData, setSignatureData] = useState<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const applyProjectData = (prj: Project) => {
+    setProject(prj);
+    setStatus(prj.status);
+    setResponsibleUserId(prj.responsibleUserId || '');
+    setStartDate(prj.startDate || '');
+    setTargetDeliveryDate(prj.targetDeliveryDate || '');
+    setActualDeliveryDate(prj.actualDeliveryDate || '');
+    setProcurementStatus(prj.procurementStatus || 'NOT_STARTED');
+    setProcurementNotes(prj.procurementNotes || '');
+    setInstallationTeam(prj.installationTeam || '');
+    setInstallationDate(prj.installationDate || '');
+    setInstallationAddress(prj.installationAddress || '');
+    setInstallationContact(prj.installationContact || '');
+    setInstallationMinutes(prj.installationMinutes || '');
+    setPhotos(prj.photos || ['https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop']);
+    setSignatureData(prj.signatureUrl || '');
+  };
 
   useEffect(() => {
     setProfiles(imfexStore.getProfiles());
-    if (projectId) {
-      const prj = imfexStore.getProjectById(projectId);
-      if (prj) {
-        setProject(prj);
-        setStatus(prj.status);
-        setResponsibleUserId(prj.responsibleUserId || '');
-        setStartDate(prj.startDate || '');
-        setTargetDeliveryDate(prj.targetDeliveryDate || '');
-        setActualDeliveryDate(prj.actualDeliveryDate || '');
-        setProcurementStatus(prj.procurementStatus || 'NOT_STARTED');
-        setProcurementNotes(prj.procurementNotes || '');
-        setInstallationTeam(prj.installationTeam || '');
-        setInstallationDate(prj.installationDate || '');
-        setInstallationAddress(prj.installationAddress || '');
-        setInstallationContact(prj.installationContact || '');
-        setInstallationMinutes(prj.installationMinutes || '');
-        setPhotos(prj.photos || ['https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop']);
-        setSignatureData(prj.signatureUrl || '');
-      }
+    if (!projectId) return;
+
+    // 1. Check local store
+    const local = imfexStore.getProjectById(projectId);
+    if (local) {
+      applyProjectData(local);
+      setIsLoading(false);
+      return;
     }
-  }, [projectId]);
+
+    // 2. Fetch directly from backend API
+    const baseUrl = getApiUrl();
+    fetch(`${baseUrl}/api/projects/${projectId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.id) {
+          applyProjectData(data);
+        } else {
+          const storeFound = imfexStore.getProjectById(projectId);
+          if (storeFound) applyProjectData(storeFound);
+        }
+      })
+      .catch((err) => console.warn('Fetch project notice:', err))
+      .finally(() => setIsLoading(false));
+  }, [projectId, imfexStore.isLoadedFromBackend, imfexStore.getProjects().length]);
 
   const handleSaveProject = (overridingStatus?: ProjectStatus) => {
     if (!project) return;
@@ -187,8 +212,32 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setPhotos((prev) => [...prev, pick]);
   };
 
+  if (isLoading && !project && !imfexStore.isLoadedFromBackend) {
+    return (
+      <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+        <span>Се вчитуваат детали за проектот од базата...</span>
+      </div>
+    );
+  }
+
   if (!project) {
-    return <div className="p-12 text-center text-xs text-muted-foreground">Се вчитуваат детали за проектот...</div>;
+    return (
+      <div className="bg-card border border-border rounded-xl p-12 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm text-xs">
+        <p className="text-sm font-bold text-red-500">Проектот не е пронајден</p>
+        <p className="text-muted-foreground">
+          Бараниот проект (ID: <code className="font-mono">{projectId}</code>) не постои или е избришан.
+        </p>
+        <div className="pt-2">
+          <button
+            onClick={() => router.push('/projects')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+          >
+            <ArrowLeft className="w-4 h-4" /> Назад кон Проекти
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
