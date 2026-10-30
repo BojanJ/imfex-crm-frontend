@@ -15,14 +15,48 @@ import {
   ServiceStatus,
   CalendarEvent,
   ProductCategory,
+  InventoryMovement,
+  InventoryMoveKind,
+  ProductStockType,
 } from '@/types';
 
 export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
 };
 
+const DEFAULT_WAREHOUSE_CATEGORIES: ProductCategory[] = [
+  { id: 'cat-gv', name: 'Гаражни врати' },
+  { id: 'cat-av', name: 'Автоматика' },
+  { id: 'cat-sh', name: 'Шини' },
+  { id: 'cat-el', name: 'Додатоци' },
+  { id: 'cat-sv', name: 'Собни врати' },
+];
+
+const DEFAULT_WAREHOUSE_PRODUCTS_RAW: Array<[string, string, string, string, number, number]> = [
+  ['GV-001', 'Резидентна сегментна врата', 'Гаражни врати', 'По нарачка', 0, 850],
+  ['GV-002', 'Индустриска сегментна врата', 'Гаражни врати', 'По нарачка', 0, 1450],
+  ['GV-003', 'Роло гаражна врата', 'Гаражни врати', 'По нарачка', 0, 720],
+  ['AV-001', 'Rocco 60', 'Автоматика', 'Залиха', 8, 160],
+  ['AV-002', 'Rocco 100', 'Автоматика', 'Залиха', 4, 210],
+  ['AV-003', 'BRAVO 500', 'Автоматика', 'Залиха', 6, 260],
+  ['AV-004', 'BRAVO 1000', 'Автоматика', 'Залиха', 2, 340],
+  ['SH-001', 'Шина 3300 mm', 'Шини', 'Залиха', 12, 85],
+  ['SH-002', 'Шина 3600 mm', 'Шини', 'Залиха', 5, 95],
+  ['SH-003', 'Шина 4200 mm', 'Шини', 'Залиха', 0, 115],
+  ['EL-001', 'Далечински управувач', 'Додатоци', 'Залиха', 24, 25],
+  ['EL-002', 'Фотоќелии', 'Додатоци', 'Залиха', 10, 45],
+  ['EL-003', 'Сигнална ламба', 'Додатоци', 'Залиха', 3, 35],
+  ['SV-001', 'Собна врата Софиа', 'Собни врати', 'Залиха', 10, 290],
+  ['SV-002', 'Собна врата Милано', 'Собни врати', 'Залиха', 2, 310],
+  ['SV-003', 'Собна врата Елеганс', 'Собни врати', 'Залиха', 0, 340],
+  ['SV-004', 'Собна врата Верона', 'Собни врати', 'Залиха', 7, 295],
+  ['DO-001', 'Каса за собна врата', 'Додатоци', 'Залиха', 16, 65],
+  ['DO-002', 'Квака за собна врата', 'Додатоци', 'Залиха', 30, 22],
+  ['DO-003', 'Шарки за врата', 'Додатоци', 'Залиха', 40, 12],
+];
+
 class ImfexStore {
-  private categories: ProductCategory[] = [];
+  private categories: ProductCategory[] = [...DEFAULT_WAREHOUSE_CATEGORIES];
   private products: Product[] = [];
   private customers: Customer[] = [];
   private offers: Offer[] = [];
@@ -32,11 +66,15 @@ class ImfexStore {
   private installedItems: InstalledItem[] = [];
   private documents: ClientDocument[] = [];
   private calendarEvents: CalendarEvent[] = [];
+  private movements: InventoryMovement[] = [];
+  private stockOverlay: Record<string, { stockType?: ProductStockType; stockQuantity: number; reservedQuantity: number }> = {};
+  private projectFlowOverlay: Record<string, Partial<Project>> = {};
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
   private listeners: Array<() => void> = [];
 
   constructor() {
+    this.ensureWarehouseCatalog();
     if (typeof window !== 'undefined') {
       const storedUser = sessionStorage.getItem('imfex_current_user');
       if (storedUser) {
@@ -52,8 +90,141 @@ class ImfexStore {
         } catch (e) {}
       }
 
+      const storedMoves = localStorage.getItem('imfex_inventory_movements');
+      if (storedMoves) {
+        try {
+          this.movements = JSON.parse(storedMoves);
+        } catch (e) {}
+      }
+
+      const storedStock = localStorage.getItem('imfex_stock_overlay');
+      if (storedStock) {
+        try {
+          this.stockOverlay = JSON.parse(storedStock);
+        } catch (e) {}
+      }
+
+      const storedProjFlow = localStorage.getItem('imfex_project_flow_overlay');
+      if (storedProjFlow) {
+        try {
+          this.projectFlowOverlay = JSON.parse(storedProjFlow);
+        } catch (e) {}
+      }
+
+      this.ensureWarehouseCatalog();
       this.fetchInitialDataFromBackend();
     }
+  }
+
+  private persistWarehouseState() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('imfex_inventory_movements', JSON.stringify(this.movements));
+      localStorage.setItem('imfex_stock_overlay', JSON.stringify(this.stockOverlay));
+      localStorage.setItem('imfex_project_flow_overlay', JSON.stringify(this.projectFlowOverlay));
+    }
+  }
+
+  public ensureWarehouseCatalog() {
+    // Ensure default categories exist
+    DEFAULT_WAREHOUSE_CATEGORIES.forEach((defCat) => {
+      const exists = this.categories.find(
+        (c) => c.name.toLowerCase() === defCat.name.toLowerCase() || c.id === defCat.id
+      );
+      if (!exists) {
+        this.categories.push({ ...defCat });
+      }
+    });
+
+    // Ensure all 20 warehouse products exist and have stock metadata
+    DEFAULT_WAREHOUSE_PRODUCTS_RAW.forEach(([code, name, catName, typeLabel, defaultStock, defaultPrice]) => {
+      const catObj = this.categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+      const catId = catObj?.id || null;
+      const defaultType: ProductStockType = typeLabel === 'По нарачка' ? 'CUSTOM' : 'STOCK';
+      const overlay = this.stockOverlay[code];
+
+      const existingIdx = this.products.findIndex((p) => p.code.toUpperCase() === code.toUpperCase());
+      if (existingIdx >= 0) {
+        const existing = this.products[existingIdx];
+        this.products[existingIdx] = {
+          ...existing,
+          categoryId: existing.categoryId || catId,
+          category: existing.category || catObj,
+          stockType: overlay?.stockType || existing.stockType || defaultType,
+          stockQuantity: overlay ? overlay.stockQuantity : (existing.stockQuantity ?? defaultStock),
+          reservedQuantity: overlay ? overlay.reservedQuantity : (existing.reservedQuantity ?? 0),
+        };
+      } else {
+        const prodId = `prod-${code.toLowerCase()}`;
+        const specKeys =
+          defaultType === 'CUSTOM'
+            ? [
+                {
+                  id: `spec-struct-${code}`,
+                  productId: prodId,
+                  name: 'Структура',
+                  inputType: 'SELECT' as const,
+                  options: [
+                    { id: `opt-mline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'M-Line', priceModifier: 0 },
+                    { id: `opt-lline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'L-Line (Smooth)', priceModifier: 65 },
+                    { id: `opt-gline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'Micro-rib', priceModifier: 40 },
+                  ],
+                },
+                {
+                  id: `spec-color-${code}`,
+                  productId: prodId,
+                  name: 'Боја',
+                  inputType: 'SELECT' as const,
+                  options: [
+                    { id: `opt-7016-${code}`, specificationKeyId: `spec-color-${code}`, label: 'RAL 7016 (Антрацит)', priceModifier: 0 },
+                    { id: `opt-9016-${code}`, specificationKeyId: `spec-color-${code}`, label: 'RAL 9016 (Бела)', priceModifier: 0 },
+                    { id: `opt-8014-${code}`, specificationKeyId: `spec-color-${code}`, label: 'Златен Даб (Woodgrain)', priceModifier: 90 },
+                  ],
+                },
+              ]
+            : [];
+
+        this.products.push({
+          id: prodId,
+          code,
+          name,
+          categoryId: catId,
+          category: catObj,
+          description: `${catName} · ${typeLabel}`,
+          isActive: true,
+          stockType: overlay?.stockType || defaultType,
+          stockQuantity: overlay ? overlay.stockQuantity : defaultStock,
+          reservedQuantity: overlay ? overlay.reservedQuantity : 0,
+          models: [
+            {
+              id: `mod-${code.toLowerCase()}`,
+              productId: prodId,
+              name: `${name} — Стандард`,
+              basePrice: defaultPrice,
+            },
+          ],
+          specificationKeys: specKeys,
+        });
+      }
+    });
+
+    // Also ensure any other products from backend have stockType and stockQuantity initialized
+    this.products = this.products.map((p) => {
+      const overlay = this.stockOverlay[p.code];
+      const catObj = p.category || this.categories.find((c) => c.id === p.categoryId);
+      const isDoorCustom =
+        p.stockType === 'CUSTOM' ||
+        (catObj?.name || '').toLowerCase().includes('гараж') ||
+        p.code.startsWith('GV-') ||
+        p.code.startsWith('PROD-GAR');
+      const inferredType: ProductStockType = overlay?.stockType || p.stockType || (isDoorCustom ? 'CUSTOM' : 'STOCK');
+      return {
+        ...p,
+        category: catObj,
+        stockType: inferredType,
+        stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? (inferredType === 'CUSTOM' ? 0 : 5)),
+        reservedQuantity: overlay ? overlay.reservedQuantity : (p.reservedQuantity ?? 0),
+      };
+    });
   }
 
   subscribe(listener: () => void) {
@@ -110,7 +281,15 @@ class ImfexStore {
           }));
         }
       }
-      if (resProj && resProj.ok) this.projects = await resProj.json();
+      if (resProj && resProj.ok) {
+        const dbProjs = await resProj.json();
+        if (Array.isArray(dbProjs)) {
+          this.projects = dbProjs.map((pr: Project) => ({
+            ...pr,
+            ...(this.projectFlowOverlay[pr.id] || this.projectFlowOverlay[pr.projectNumber] || {}),
+          }));
+        }
+      }
       if (resServ && resServ.ok) this.serviceTickets = await resServ.json();
       if (resProf && resProf.ok) this.profiles = await resProf.json();
       if (resInst && resInst.ok) this.installedItems = await resInst.json();
@@ -125,10 +304,13 @@ class ImfexStore {
         }
       }
 
+      this.ensureWarehouseCatalog();
       this.isLoadedFromBackend = true;
       this.notifyListeners();
     } catch (e) {
       console.warn('Backend API sync notice:', e);
+      this.ensureWarehouseCatalog();
+      this.notifyListeners();
     }
   }
 
@@ -375,13 +557,116 @@ class ImfexStore {
     fetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
-  // Products
+  // Products & Warehouse Inventory
   getProducts(): Product[] {
+    if (this.products.length === 0) {
+      this.ensureWarehouseCatalog();
+    }
     return [...this.products];
   }
 
   getProductById(id: string): Product | undefined {
     return this.products.find((p) => p.id === id);
+  }
+
+  getProductByCode(code: string): Product | undefined {
+    return this.products.find((p) => p.code.toUpperCase() === code.toUpperCase());
+  }
+
+  getInventoryMovements(): InventoryMovement[] {
+    return [...this.movements];
+  }
+
+  addInventoryMovement(
+    kind: InventoryMoveKind,
+    detail: string,
+    meta?: { productId?: string; projectId?: string; offerId?: string; quantity?: number }
+  ): InventoryMovement {
+    const move: InventoryMovement = {
+      id: `mov-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      kind,
+      detail,
+      productId: meta?.productId,
+      projectId: meta?.projectId,
+      offerId: meta?.offerId,
+      quantity: meta?.quantity,
+      at: new Date().toLocaleTimeString('mk-MK'),
+      createdAt: new Date().toISOString(),
+    };
+    this.movements.unshift(move);
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return move;
+  }
+
+  receiveProductStock(productId: string, qty: number = 1, customNote?: string): Product | undefined {
+    const p = this.getProductById(productId);
+    if (!p) return undefined;
+    const nextStock = (p.stockQuantity ?? 0) + qty;
+    p.stockQuantity = nextStock;
+    this.stockOverlay[p.code] = {
+      stockType: p.stockType || 'STOCK',
+      stockQuantity: nextStock,
+      reservedQuantity: p.reservedQuantity ?? 0,
+    };
+    this.addInventoryMovement('ПРИЕМ', customNote || `+${qty} ${p.name}`, { productId: p.id, quantity: qty });
+    return p;
+  }
+
+  issueProductStock(productId: string, qty: number = 1, customNote?: string): Product | undefined {
+    const p = this.getProductById(productId);
+    if (!p) return undefined;
+    const currentStock = p.stockQuantity ?? 0;
+    if (currentStock <= 0) return p;
+    const deduct = Math.min(currentStock, qty);
+    const nextStock = Math.max(0, currentStock - deduct);
+    p.stockQuantity = nextStock;
+    this.stockOverlay[p.code] = {
+      stockType: p.stockType || 'STOCK',
+      stockQuantity: nextStock,
+      reservedQuantity: p.reservedQuantity ?? 0,
+    };
+    this.addInventoryMovement('ИЗЛЕЗ', customNote || `−${deduct} ${p.name}`, { productId: p.id, quantity: deduct });
+    return p;
+  }
+
+  reserveProductStock(productId: string, qty: number = 1): number {
+    const p = this.getProductById(productId);
+    if (!p || p.stockType === 'CUSTOM') return 0;
+    const currentStock = p.stockQuantity ?? 0;
+    const currentRes = p.reservedQuantity ?? 0;
+    const free = Math.max(0, currentStock - currentRes);
+    const toReserve = Math.min(qty, free);
+    const nextRes = currentRes + toReserve;
+    p.reservedQuantity = nextRes;
+    this.stockOverlay[p.code] = {
+      stockType: p.stockType || 'STOCK',
+      stockQuantity: currentStock,
+      reservedQuantity: nextRes,
+    };
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return toReserve;
+  }
+
+  releaseAndIssueReservedStock(productId: string, qty: number = 1) {
+    const p = this.getProductById(productId);
+    if (!p || p.stockType === 'CUSTOM') return;
+    const currentStock = p.stockQuantity ?? 0;
+    const currentRes = p.reservedQuantity ?? 0;
+    if (currentStock > 0) {
+      const nextStock = Math.max(0, currentStock - qty);
+      const nextRes = Math.max(0, currentRes - qty);
+      p.stockQuantity = nextStock;
+      p.reservedQuantity = nextRes;
+      this.stockOverlay[p.code] = {
+        stockType: p.stockType || 'STOCK',
+        stockQuantity: nextStock,
+        reservedQuantity: nextRes,
+      };
+      this.persistWarehouseState();
+      this.notifyListeners();
+    }
   }
 
   saveProduct(product: Product): Product {
@@ -391,6 +676,12 @@ class ImfexStore {
     } else {
       this.products.push(product);
     }
+    this.stockOverlay[product.code] = {
+      stockType: product.stockType || 'STOCK',
+      stockQuantity: product.stockQuantity ?? 0,
+      reservedQuantity: product.reservedQuantity ?? 0,
+    };
+    this.persistWarehouseState();
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
@@ -402,11 +693,19 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedProd) => {
         if (savedProd && savedProd.id) {
+          const overlay = this.stockOverlay[savedProd.code] || this.stockOverlay[product.code];
+          const merged: Product = {
+            ...product,
+            ...savedProd,
+            stockType: overlay?.stockType || product.stockType || 'STOCK',
+            stockQuantity: overlay ? overlay.stockQuantity : (product.stockQuantity ?? 0),
+            reservedQuantity: overlay ? overlay.reservedQuantity : (product.reservedQuantity ?? 0),
+          };
           const freshIdx = this.products.findIndex((p) => p.id === product.id || p.code === product.code || p.id === savedProd.id);
           if (freshIdx >= 0) {
-            this.products[freshIdx] = savedProd;
+            this.products[freshIdx] = merged;
           } else {
-            this.products.push(savedProd);
+            this.products.push(merged);
           }
           this.notifyListeners();
         }
@@ -639,9 +938,50 @@ class ImfexStore {
 
   createProjectFromOffer(offer: Offer): Project {
     const cust = this.getCustomerById(offer.customerId);
+    const prjNumber = this.generateProjectNumber();
+
+    // Reserve stock items included in the offer or linked accessories
+    const reservedAccIds: string[] = [];
+    const missingNames: string[] = [];
+
+    (offer.items || []).forEach((it) => {
+      if (it.productId) {
+        const prod = this.getProductById(it.productId);
+        if (prod && prod.stockType !== 'CUSTOM') {
+          const resCount = this.reserveProductStock(prod.id, it.quantity || 1);
+          if (resCount > 0) {
+            reservedAccIds.push(prod.id);
+          } else {
+            missingNames.push(prod.name);
+          }
+        }
+      }
+      if (it.selectedAccessories) {
+        Object.values(it.selectedAccessories).forEach((accId) => {
+          if (accId) {
+            const accProd = this.getProductById(accId);
+            if (accProd) {
+              const resCount = this.reserveProductStock(accProd.id, 1);
+              if (resCount > 0) {
+                reservedAccIds.push(accProd.id);
+              } else {
+                missingNames.push(accProd.name);
+              }
+            }
+          }
+        });
+      }
+    });
+
+    this.addInventoryMovement(
+      'РЕЗЕРВАЦИЈА',
+      `Прифатена финална понуда ${offer.offerNumber} (${prjNumber}) — резервирани достапни додатоци`,
+      { offerId: offer.id }
+    );
+
     const newProject: Project = {
       id: `proj-${Date.now()}`,
-      projectNumber: this.generateProjectNumber(),
+      projectNumber: prjNumber,
       offerId: offer.id,
       offer,
       customerId: offer.customerId,
@@ -652,11 +992,29 @@ class ImfexStore {
       startDate: new Date().toISOString().split('T')[0],
       targetDeliveryDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       procurementStatus: 'NOT_STARTED',
-      procurementNotes: `Генерирано од прифатена понуда ${offer.offerNumber}. Ставки: ${offer.items?.map((i) => i.customTitle).join(', ') || ''}`,
+      procurementNotes: `Генерирано од прифатена понуда ${offer.offerNumber}. Ставки: ${offer.items?.map((i) => i.customTitle).join(', ') || ''}${missingNames.length ? ` | За набавка: ${missingNames.join(', ')}` : ''}`,
       installationAddress: cust?.address ? `${cust.address}, ${cust.city || ''}` : '',
       installationContact: `${cust?.name || ''} (${cust?.phone || ''})`,
+      acceptedAt: new Date().toISOString(),
+      advancePaid: false,
+      supplierOrdered: false,
+      warehouseReceived: false,
+      dispatchIssued: false,
+      reservedAccessoryIds: reservedAccIds,
+      missingAccessoryNames: missingNames,
       createdAt: new Date().toISOString(),
     };
+    this.projectFlowOverlay[newProject.id] = {
+      acceptedAt: newProject.acceptedAt,
+      advancePaid: false,
+      supplierOrdered: false,
+      warehouseReceived: false,
+      dispatchIssued: false,
+      reservedAccessoryIds: reservedAccIds,
+      missingAccessoryNames: missingNames,
+    };
+    this.projectFlowOverlay[newProject.projectNumber] = this.projectFlowOverlay[newProject.id];
+    this.persistWarehouseState();
     this.projects.push(newProject);
     this.notifyListeners();
 
@@ -669,8 +1027,12 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedProj) => {
         if (savedProj && savedProj.id) {
+          const overlay = this.projectFlowOverlay[newProject.id] || this.projectFlowOverlay[newProject.projectNumber] || {};
+          const merged = { ...newProject, ...savedProj, ...overlay };
+          this.projectFlowOverlay[savedProj.id] = overlay;
+          this.persistWarehouseState();
           const freshIdx = this.projects.findIndex((p) => p.id === newProject.id || p.projectNumber === newProject.projectNumber || p.id === savedProj.id);
-          if (freshIdx >= 0) this.projects[freshIdx] = savedProj;
+          if (freshIdx >= 0) this.projects[freshIdx] = merged;
           this.notifyListeners();
         }
       })
@@ -678,7 +1040,98 @@ class ImfexStore {
     return newProject;
   }
 
+  // 5-Step Project / Order / Warehouse Flow Actions
+  projectStepRecordAdvance(projectId: string): Project | undefined {
+    const prj = this.getProjectById(projectId);
+    if (!prj || prj.advancePaid) return prj;
+    const updated: Project = {
+      ...prj,
+      advancePaid: true,
+      advancePaidAt: new Date().toISOString(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[УПЛАТА] Евидентиран аванс 70% (${new Date().toLocaleDateString('mk-MK')})`.trim(),
+    };
+    this.addInventoryMovement('УПЛАТА', `Евидентиран аванс 70% за проект ${prj.projectNumber}`, { projectId: prj.id });
+    return this.saveProject(updated);
+  }
+
+  projectStepOrderSupplier(projectId: string, itemLabel?: string): Project | undefined {
+    const prj = this.getProjectById(projectId);
+    if (!prj || prj.supplierOrdered) return prj;
+    const title = itemLabel || prj.offer?.items?.[0]?.customTitle || 'врата по нарачка';
+    const updated: Project = {
+      ...prj,
+      status: 'PROCUREMENT',
+      procurementStatus: 'ORDERED',
+      supplierOrdered: true,
+      supplierOrderedAt: new Date().toISOString(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[НАБАВКА] Нарачано кај добавувач: ${title}`.trim(),
+    };
+    this.addInventoryMovement('НАБАВКА', `Нарачана ${title} за ${prj.projectNumber}`, { projectId: prj.id });
+    return this.saveProject(updated);
+  }
+
+  projectStepReceiveWarehouse(projectId: string, itemLabel?: string): Project | undefined {
+    const prj = this.getProjectById(projectId);
+    if (!prj || prj.warehouseReceived) return prj;
+    const title = itemLabel || prj.offer?.items?.[0]?.customTitle || 'сегментна врата';
+    const today = new Date().toISOString().split('T')[0];
+    const updated: Project = {
+      ...prj,
+      status: 'INSTALLATION',
+      procurementStatus: 'DELIVERED',
+      actualDeliveryDate: today,
+      warehouseReceived: true,
+      warehouseReceivedAt: new Date().toISOString(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[ПРИЕМ] Примена во магацин и резервирана за ${prj.projectNumber}`.trim(),
+    };
+    this.addInventoryMovement('ПРИЕМ', `Примена 1 ${title}, резервирана за ${prj.projectNumber}`, { projectId: prj.id });
+    return this.saveProject(updated);
+  }
+
+  projectStepIssueDispatch(projectId: string, accessoryProductIds?: string[]): Project | undefined {
+    const prj = this.getProjectById(projectId);
+    if (!prj || prj.dispatchIssued) return prj;
+    const idsToIssue = accessoryProductIds || prj.reservedAccessoryIds || [];
+    idsToIssue.forEach((id) => {
+      this.releaseAndIssueReservedStock(id, 1);
+    });
+    const updated: Project = {
+      ...prj,
+      status: 'COMPLETED',
+      dispatchIssued: true,
+      dispatchIssuedAt: new Date().toISOString(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[ИЗЛЕЗ] Издадена испратница за ${prj.projectNumber}: врата + резервирани додатоци`.trim(),
+    };
+    this.addInventoryMovement(
+      'ИЗЛЕЗ',
+      `Испратница ${prj.projectNumber}: врата + достапни резервирани додатоци`,
+      { projectId: prj.id }
+    );
+    return this.saveProject(updated);
+  }
+
   saveProject(project: Project): Project {
+    const flowMeta: Partial<Project> = {
+      acceptedAt: project.acceptedAt,
+      advancePaid: project.advancePaid,
+      advancePaidAt: project.advancePaidAt,
+      supplierOrdered: project.supplierOrdered,
+      supplierOrderedAt: project.supplierOrderedAt,
+      warehouseReceived: project.warehouseReceived,
+      warehouseReceivedAt: project.warehouseReceivedAt,
+      dispatchIssued: project.dispatchIssued,
+      dispatchIssuedAt: project.dispatchIssuedAt,
+      selectedMotorId: project.selectedMotorId,
+      selectedRailId: project.selectedRailId,
+      reservedAccessoryIds: project.reservedAccessoryIds,
+      missingAccessoryNames: project.missingAccessoryNames,
+    };
+    this.projectFlowOverlay[project.id] = flowMeta;
+    if (project.projectNumber) {
+      this.projectFlowOverlay[project.projectNumber] = flowMeta;
+    }
+    this.persistWarehouseState();
+
     const idx = this.projects.findIndex((p) => p.id === project.id);
     if (idx >= 0) {
       this.projects[idx] = project;
@@ -696,8 +1149,9 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedProj) => {
         if (savedProj && savedProj.id) {
+          const merged = { ...project, ...savedProj, ...flowMeta };
           const freshIdx = this.projects.findIndex((p) => p.id === project.id || p.projectNumber === project.projectNumber || p.id === savedProj.id);
-          if (freshIdx >= 0) this.projects[freshIdx] = savedProj;
+          if (freshIdx >= 0) this.projects[freshIdx] = merged;
           this.notifyListeners();
         }
       })

@@ -358,6 +358,127 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
 
         <div className="lg:col-span-2 space-y-6">
+          {/* Card 2.5: 5-Step Warehouse & Order Flow (matching Products & Warehouse Flow) */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Truck className="w-4 h-4 text-primary" /> Оперативен тек: Понуда → Аванс → Набавка → Магацин → Испратница
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                МАГАЦИН ПОВРЗАН
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-background/60 border border-border rounded-xl space-y-3">
+                <b className="text-xs font-bold text-foreground block">Понуди и аванс</b>
+                <p className="text-[11px] text-muted-foreground">
+                  Понуда V1 → теренско мерење → понуда V2 (финална). При прифаќање се резервираат достапните додатоци.
+                </p>
+                <div>
+                  <span
+                    className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                      project.acceptedAt || project.offerId
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {project.acceptedAt || project.offerId ? 'Финална понуда прифатена' : 'Чека прифаќање'}
+                  </span>
+                </div>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={Boolean(project.acceptedAt || project.offerId)}
+                    onClick={() => {
+                      const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
+                      applyProjectData(updated);
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 cursor-pointer block"
+                  >
+                    1. Прифати финална понуда
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(project.advancePaid)}
+                    onClick={() => {
+                      const updated = imfexStore.projectStepRecordAdvance(project.id);
+                      if (updated) applyProjectData(updated);
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
+                  >
+                    2. Евидентирај аванс 70%
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 bg-background/60 border border-border rounded-xl space-y-3">
+                <b className="text-xs font-bold text-foreground block">Набавка и магацин</b>
+                <div>
+                  <span
+                    className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                      project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
+                      ? 'Вратата е нарачана'
+                      : 'Не е нарачана'}
+                  </span>
+                </div>
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
+                    onClick={() => {
+                      const updated = imfexStore.projectStepOrderSupplier(project.id);
+                      if (updated) applyProjectData(updated);
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
+                  >
+                    3. Нарачај кај добавувач
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
+                    onClick={() => {
+                      const updated = imfexStore.projectStepReceiveWarehouse(project.id);
+                      if (updated) applyProjectData(updated);
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
+                  >
+                    4. Прими врата во магацин
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
+                    onClick={() => {
+                      const updated = imfexStore.projectStepIssueDispatch(project.id);
+                      if (updated) applyProjectData(updated);
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
+                  >
+                    5. Издај испратница
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/25 text-xs text-foreground">
+              <b>Состојба:</b>{' '}
+              {project.dispatchIssued
+                ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
+                : project.warehouseReceived || procurementStatus === 'DELIVERED'
+                ? 'Вратата е примена и поврзана со проектот.'
+                : project.supplierOrdered || procurementStatus === 'ORDERED'
+                ? 'Се чека пристигнување на вратата.'
+                : project.advancePaid
+                ? 'Авансот е платен — може да се нарача вратата.'
+                : 'Чека авансна уплата.'}
+            </div>
+          </div>
+
           {/* Card 3: Procurement */}
           <div className="bg-card border border-border rounded-xl p-5 space-y-4">
             <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">

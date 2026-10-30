@@ -40,6 +40,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const [editName, setEditName] = useState(product.name);
   const [editCode, setEditCode] = useState(product.code);
   const [editCategoryId, setEditCategoryId] = useState(product.categoryId || null);
+  const [editStockType, setEditStockType] = useState<'STOCK' | 'CUSTOM'>(product.stockType || 'STOCK');
+  const [editStockQty, setEditStockQty] = useState<number>(product.stockQuantity ?? 0);
   const [editDesc, setEditDesc] = useState(product.description || '');
   const [editIsActive, setEditIsActive] = useState(product.isActive !== false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -51,6 +53,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     setEditName(product.name);
     setEditCode(product.code);
     setEditCategoryId(product.categoryId || null);
+    setEditStockType(product.stockType || 'STOCK');
+    setEditStockQty(product.stockQuantity ?? 0);
     setEditDesc(product.description || '');
     setEditIsActive(product.isActive !== false);
     setIsEditing(false);
@@ -78,6 +82,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       name: editName.trim(),
       code: editCode.trim().toUpperCase(),
       categoryId: editCategoryId,
+      stockType: editStockType,
+      stockQuantity: editStockType === 'CUSTOM' ? 0 : Number(editStockQty || 0),
       description: editDesc.trim(),
       isActive: editIsActive,
     };
@@ -284,6 +290,32 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   className="w-full px-3 py-1 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">Тип на залиха</label>
+                <select
+                  value={editStockType}
+                  onChange={(e) => setEditStockType(e.target.value as 'STOCK' | 'CUSTOM')}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                >
+                  <option value="STOCK">Залиха (Магацин)</option>
+                  <option value="CUSTOM">По нарачка</option>
+                </select>
+              </div>
+              {editStockType === 'STOCK' && (
+                <div>
+                  <label className="block font-bold mb-1 text-muted-foreground">Физичка залиха (парчиња)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editStockQty}
+                    onChange={(e) => setEditStockQty(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="text-xs">

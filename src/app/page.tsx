@@ -89,6 +89,12 @@ export default function DashboardPage() {
             <Wrench className="w-4 h-4 text-orange-500" /> {t('nav.service')}
           </Link>
           <Link
+            href="/products"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
+          >
+            <Briefcase className="w-4 h-4 text-primary" /> {t('nav.products')}
+          </Link>
+          <Link
             href="/customers"
             className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
           >

@@ -55,6 +55,22 @@ export interface ProductCategory {
   createdAt?: string;
 }
 
+export type ProductStockType = 'STOCK' | 'CUSTOM';
+
+export type InventoryMoveKind = 'ПРИЕМ' | 'ИЗЛЕЗ' | 'РЕЗЕРВАЦИЈА' | 'УПЛАТА' | 'НАБАВКА';
+
+export interface InventoryMovement {
+  id: string;
+  kind: InventoryMoveKind;
+  detail: string;
+  productId?: string;
+  projectId?: string;
+  offerId?: string;
+  quantity?: number;
+  at: string;
+  createdAt: string;
+}
+
 export interface Product {
   id: string;
   categoryId?: string | null;
@@ -63,6 +79,11 @@ export interface Product {
   code: string;
   description?: string;
   isActive: boolean;
+  stockType?: ProductStockType; // 'STOCK' (Залиха) | 'CUSTOM' (По нарачка)
+  stockQuantity?: number;
+  reservedQuantity?: number;
+  linkedAccessoryCategories?: string[]; // e.g. ['Автоматика', 'Шини', 'Додатоци']
+  defaultAccessories?: Record<string, string>; // categoryName -> productId
   models: ProductModel[];
   specificationKeys: SpecificationKey[];
 }
@@ -101,11 +122,14 @@ export interface OfferItem {
   unitPrice: number;
   totalPrice: number;
   specifications?: OfferItemSpecSelection[];
+  selectedAccessories?: Record<string, string>; // e.g. { motorId: '...', railId: '...' }
 }
 
 export interface Offer {
   id: string;
   offerNumber: string;
+  version?: number; // V1, V2 (Финална)
+  parentOfferId?: string;
   customerId: string;
   customer?: Customer;
   createdByUserId?: string;
@@ -156,6 +180,20 @@ export interface Project {
   installationMinutes?: string;
   signatureUrl?: string;
   photos?: string[];
+  // 5-Step Warehouse & Order Flow fields
+  acceptedAt?: string;
+  advancePaid?: boolean;
+  advancePaidAt?: string;
+  supplierOrdered?: boolean;
+  supplierOrderedAt?: string;
+  warehouseReceived?: boolean;
+  warehouseReceivedAt?: string;
+  dispatchIssued?: boolean;
+  dispatchIssuedAt?: string;
+  selectedMotorId?: string;
+  selectedRailId?: string;
+  reservedAccessoryIds?: string[];
+  missingAccessoryNames?: string[];
   createdAt: string;
 }
 

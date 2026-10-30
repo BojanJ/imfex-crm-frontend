@@ -38,6 +38,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlCustomerId = searchParams ? searchParams.get('customerId') : null;
+  const urlProductId = searchParams ? searchParams.get('productId') : null;
   const { t } = useI18n();
   useImfexStore(); // Auto-subscribe to store updates
 
@@ -103,12 +104,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         setSelectedCustomerId(custs[0].id);
       }
       if (items.length === 0 && prods.length > 0) {
-        const firstProd = prods[0];
+        const firstProd = (urlProductId && prods.find((p) => p.id === urlProductId)) || prods[0];
         const firstModel = firstProd?.models[0];
         setItems([
           {
             id: `item-${Date.now()}`,
             serviceTypes: ['PRODUCT', 'INSTALLATION'],
+            categoryId: firstProd.categoryId || undefined,
             productId: firstProd.id,
             productModelId: firstModel?.id,
             customTitle: `${firstProd.name}`,
@@ -118,6 +120,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
             unitPrice: Number(firstModel?.basePrice || 945),
             totalPrice: Number(firstModel?.basePrice || 945),
             specifications: [],
+            selectedAccessories: {},
           },
         ]);
       }
@@ -756,6 +759,59 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                               </div>
                             );
                           })}
+                        </div>
+                      )}
+
+                      {/* Linked Warehouse Accessories for Custom Products (Автоматика & Шина) */}
+                      {selectedProd?.stockType === 'CUSTOM' && (
+                        <div className="pt-3 mt-3 border-t border-border space-y-2.5">
+                          <span className="text-xs font-bold text-foreground block">
+                            Поврзани магацински артикли (Резервација при прифаќање понуда)
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Автоматика (Мотор)</label>
+                              <select
+                                value={item.selectedAccessories?.motorId || ''}
+                                onChange={(e) =>
+                                  handleUpdateItem(idx, {
+                                    selectedAccessories: { ...(item.selectedAccessories || {}), motorId: e.target.value },
+                                  })
+                                }
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                              >
+                                <option value="">-- Избери Автоматика --</option>
+                                {products
+                                  .filter((p) => p.code.startsWith('AV-') || p.category?.name === 'Автоматика')
+                                  .map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name} (Залиха: {m.stockQuantity ?? 0} | Рез: {m.reservedQuantity ?? 0})
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Шина</label>
+                              <select
+                                value={item.selectedAccessories?.railId || ''}
+                                onChange={(e) =>
+                                  handleUpdateItem(idx, {
+                                    selectedAccessories: { ...(item.selectedAccessories || {}), railId: e.target.value },
+                                  })
+                                }
+                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                              >
+                                <option value="">-- Избери Шина --</option>
+                                {products
+                                  .filter((p) => p.code.startsWith('SH-') || p.category?.name === 'Шини')
+                                  .map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.name} (Залиха: {r.stockQuantity ?? 0} | Рез: {r.reservedQuantity ?? 0})
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
