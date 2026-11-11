@@ -9,7 +9,6 @@ import { ProductEditor } from '@/components/product-spec-builder/product-editor'
 import { toast } from '@/components/ui/toastr';
 import {
   Package,
-  ShieldAlert,
   Plus,
   Layers,
   Search,
@@ -20,11 +19,6 @@ import {
   Settings2,
   Briefcase,
   Boxes,
-  CheckCircle2,
-  AlertTriangle,
-  Truck,
-  FileCheck,
-  CreditCard,
   SlidersHorizontal,
 } from 'lucide-react';
 
@@ -48,13 +42,8 @@ export default function ProductsPage() {
   const [selectedRailId, setSelectedRailId] = useState<string>('');
   const [showAdvancedEditor, setShowAdvancedEditor] = useState(false);
 
-  // Project / Order tab state (supports both interactive prototype PRJ-001 and real CRM projects)
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('DEMO-PRJ-001');
-  const [demoAccepted, setDemoAccepted] = useState(false);
-  const [demoPaid, setDemoPaid] = useState(false);
-  const [demoOrdered, setDemoOrdered] = useState(false);
-  const [demoReceived, setDemoReceived] = useState(false);
-  const [demoIssued, setDemoIssued] = useState(false);
+  // Project / Order tab state (real CRM projects)
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
   // Modals for adding product / categories
   const [showAddModal, setShowAddModal] = useState(false);
@@ -70,27 +59,37 @@ export default function ProductsPage() {
   const refreshProducts = () => {
     const list = imfexStore.getProducts() || [];
     const cats = imfexStore.getCategories() || [];
+    const projs = imfexStore.getProjects() || [];
     setProducts(list);
     setCategories(cats);
+
+    if (projs.length > 0) {
+      setSelectedProjectId((prev) => (prev && projs.some((pr) => pr.id === prev) ? prev : projs[0].id));
+    } else {
+      setSelectedProjectId('');
+    }
 
     if (list.length > 0) {
       setSelectedProductId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
-        const gv001 = list.find((p) => p.code === 'GV-001');
-        return gv001 ? gv001.id : list[0].id;
+        return list[0].id;
       });
 
       setSelectedMotorId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
-        const av001 = list.find((p) => p.code === 'AV-001') || list.find((p) => getProductCatName(p, cats) === 'Автоматика');
-        return av001 ? av001.id : '';
+        const motor = list.find((p) => getProductCatName(p, cats) === 'Автоматика');
+        return motor ? motor.id : '';
       });
 
       setSelectedRailId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
-        const sh002 = list.find((p) => p.code === 'SH-002') || list.find((p) => getProductCatName(p, cats) === 'Шини');
-        return sh002 ? sh002.id : '';
+        const rail = list.find((p) => getProductCatName(p, cats) === 'Шини');
+        return rail ? rail.id : '';
       });
+    } else {
+      setSelectedProductId(null);
+      setSelectedMotorId('');
+      setSelectedRailId('');
     }
   };
 
@@ -102,7 +101,12 @@ export default function ProductsPage() {
 
   useEffect(() => {
     refreshProducts();
-  }, [imfexStore.getProducts().length, imfexStore.getCategories().length, imfexStore.getInventoryMovements().length]);
+  }, [
+    imfexStore.getProducts().length,
+    imfexStore.getCategories().length,
+    imfexStore.getInventoryMovements().length,
+    imfexStore.getProjects().length,
+  ]);
 
   if (!isMounted) {
     return (
@@ -161,9 +165,7 @@ export default function ProductsPage() {
   const movements = imfexStore.getInventoryMovements();
   const realProjects = imfexStore.getProjects();
   const activeRealProject: Project | undefined =
-    selectedProjectId !== 'DEMO-PRJ-001'
-      ? realProjects.find((pr) => pr.id === selectedProjectId)
-      : undefined;
+    realProjects.find((pr) => pr.id === selectedProjectId) || realProjects[0];
 
   const openProductConfig = (id: string) => {
     setSelectedProductId(id);
@@ -187,109 +189,56 @@ export default function ProductsPage() {
     }
   };
 
-  // Demo & Real Project 5-Step Flow Handlers
+  // Real Project 5-Step Flow Handlers
   const handleStep1Accept = () => {
-    if (activeRealProject) {
-      if (activeRealProject.acceptedAt) return;
-      const reservedIds: string[] = [];
-      for (const acc of [motorProd, railProd]) {
-        if (acc) {
-          const res = imfexStore.reserveProductStock(acc.id, 1);
-          if (res > 0) reservedIds.push(acc.id);
-        }
-      }
-      imfexStore.addInventoryMovement(
-        'РЕЗЕРВАЦИЈА',
-        `Прифатена финална понуда ${activeRealProject.projectNumber} — резервирани достапни додатоци`,
-        { projectId: activeRealProject.id }
-      );
-      imfexStore.saveProject({
-        ...activeRealProject,
-        acceptedAt: new Date().toISOString(),
-        reservedAccessoryIds: reservedIds,
-      });
-      toast.success('Финална понуда прифатена', 'Достапните магацински додатоци се резервирани.');
-      refreshProducts();
-      return;
-    }
-
-    if (demoAccepted) return;
-    setDemoAccepted(true);
+    if (!activeRealProject || activeRealProject.acceptedAt) return;
+    const reservedIds: string[] = [];
     for (const acc of [motorProd, railProd]) {
       if (acc) {
-        imfexStore.reserveProductStock(acc.id, 1);
+        const res = imfexStore.reserveProductStock(acc.id, 1);
+        if (res > 0) reservedIds.push(acc.id);
       }
     }
     imfexStore.addInventoryMovement(
       'РЕЗЕРВАЦИЈА',
-      'Прифатена финална понуда PRJ-001 — резервирани достапни додатоци'
+      `Прифатена финална понуда ${activeRealProject.projectNumber} — резервирани достапни додатоци`,
+      { projectId: activeRealProject.id }
     );
-    toast.success('Финална понуда прифатена', 'Резервирани се достапните додатоци за PRJ-001.');
+    imfexStore.saveProject({
+      ...activeRealProject,
+      acceptedAt: new Date().toISOString(),
+      reservedAccessoryIds: reservedIds,
+    });
+    toast.success('Финална понуда прифатена', 'Достапните магацински додатоци се резервирани.');
     refreshProducts();
   };
 
   const handleStep2Payment = () => {
-    if (activeRealProject) {
-      imfexStore.projectStepRecordAdvance(activeRealProject.id);
-      toast.success('Авансна уплата', `Евидентиран аванс 70% за ${activeRealProject.projectNumber}.`);
-      refreshProducts();
-      return;
-    }
-    if (!demoAccepted || demoPaid) return;
-    setDemoPaid(true);
-    imfexStore.addInventoryMovement('УПЛАТА', 'Евидентиран аванс 70% — пример');
-    toast.success('Уплата евидентирана', 'Евидентиран аванс 70% — може да се нарача вратата.');
+    if (!activeRealProject) return;
+    imfexStore.projectStepRecordAdvance(activeRealProject.id);
+    toast.success('Авансна уплата', `Евидентиран аванс 70% за ${activeRealProject.projectNumber}.`);
     refreshProducts();
   };
 
   const handleStep3Order = () => {
-    if (activeRealProject) {
-      imfexStore.projectStepOrderSupplier(activeRealProject.id, selectedProduct?.name);
-      toast.success('Набавка', `Нарачано кај добавувач за ${activeRealProject.projectNumber}.`);
-      refreshProducts();
-      return;
-    }
-    if (!demoPaid || demoOrdered) return;
-    setDemoOrdered(true);
-    imfexStore.addInventoryMovement('НАБАВКА', 'Нарачана сегментна врата за PRJ-001');
-    toast.success('Нарачано кај добавувач', 'Нарачана сегментна врата за PRJ-001.');
+    if (!activeRealProject) return;
+    imfexStore.projectStepOrderSupplier(activeRealProject.id, selectedProduct?.name);
+    toast.success('Набавка', `Нарачано кај добавувач за ${activeRealProject.projectNumber}.`);
     refreshProducts();
   };
 
   const handleStep4ReceiveDoor = () => {
-    if (activeRealProject) {
-      imfexStore.projectStepReceiveWarehouse(activeRealProject.id, selectedProduct?.name);
-      toast.success('Прием во магацин', `Вратата е примена и резервирана за ${activeRealProject.projectNumber}.`);
-      refreshProducts();
-      return;
-    }
-    if (!demoOrdered || demoReceived) return;
-    setDemoReceived(true);
-    imfexStore.addInventoryMovement('ПРИЕМ', 'Примена 1 сегментна врата, резервирана за PRJ-001');
-    toast.success('Прием во магацин', 'Примена 1 сегментна врата, резервирана за PRJ-001.');
+    if (!activeRealProject) return;
+    imfexStore.projectStepReceiveWarehouse(activeRealProject.id, selectedProduct?.name);
+    toast.success('Прием во магацин', `Вратата е примена и резервирана за ${activeRealProject.projectNumber}.`);
     refreshProducts();
   };
 
   const handleStep5IssueDispatch = () => {
-    if (activeRealProject) {
-      const ids = [motorProd?.id, railProd?.id].filter(Boolean) as string[];
-      imfexStore.projectStepIssueDispatch(activeRealProject.id, ids);
-      toast.success('Испратница издадена', `Издадена испратница за ${activeRealProject.projectNumber}.`);
-      refreshProducts();
-      return;
-    }
-    if (!demoReceived || demoIssued) return;
-    setDemoIssued(true);
-    for (const acc of [motorProd, railProd]) {
-      if (acc) {
-        imfexStore.releaseAndIssueReservedStock(acc.id, 1);
-      }
-    }
-    imfexStore.addInventoryMovement(
-      'ИЗЛЕЗ',
-      'Испратница PRJ-001: врата + достапни резервирани додатоци'
-    );
-    toast.success('Испратница издадена', 'Испратница PRJ-001: врата + достапни резервирани додатоци.');
+    if (!activeRealProject) return;
+    const ids = [motorProd?.id, railProd?.id].filter(Boolean) as string[];
+    imfexStore.projectStepIssueDispatch(activeRealProject.id, ids);
+    toast.success('Испратница издадена', `Издадена испратница за ${activeRealProject.projectNumber}.`);
     refreshProducts();
   };
 
@@ -331,18 +280,18 @@ export default function ProductsPage() {
     toast.success('Артиклот е додаден', `${newProd.code} — ${newProd.name}`);
   };
 
-  // Current project flow flags (either from selected real project or demo PRJ-001)
-  const isAccepted = activeRealProject ? Boolean(activeRealProject.acceptedAt || activeRealProject.offerId) : demoAccepted;
-  const isPaid = activeRealProject ? Boolean(activeRealProject.advancePaid) : demoPaid;
+  // Current project flow flags
+  const isAccepted = activeRealProject ? Boolean(activeRealProject.acceptedAt || activeRealProject.offerId) : false;
+  const isPaid = activeRealProject ? Boolean(activeRealProject.advancePaid) : false;
   const isOrdered = activeRealProject
     ? Boolean(activeRealProject.supplierOrdered || activeRealProject.procurementStatus === 'ORDERED' || activeRealProject.procurementStatus === 'DELIVERED')
-    : demoOrdered;
+    : false;
   const isReceived = activeRealProject
     ? Boolean(activeRealProject.warehouseReceived || activeRealProject.procurementStatus === 'DELIVERED')
-    : demoReceived;
+    : false;
   const isIssued = activeRealProject
     ? Boolean(activeRealProject.dispatchIssued || activeRealProject.status === 'COMPLETED' || activeRealProject.status === 'CLOSED')
-    : demoIssued;
+    : false;
 
   const missingAccessories = [motorProd, railProd]
     .filter((acc): acc is Product => Boolean(acc))
@@ -586,6 +535,19 @@ export default function ProductsPage() {
         )}
 
         {/* TAB 2: КОНФИГУРАЦИЈА */}
+        {activeTab === 'config' && !selectedProduct && (
+          <div className="p-8 text-center text-muted-foreground space-y-3">
+            <p className="text-xs sm:text-sm">Нема внесено производи во каталогот.</p>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> + Додај Артикл
+              </button>
+            )}
+          </div>
+        )}
         {activeTab === 'config' && selectedProduct && (
           <div className="space-y-5">
             {/* Quick Product Switcher Bar + Header */}
@@ -840,158 +802,161 @@ export default function ProductsPage() {
         {/* TAB 4: ПРОЕКТ / НАРАЧКА */}
         {activeTab === 'projects' && (
           <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-foreground">
-                  {activeRealProject
-                    ? `Проект ${activeRealProject.projectNumber} (${activeRealProject.customer?.companyName || activeRealProject.customer?.name || 'Клиент'})`
-                    : 'Пример проект PRJ-001'}
-                </h2>
-                <small className="text-xs text-muted-foreground block mt-0.5">
-                  {activeRealProject
-                    ? `${activeRealProject.offer?.items?.[0]?.customTitle || 'Резидентна сегментна врата'} · Поврзана понуда: ${activeRealProject.offer?.offerNumber || 'N/A'}`
-                    : `Резидентна сегментна врата · M-Line · RAL 7016 · 4000 × 3000 mm (Поврзани: ${motorProd?.name || 'Rocco 60'} + ${railProd?.name || 'Шина 3600 mm'})`}
-                </small>
-              </div>
-
-              {/* Project Selector: Switch between PRJ-001 Concept or any real CRM Project */}
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground font-semibold outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                >
-                  <option value="DEMO-PRJ-001">Концепт Проект: PRJ-001 (Интерактивен тест)</option>
-                  {realProjects.map((rp) => (
-                    <option key={rp.id} value={rp.id}>
-                      {rp.projectNumber} — {rp.customer?.companyName || rp.customer?.name || 'Клиент'}
-                    </option>
-                  ))}
-                </select>
-                {activeRealProject && (
-                  <Link
-                    href={`/projects/${activeRealProject.id}`}
-                    className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 transition-all shrink-0"
-                  >
-                    Детали →
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            {/* 2-Column Interactive Workflow Grid (.grid) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Left Block: Понуди и аванс */}
-              <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
-                <b className="text-sm font-bold text-foreground block">Понуди и аванс</b>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Понуда V1 → теренско мерење → понуда V2 (финална). Двете верзии се зачувани.
+            {!activeRealProject ? (
+              <div className="p-8 text-center text-muted-foreground space-y-2">
+                <p className="text-xs sm:text-sm font-medium">Нема активни проекти.</p>
+                <p className="text-xs text-muted-foreground">
+                  Проектите се креираат автоматски кога понудата ќе добие статус „Прифатена“ (ACCEPTED).
                 </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-foreground">
+                      Проект {activeRealProject.projectNumber} ({activeRealProject.customer?.companyName || activeRealProject.customer?.name || 'Клиент'})
+                    </h2>
+                    <small className="text-xs text-muted-foreground block mt-0.5">
+                      {activeRealProject.offer?.items?.[0]?.customTitle || 'Производ'} · Поврзана понуда: {activeRealProject.offer?.offerNumber || 'N/A'}
+                    </small>
+                  </div>
 
-                <div>
-                  <span
-                    className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
-                      isAccepted
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {isAccepted ? 'Финална понуда прифатена' : 'Чека прифаќање'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={activeRealProject.id}
+                      onChange={(e) => setSelectedProjectId(e.target.value)}
+                      className="px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground font-semibold outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+                    >
+                      {realProjects.map((rp) => (
+                        <option key={rp.id} value={rp.id}>
+                          {rp.projectNumber} — {rp.customer?.companyName || rp.customer?.name || 'Клиент'}
+                        </option>
+                      ))}
+                    </select>
+                    <Link
+                      href={`/projects/${activeRealProject.id}`}
+                      className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 transition-all shrink-0"
+                    >
+                      Детали →
+                    </Link>
+                  </div>
                 </div>
 
-                <div className="space-y-2.5 pt-1">
-                  <button
-                    onClick={handleStep1Accept}
-                    disabled={isAccepted}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
-                  >
-                    1. Прифати финална понуда
-                  </button>
+                {/* 2-Column Interactive Workflow Grid (.grid) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left Block: Понуди и аванс */}
+                  <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
+                    <b className="text-sm font-bold text-foreground block">Понуди и аванс</b>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      Понуда V1 → теренско мерење → понуда V2 (финална). Двете верзии се зачувани.
+                    </p>
 
-                  <button
-                    onClick={handleStep2Payment}
-                    disabled={!isAccepted || isPaid}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
-                  >
-                    2. Евидентирај аванс 70%
-                  </button>
+                    <div>
+                      <span
+                        className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                          isAccepted
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {isAccepted ? 'Финална понуда прифатена' : 'Чека прифаќање'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 pt-1">
+                      <button
+                        onClick={handleStep1Accept}
+                        disabled={isAccepted}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                      >
+                        1. Прифати финална понуда
+                      </button>
+
+                      <button
+                        onClick={handleStep2Payment}
+                        disabled={!isAccepted || isPaid}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                      >
+                        2. Евидентирај аванс 70%
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Block: Набавка и магацин */}
+                  <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
+                    <b className="text-sm font-bold text-foreground block">Набавка и магацин</b>
+
+                    <div>
+                      <span
+                        className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
+                          isOrdered
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        }`}
+                      >
+                        {isOrdered ? 'Вратата е нарачана' : 'Не е нарачана'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5 pt-1">
+                      <button
+                        onClick={handleStep3Order}
+                        disabled={!isPaid || isOrdered}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                      >
+                        3. Нарачај кај добавувач
+                      </button>
+
+                      <button
+                        onClick={handleStep4ReceiveDoor}
+                        disabled={!isOrdered || isReceived}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                      >
+                        4. Прими врата во магацин
+                      </button>
+
+                      <button
+                        onClick={handleStep5IssueDispatch}
+                        disabled={!isReceived || isIssued}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                      >
+                        5. Издај испратница
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Right Block: Набавка и магацин */}
-              <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
-                <b className="text-sm font-bold text-foreground block">Набавка и магацин</b>
-
-                <div>
-                  <span
-                    className={`inline-block rounded-md px-2.5 py-1 text-xs font-bold ${
-                      isOrdered
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {isOrdered ? 'Вратата е нарачана' : 'Не е нарачана'}
-                  </span>
+                {/* Status & Missing Accessories Notice (.notice) */}
+                <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground space-y-2 leading-relaxed">
+                  <div>
+                    <b>Состојба:</b>{' '}
+                    {isIssued
+                      ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
+                      : isReceived
+                      ? 'Вратата е примена и поврзана со проектот.'
+                      : isOrdered
+                      ? 'Се чека пристигнување на вратата.'
+                      : isPaid
+                      ? 'Авансот е платен — може да се нарача вратата.'
+                      : isAccepted
+                      ? 'Чека авансна уплата.'
+                      : 'Се чека прифаќање на финалната понуда.'}
+                  </div>
+                  <div>
+                    <b>Додатоци за набавка:</b>{' '}
+                    {missingAccessories.length > 0 ? (
+                      <span className="text-amber-400 font-semibold">{missingAccessories.join(', ')}</span>
+                    ) : (
+                      <span>Нема тековно утврден недостаток.</span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-2.5 pt-1">
-                  <button
-                    onClick={handleStep3Order}
-                    disabled={!isPaid || isOrdered}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
-                  >
-                    3. Нарачај кај добавувач
-                  </button>
-
-                  <button
-                    onClick={handleStep4ReceiveDoor}
-                    disabled={!isOrdered || isReceived}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
-                  >
-                    4. Прими врата во магацин
-                  </button>
-
-                  <button
-                    onClick={handleStep5IssueDispatch}
-                    disabled={!isReceived || isIssued}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
-                  >
-                    5. Издај испратница
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Status & Missing Accessories Notice (.notice) */}
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground space-y-2 leading-relaxed">
-              <div>
-                <b>Состојба:</b>{' '}
-                {isIssued
-                  ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
-                  : isReceived
-                  ? 'Вратата е примена и поврзана со проектот.'
-                  : isOrdered
-                  ? 'Се чека пристигнување на вратата.'
-                  : isPaid
-                  ? 'Авансот е платен — може да се нарача вратата.'
-                  : isAccepted
-                  ? 'Чека авансна уплата.'
-                  : 'Се чека прифаќање на финалната понуда.'}
-              </div>
-              <div>
-                <b>Додатоци за набавка:</b>{' '}
-                {missingAccessories.length > 0 ? (
-                  <span className="text-amber-400 font-semibold">{missingAccessories.join(', ')}</span>
-                ) : (
-                  <span>Нема тековно утврден недостаток.</span>
-                )}
-              </div>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Напомена: При издавање испратница системот проверува дали сите задолжителни артикли се физички достапни, ги намалува од магацинската залиха и ги запишува во табот „Движења“.
-            </p>
+                <p className="text-xs text-muted-foreground">
+                  Напомена: При издавање испратница системот проверува дали сите задолжителни артикли се физички достапни, ги намалува од магацинската залиха и ги запишува во табот „Движења“.
+                </p>
+              </>
+            )}
           </div>
         )}
       </section>

@@ -26,7 +26,6 @@ import {
   Mail,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Percent,
 } from 'lucide-react';
 
@@ -296,7 +295,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   };
 
   const handlePreviewPdf = () => {
-    const saved = handleSaveOffer();
+    handleSaveOffer();
     setIsPdfModalOpen(true);
   };
 

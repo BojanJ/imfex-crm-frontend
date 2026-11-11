@@ -13,8 +13,6 @@ import {
   Users,
   Plus,
   KeyRound,
-  Shield,
-  User,
   Ban,
   Check,
   RefreshCw,
@@ -49,7 +47,7 @@ export default function SettingsPage() {
     setIsResetting(false);
     setShowResetModal(false);
     toast.warning('Базата е ресетирана!', 'Базата е поставена на чиста состојба.');
-    setSyncStatusMsg('Database cleanly reset to 0 records. Only admin & sales users remain active.');
+    setSyncStatusMsg('Database cleanly reset to 0 records. Only admin@imfex.com remains active.');
     setTimeout(() => setSyncStatusMsg(''), 5000);
   };
 
@@ -347,7 +345,7 @@ export default function SettingsPage() {
                 className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-all cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Reset System (0 Data, 2 Users Only)
+                Reset System (0 Data, 1 User Only)
               </button>
             </div>
           </div>
@@ -369,14 +367,13 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-muted-foreground leading-relaxed">
-              This action will permanently delete <strong>all test Customers, Products, Offers, Projects, Service Tickets, Documents, and Calendar Events</strong>.
+              This action will permanently delete <strong>all test Customers, Products, Categories, Offers, Projects, Service Tickets, Documents, and Calendar Events</strong>.
             </p>
 
             <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 font-semibold space-y-1">
               <p className="font-bold">What will remain:</p>
               <ul className="list-disc list-inside text-[11px] space-y-0.5">
                 <li><code>admin@imfex.com</code> (Super Admin)</li>
-                <li><code>sales@imfex.com</code> (Sales Manager)</li>
                 <li>0 Business Records (Fresh Database State)</li>
               </ul>
             </div>

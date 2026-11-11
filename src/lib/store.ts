@@ -10,9 +10,6 @@ import {
   ClientDocument,
   InstalledItem,
   OfferStatus,
-  ProjectStatus,
-  ServicePriority,
-  ServiceStatus,
   CalendarEvent,
   ProductCategory,
   InventoryMovement,
@@ -24,39 +21,8 @@ export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
 };
 
-const DEFAULT_WAREHOUSE_CATEGORIES: ProductCategory[] = [
-  { id: 'cat-gv', name: 'Гаражни врати' },
-  { id: 'cat-av', name: 'Автоматика' },
-  { id: 'cat-sh', name: 'Шини' },
-  { id: 'cat-el', name: 'Додатоци' },
-  { id: 'cat-sv', name: 'Собни врати' },
-];
-
-const DEFAULT_WAREHOUSE_PRODUCTS_RAW: Array<[string, string, string, string, number, number]> = [
-  ['GV-001', 'Резидентна сегментна врата', 'Гаражни врати', 'По нарачка', 0, 850],
-  ['GV-002', 'Индустриска сегментна врата', 'Гаражни врати', 'По нарачка', 0, 1450],
-  ['GV-003', 'Роло гаражна врата', 'Гаражни врати', 'По нарачка', 0, 720],
-  ['AV-001', 'Rocco 60', 'Автоматика', 'Залиха', 8, 160],
-  ['AV-002', 'Rocco 100', 'Автоматика', 'Залиха', 4, 210],
-  ['AV-003', 'BRAVO 500', 'Автоматика', 'Залиха', 6, 260],
-  ['AV-004', 'BRAVO 1000', 'Автоматика', 'Залиха', 2, 340],
-  ['SH-001', 'Шина 3300 mm', 'Шини', 'Залиха', 12, 85],
-  ['SH-002', 'Шина 3600 mm', 'Шини', 'Залиха', 5, 95],
-  ['SH-003', 'Шина 4200 mm', 'Шини', 'Залиха', 0, 115],
-  ['EL-001', 'Далечински управувач', 'Додатоци', 'Залиха', 24, 25],
-  ['EL-002', 'Фотоќелии', 'Додатоци', 'Залиха', 10, 45],
-  ['EL-003', 'Сигнална ламба', 'Додатоци', 'Залиха', 3, 35],
-  ['SV-001', 'Собна врата Софиа', 'Собни врати', 'Залиха', 10, 290],
-  ['SV-002', 'Собна врата Милано', 'Собни врати', 'Залиха', 2, 310],
-  ['SV-003', 'Собна врата Елеганс', 'Собни врати', 'Залиха', 0, 340],
-  ['SV-004', 'Собна врата Верона', 'Собни врати', 'Залиха', 7, 295],
-  ['DO-001', 'Каса за собна врата', 'Додатоци', 'Залиха', 16, 65],
-  ['DO-002', 'Квака за собна врата', 'Додатоци', 'Залиха', 30, 22],
-  ['DO-003', 'Шарки за врата', 'Додатоци', 'Залиха', 40, 12],
-];
-
 class ImfexStore {
-  private categories: ProductCategory[] = [...DEFAULT_WAREHOUSE_CATEGORIES];
+  private categories: ProductCategory[] = [];
   private products: Product[] = [];
   private customers: Customer[] = [];
   private offers: Offer[] = [];
@@ -74,8 +40,15 @@ class ImfexStore {
   private listeners: Array<() => void> = [];
 
   constructor() {
-    this.ensureWarehouseCatalog();
     if (typeof window !== 'undefined') {
+      if (localStorage.getItem('imfex_clean_state_v1') !== 'true') {
+        localStorage.removeItem('imfex_calendar_events');
+        localStorage.removeItem('imfex_inventory_movements');
+        localStorage.removeItem('imfex_stock_overlay');
+        localStorage.removeItem('imfex_project_flow_overlay');
+        localStorage.setItem('imfex_clean_state_v1', 'true');
+      }
+
       const storedUser = sessionStorage.getItem('imfex_current_user');
       if (storedUser) {
         try {
@@ -125,89 +98,7 @@ class ImfexStore {
   }
 
   public ensureWarehouseCatalog() {
-    // Ensure default categories exist
-    DEFAULT_WAREHOUSE_CATEGORIES.forEach((defCat) => {
-      const exists = this.categories.find(
-        (c) => c.name.toLowerCase() === defCat.name.toLowerCase() || c.id === defCat.id
-      );
-      if (!exists) {
-        this.categories.push({ ...defCat });
-      }
-    });
-
-    // Ensure all 20 warehouse products exist and have stock metadata
-    DEFAULT_WAREHOUSE_PRODUCTS_RAW.forEach(([code, name, catName, typeLabel, defaultStock, defaultPrice]) => {
-      const catObj = this.categories.find((c) => c.name.toLowerCase() === catName.toLowerCase());
-      const catId = catObj?.id || null;
-      const defaultType: ProductStockType = typeLabel === 'По нарачка' ? 'CUSTOM' : 'STOCK';
-      const overlay = this.stockOverlay[code];
-
-      const existingIdx = this.products.findIndex((p) => p.code.toUpperCase() === code.toUpperCase());
-      if (existingIdx >= 0) {
-        const existing = this.products[existingIdx];
-        this.products[existingIdx] = {
-          ...existing,
-          categoryId: existing.categoryId || catId,
-          category: existing.category || catObj,
-          stockType: overlay?.stockType || existing.stockType || defaultType,
-          stockQuantity: overlay ? overlay.stockQuantity : (existing.stockQuantity ?? defaultStock),
-          reservedQuantity: overlay ? overlay.reservedQuantity : (existing.reservedQuantity ?? 0),
-        };
-      } else {
-        const prodId = `prod-${code.toLowerCase()}`;
-        const specKeys =
-          defaultType === 'CUSTOM'
-            ? [
-                {
-                  id: `spec-struct-${code}`,
-                  productId: prodId,
-                  name: 'Структура',
-                  inputType: 'SELECT' as const,
-                  options: [
-                    { id: `opt-mline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'M-Line', priceModifier: 0 },
-                    { id: `opt-lline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'L-Line (Smooth)', priceModifier: 65 },
-                    { id: `opt-gline-${code}`, specificationKeyId: `spec-struct-${code}`, label: 'Micro-rib', priceModifier: 40 },
-                  ],
-                },
-                {
-                  id: `spec-color-${code}`,
-                  productId: prodId,
-                  name: 'Боја',
-                  inputType: 'SELECT' as const,
-                  options: [
-                    { id: `opt-7016-${code}`, specificationKeyId: `spec-color-${code}`, label: 'RAL 7016 (Антрацит)', priceModifier: 0 },
-                    { id: `opt-9016-${code}`, specificationKeyId: `spec-color-${code}`, label: 'RAL 9016 (Бела)', priceModifier: 0 },
-                    { id: `opt-8014-${code}`, specificationKeyId: `spec-color-${code}`, label: 'Златен Даб (Woodgrain)', priceModifier: 90 },
-                  ],
-                },
-              ]
-            : [];
-
-        this.products.push({
-          id: prodId,
-          code,
-          name,
-          categoryId: catId,
-          category: catObj,
-          description: `${catName} · ${typeLabel}`,
-          isActive: true,
-          stockType: overlay?.stockType || defaultType,
-          stockQuantity: overlay ? overlay.stockQuantity : defaultStock,
-          reservedQuantity: overlay ? overlay.reservedQuantity : 0,
-          models: [
-            {
-              id: `mod-${code.toLowerCase()}`,
-              productId: prodId,
-              name: `${name} — Стандард`,
-              basePrice: defaultPrice,
-            },
-          ],
-          specificationKeys: specKeys,
-        });
-      }
-    });
-
-    // Also ensure any other products from backend have stockType and stockQuantity initialized
+    // Ensure any products from backend have stockType and stockQuantity initialized
     this.products = this.products.map((p) => {
       const overlay = this.stockOverlay[p.code];
       const catObj = p.category || this.categories.find((c) => c.id === p.categoryId);
@@ -221,7 +112,7 @@ class ImfexStore {
         ...p,
         category: catObj,
         stockType: inferredType,
-        stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? (inferredType === 'CUSTOM' ? 0 : 5)),
+        stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? 0),
         reservedQuantity: overlay ? overlay.reservedQuantity : (p.reservedQuantity ?? 0),
       };
     });
@@ -296,7 +187,7 @@ class ImfexStore {
       if (resDocs && resDocs.ok) this.documents = await resDocs.json();
       if (resCal && resCal.ok) {
         const dbEvents = await resCal.json();
-        if (Array.isArray(dbEvents) && dbEvents.length > 0) {
+        if (Array.isArray(dbEvents)) {
           this.calendarEvents = dbEvents;
           if (typeof window !== 'undefined') {
             localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
@@ -337,8 +228,14 @@ class ImfexStore {
       this.installedItems = [];
       this.documents = [];
       this.calendarEvents = [];
+      this.movements = [];
+      this.stockOverlay = {};
+      this.projectFlowOverlay = {};
       if (typeof window !== 'undefined') {
         localStorage.removeItem('imfex_calendar_events');
+        localStorage.removeItem('imfex_inventory_movements');
+        localStorage.removeItem('imfex_stock_overlay');
+        localStorage.removeItem('imfex_project_flow_overlay');
       }
       await this.fetchInitialDataFromBackend();
       this.notifyListeners();
@@ -383,7 +280,7 @@ class ImfexStore {
     }
   }
 
-  login(email: string, password?: string): UserProfile | null {
+  login(_email: string, _password?: string): UserProfile | null {
     return this.currentUser;
   }
 
@@ -559,9 +456,6 @@ class ImfexStore {
 
   // Products & Warehouse Inventory
   getProducts(): Product[] {
-    if (this.products.length === 0) {
-      this.ensureWarehouseCatalog();
-    }
     return [...this.products];
   }
 
