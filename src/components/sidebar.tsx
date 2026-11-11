@@ -11,7 +11,7 @@ import {
   FileSpreadsheet,
   Settings,
   Briefcase,
-  Wrench,
+  Landmark,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -61,9 +61,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Briefcase,
     },
     {
-      label: t('nav.service'),
-      href: '/service',
-      icon: Wrench,
+      label: t('nav.finance') || 'Финансии и Набавки',
+      href: '/finance',
+      icon: Landmark,
     },
     {
       label: t('nav.calendar'),

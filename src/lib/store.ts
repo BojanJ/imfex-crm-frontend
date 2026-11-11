@@ -6,6 +6,7 @@ import {
   UserProfile,
   UserRole,
   Project,
+  ProjectStatus,
   ServiceTicket,
   ClientDocument,
   InstalledItem,
@@ -15,6 +16,15 @@ import {
   InventoryMovement,
   InventoryMoveKind,
   ProductStockType,
+  PurchaseInvoice,
+  PurchaseInvoiceItem,
+  SalesInvoice,
+  SalesInvoiceType,
+  SalesInvoiceItem,
+  DispatchNote,
+  DispatchNoteItem,
+  PaymentRecord,
+  PaymentMethod,
 } from '@/types';
 
 export const getApiUrl = () => {
@@ -33,7 +43,11 @@ class ImfexStore {
   private documents: ClientDocument[] = [];
   private calendarEvents: CalendarEvent[] = [];
   private movements: InventoryMovement[] = [];
-  private stockOverlay: Record<string, { stockType?: ProductStockType; stockQuantity: number; reservedQuantity: number }> = {};
+  private purchaseInvoices: PurchaseInvoice[] = [];
+  private salesInvoices: SalesInvoice[] = [];
+  private dispatchNotes: DispatchNote[] = [];
+  private payments: PaymentRecord[] = [];
+  private stockOverlay: Record<string, { stockType?: ProductStockType; stockQuantity: number; reservedQuantity: number; purchasePrice?: number }> = {};
   private projectFlowOverlay: Record<string, Partial<Project>> = {};
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
@@ -84,6 +98,34 @@ class ImfexStore {
         } catch (e) {}
       }
 
+      const storedPurchases = localStorage.getItem('imfex_purchase_invoices');
+      if (storedPurchases) {
+        try {
+          this.purchaseInvoices = JSON.parse(storedPurchases);
+        } catch (e) {}
+      }
+
+      const storedSales = localStorage.getItem('imfex_sales_invoices');
+      if (storedSales) {
+        try {
+          this.salesInvoices = JSON.parse(storedSales);
+        } catch (e) {}
+      }
+
+      const storedDispatches = localStorage.getItem('imfex_dispatch_notes');
+      if (storedDispatches) {
+        try {
+          this.dispatchNotes = JSON.parse(storedDispatches);
+        } catch (e) {}
+      }
+
+      const storedPayments = localStorage.getItem('imfex_payments');
+      if (storedPayments) {
+        try {
+          this.payments = JSON.parse(storedPayments);
+        } catch (e) {}
+      }
+
       this.ensureWarehouseCatalog();
       this.fetchInitialDataFromBackend();
     }
@@ -94,6 +136,10 @@ class ImfexStore {
       localStorage.setItem('imfex_inventory_movements', JSON.stringify(this.movements));
       localStorage.setItem('imfex_stock_overlay', JSON.stringify(this.stockOverlay));
       localStorage.setItem('imfex_project_flow_overlay', JSON.stringify(this.projectFlowOverlay));
+      localStorage.setItem('imfex_purchase_invoices', JSON.stringify(this.purchaseInvoices));
+      localStorage.setItem('imfex_sales_invoices', JSON.stringify(this.salesInvoices));
+      localStorage.setItem('imfex_dispatch_notes', JSON.stringify(this.dispatchNotes));
+      localStorage.setItem('imfex_payments', JSON.stringify(this.payments));
     }
   }
 
@@ -114,6 +160,7 @@ class ImfexStore {
         stockType: inferredType,
         stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? 0),
         reservedQuantity: overlay ? overlay.reservedQuantity : (p.reservedQuantity ?? 0),
+        purchasePrice: overlay?.purchasePrice ?? p.purchasePrice,
       };
     });
   }
@@ -493,15 +540,19 @@ class ImfexStore {
     return move;
   }
 
-  receiveProductStock(productId: string, qty: number = 1, customNote?: string): Product | undefined {
+  receiveProductStock(productId: string, qty: number = 1, customNote?: string, purchasePrice?: number): Product | undefined {
     const p = this.getProductById(productId);
     if (!p) return undefined;
     const nextStock = (p.stockQuantity ?? 0) + qty;
     p.stockQuantity = nextStock;
+    if (purchasePrice !== undefined && purchasePrice > 0) {
+      p.purchasePrice = purchasePrice;
+    }
     this.stockOverlay[p.code] = {
       stockType: p.stockType || 'STOCK',
       stockQuantity: nextStock,
       reservedQuantity: p.reservedQuantity ?? 0,
+      purchasePrice: p.purchasePrice,
     };
     this.addInventoryMovement('ПРИЕМ', customNote || `+${qty} ${p.name}`, { productId: p.id, quantity: qty });
     return p;
@@ -574,6 +625,7 @@ class ImfexStore {
       stockType: product.stockType || 'STOCK',
       stockQuantity: product.stockQuantity ?? 0,
       reservedQuantity: product.reservedQuantity ?? 0,
+      purchasePrice: product.purchasePrice,
     };
     this.persistWarehouseState();
     this.notifyListeners();
@@ -1311,6 +1363,738 @@ class ImfexStore {
     fetch(`${baseUrl}/api/calendar-events/${id}`, {
       method: 'DELETE',
     }).catch(console.warn);
+  }
+
+  // ==========================================================================
+  // ФИНАНСИИ И НАБАВКИ (Purchase Invoices, Sales Invoices, Dispatch, Payments)
+  // ==========================================================================
+
+  // 1. Purchase Invoices (Влезни фактури: Стока за залиха + Трошоци)
+  getPurchaseInvoices(): PurchaseInvoice[] {
+    return [...this.purchaseInvoices].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+
+  getPurchaseInvoiceById(id: string): PurchaseInvoice | undefined {
+    return this.purchaseInvoices.find((inv) => inv.id === id);
+  }
+
+  generatePurchaseNumber(): string {
+    const year = new Date().getFullYear();
+    const count = this.purchaseInvoices.length + 1;
+    return `NAB-${year}-${String(count).padStart(4, '0')}`;
+  }
+
+  savePurchaseInvoice(inv: PurchaseInvoice): PurchaseInvoice {
+    const idx = this.purchaseInvoices.findIndex((p) => p.id === inv.id);
+    if (idx >= 0) {
+      this.purchaseInvoices[idx] = inv;
+    } else {
+      this.purchaseInvoices.unshift(inv);
+    }
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return inv;
+  }
+
+  deletePurchaseInvoice(id: string) {
+    this.purchaseInvoices = this.purchaseInvoices.filter((p) => p.id !== id);
+    this.persistWarehouseState();
+    this.notifyListeners();
+  }
+
+  receivePurchaseInvoiceToWarehouse(invoiceId: string): PurchaseInvoice | undefined {
+    const inv = this.getPurchaseInvoiceById(invoiceId);
+    if (!inv) return undefined;
+
+    let anyReceived = false;
+    const updatedItems: PurchaseInvoiceItem[] = inv.items.map((item) => {
+      if (item.itemType === 'STOCK' && !item.receivedInWarehouse) {
+        anyReceived = true;
+        if (item.productId) {
+          const prod = this.getProductById(item.productId);
+          if (prod) {
+            const nextStock = (prod.stockQuantity ?? 0) + Number(item.quantity || 1);
+            prod.stockQuantity = nextStock;
+            if (item.unitCost > 0) {
+              prod.purchasePrice = Number(item.unitCost);
+            }
+            const targetProjectId = item.projectId || inv.projectId;
+            let nextRes = prod.reservedQuantity ?? 0;
+            if (targetProjectId) {
+              nextRes += Number(item.quantity || 1);
+              prod.reservedQuantity = nextRes;
+            }
+            this.stockOverlay[prod.code] = {
+              stockType: prod.stockType || 'STOCK',
+              stockQuantity: nextStock,
+              reservedQuantity: nextRes,
+              purchasePrice: prod.purchasePrice,
+            };
+            this.addInventoryMovement(
+              'ПРИЕМ',
+              `Примено по влезна фактура ${inv.supplierInvoiceNumber || inv.internalNumber} од ${inv.supplierName}: +${item.quantity} ${prod.name} (Набавна: €${Number(item.unitCost).toFixed(2)})`,
+              {
+                productId: prod.id,
+                projectId: targetProjectId,
+                quantity: item.quantity,
+              }
+            );
+          }
+        } else {
+          this.addInventoryMovement(
+            'ПРИЕМ',
+            `Примено по влезна фактура ${inv.supplierInvoiceNumber || inv.internalNumber}: +${item.quantity} ${item.title}`,
+            { projectId: item.projectId || inv.projectId, quantity: item.quantity }
+          );
+        }
+        return {
+          ...item,
+          receivedInWarehouse: true,
+          receivedAt: new Date().toISOString(),
+        };
+      }
+      return item;
+    });
+
+    // If linked to a project, also mark warehouseReceived on that project
+    if (inv.projectId && anyReceived) {
+      const prj = this.getProjectById(inv.projectId);
+      if (prj && !prj.warehouseReceived) {
+        this.saveProject({
+          ...prj,
+          status: prj.status === 'PROCUREMENT' || prj.status === 'PLANNED' ? 'INSTALLATION' : prj.status,
+          procurementStatus: 'DELIVERED',
+          warehouseReceived: true,
+          warehouseReceivedAt: new Date().toISOString(),
+          actualDeliveryDate: new Date().toISOString().split('T')[0],
+          procurementNotes: `${prj.procurementNotes || ''}\n[ПРИЕМ] Примена стока по фактура ${inv.supplierInvoiceNumber || inv.internalNumber} од ${inv.supplierName}`.trim(),
+        });
+      }
+    }
+
+    const updatedInv: PurchaseInvoice = {
+      ...inv,
+      items: updatedItems,
+      receiptStatus: 'RECEIVED',
+      status: inv.status === 'DRAFT' ? 'INVOICED' : inv.status,
+    };
+    return this.savePurchaseInvoice(updatedInv);
+  }
+
+  // 2. Sales Invoices (Излезни фактури: Про-фактури, Авансни фактури, Конечни фактури)
+  getSalesInvoices(): SalesInvoice[] {
+    return this.salesInvoices
+      .map((inv) => ({
+        ...inv,
+        customer: inv.customer || this.getCustomerById(inv.customerId),
+      }))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+
+  getSalesInvoiceById(id: string): SalesInvoice | undefined {
+    const inv = this.salesInvoices.find((s) => s.id === id);
+    if (!inv) return undefined;
+    return {
+      ...inv,
+      customer: inv.customer || this.getCustomerById(inv.customerId),
+    };
+  }
+
+  generateSalesInvoiceNumber(type: SalesInvoiceType): string {
+    const year = new Date().getFullYear();
+    const prefix = type === 'PROFORMA' ? 'PRO' : type === 'ADVANCE' ? 'AVN' : 'FAK';
+    const count = this.salesInvoices.filter((s) => s.invoiceType === type).length + 1;
+    return `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+  }
+
+  saveSalesInvoice(inv: SalesInvoice): SalesInvoice {
+    const idx = this.salesInvoices.findIndex((s) => s.id === inv.id);
+    if (idx >= 0) {
+      this.salesInvoices[idx] = inv;
+    } else {
+      this.salesInvoices.unshift(inv);
+    }
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return inv;
+  }
+
+  deleteSalesInvoice(id: string) {
+    this.salesInvoices = this.salesInvoices.filter((s) => s.id !== id);
+    this.persistWarehouseState();
+    this.notifyListeners();
+  }
+
+  createSalesInvoiceFromOfferOrProject(params: {
+    invoiceType: SalesInvoiceType;
+    offerId?: string;
+    projectId?: string;
+    customerId?: string;
+    advanceAmountOverride?: number;
+    externalAccountingNumber?: string;
+    notes?: string;
+  }): SalesInvoice {
+    const project = params.projectId ? this.getProjectById(params.projectId) : undefined;
+    const offer = params.offerId
+      ? this.getOfferById(params.offerId)
+      : project?.offerId
+      ? this.getOfferById(project.offerId)
+      : undefined;
+    const customerId = params.customerId || project?.customerId || offer?.customerId || '';
+    const customer = this.getCustomerById(customerId);
+    const taxRate = offer?.taxRate ?? 18;
+    const discountRate = offer?.discountRate ?? 0;
+
+    let items: SalesInvoiceItem[] = [];
+    let subtotal = 0;
+    let discountAmount = 0;
+    let taxAmount = 0;
+    let grossTotalAmount = 0;
+
+    if (params.invoiceType === 'ADVANCE') {
+      const advGross = params.advanceAmountOverride ?? Math.round((offer?.totalAmount || 1000) * 0.7 * 100) / 100;
+      const net = Math.round((advGross / (1 + taxRate / 100)) * 100) / 100;
+      const vat = Math.round((advGross - net) * 100) / 100;
+      subtotal = net;
+      taxAmount = vat;
+      grossTotalAmount = advGross;
+      items = [
+        {
+          id: `sinv-item-${Date.now()}`,
+          title: `Авансна уплата по ${project ? `Проект ${project.projectNumber}` : `Понуда ${offer?.offerNumber || ''}`}`.trim(),
+          description: `Аванс за испорака и монтажа согласно понуда ${offer?.offerNumber || ''}`,
+          quantity: 1,
+          unitPrice: net,
+          totalPrice: net,
+        },
+      ];
+    } else if (offer && offer.items && offer.items.length > 0) {
+      items = offer.items.map((it, idx) => ({
+        id: `sinv-item-${Date.now()}-${idx}`,
+        productId: it.productId,
+        title: it.customTitle || 'Ставка од понуда',
+        description: it.widthMm && it.heightMm ? `Димензии: ${it.widthMm} x ${it.heightMm} mm` : undefined,
+        quantity: Number(it.quantity || 1),
+        unitPrice: Number(it.unitPrice || 0),
+        totalPrice: Number(it.totalPrice || 0),
+      }));
+      subtotal = Number(offer.subtotal || items.reduce((s, i) => s + i.totalPrice, 0));
+      discountAmount = Number(offer.discountAmount || 0);
+      taxAmount = Number(offer.taxAmount || 0);
+      grossTotalAmount = Number(offer.totalAmount || subtotal - discountAmount + taxAmount);
+    }
+
+    // Check if there is an existing ADVANCE invoice for this project/offer when creating a FINAL invoice
+    let linkedAdvanceInvoiceId: string | undefined;
+    let linkedAdvanceInvoiceNumber: string | undefined;
+    let advanceDeductedAmount = 0;
+
+    if (params.invoiceType === 'FINAL') {
+      const priorAdvances = this.salesInvoices.filter(
+        (s) =>
+          s.invoiceType === 'ADVANCE' &&
+          s.status !== 'CANCELLED' &&
+          ((project && s.projectId === project.id) || (offer && s.offerId === offer.id))
+      );
+      if (priorAdvances.length > 0) {
+        linkedAdvanceInvoiceId = priorAdvances[0].id;
+        linkedAdvanceInvoiceNumber = priorAdvances.map((a) => a.invoiceNumber).join(', ');
+        advanceDeductedAmount = priorAdvances.reduce((sum, a) => sum + Number(a.totalAmount || 0), 0);
+      } else {
+        // Also check direct advance payments if no formal advance invoice was generated
+        const advPayments = this.payments.filter(
+          (p) =>
+            p.direction === 'IN' &&
+            p.isAdvance &&
+            ((project && p.projectId === project.id) || (offer && p.offerId === offer.id))
+        );
+        if (advPayments.length > 0) {
+          advanceDeductedAmount = advPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          linkedAdvanceInvoiceNumber = advPayments.map((p) => p.paymentNumber).join(', ');
+        }
+      }
+    }
+
+    const totalAmount = Math.max(0, Math.round((grossTotalAmount - advanceDeductedAmount) * 100) / 100);
+    const invoiceNumber = this.generateSalesInvoiceNumber(params.invoiceType);
+
+    const newInvoice: SalesInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber,
+      externalAccountingNumber: params.externalAccountingNumber,
+      invoiceType: params.invoiceType,
+      status: params.invoiceType === 'ADVANCE' ? 'PAID' : 'ISSUED',
+      customerId,
+      customer,
+      offerId: offer?.id,
+      projectId: project?.id,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      taxRate,
+      discountRate,
+      discountAmount,
+      subtotal,
+      taxAmount,
+      grossTotalAmount,
+      linkedAdvanceInvoiceId,
+      linkedAdvanceInvoiceNumber,
+      advanceDeductedAmount,
+      totalAmount,
+      paidAmount: params.invoiceType === 'ADVANCE' ? totalAmount : 0,
+      notes: params.notes,
+      items,
+      createdAt: new Date().toISOString(),
+    };
+
+    return this.saveSalesInvoice(newInvoice);
+  }
+
+  // 3. Dispatch Notes (Испратници — физички излез од залиха)
+  getDispatchNotes(): DispatchNote[] {
+    return this.dispatchNotes
+      .map((d) => ({
+        ...d,
+        customer: d.customer || this.getCustomerById(d.customerId),
+      }))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+
+  getDispatchNoteById(id: string): DispatchNote | undefined {
+    const d = this.dispatchNotes.find((n) => n.id === id);
+    if (!d) return undefined;
+    return {
+      ...d,
+      customer: d.customer || this.getCustomerById(d.customerId),
+    };
+  }
+
+  generateDispatchNumber(): string {
+    const year = new Date().getFullYear();
+    const count = this.dispatchNotes.length + 1;
+    return `ISP-${year}-${String(count).padStart(4, '0')}`;
+  }
+
+  saveDispatchNote(note: DispatchNote): DispatchNote {
+    const idx = this.dispatchNotes.findIndex((n) => n.id === note.id);
+    if (idx >= 0) {
+      this.dispatchNotes[idx] = note;
+    } else {
+      this.dispatchNotes.unshift(note);
+    }
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return note;
+  }
+
+  deleteDispatchNote(id: string) {
+    this.dispatchNotes = this.dispatchNotes.filter((n) => n.id !== id);
+    this.persistWarehouseState();
+    this.notifyListeners();
+  }
+
+  confirmAndIssueDispatchNote(dispatchId: string): DispatchNote | undefined {
+    const note = this.getDispatchNoteById(dispatchId);
+    if (!note) return undefined;
+
+    if (!note.stockDeducted) {
+      note.items.forEach((it) => {
+        if (it.productId) {
+          const prod = this.getProductById(it.productId);
+          if (prod) {
+            const currentStock = prod.stockQuantity ?? 0;
+            const currentRes = prod.reservedQuantity ?? 0;
+            const qty = Number(it.quantity || 1);
+            const nextStock = Math.max(0, currentStock - qty);
+            const nextRes = Math.max(0, currentRes - qty);
+            prod.stockQuantity = nextStock;
+            prod.reservedQuantity = nextRes;
+            this.stockOverlay[prod.code] = {
+              stockType: prod.stockType || 'STOCK',
+              stockQuantity: nextStock,
+              reservedQuantity: nextRes,
+              purchasePrice: prod.purchasePrice,
+            };
+            this.addInventoryMovement(
+              'ИЗЛЕЗ',
+              `Испратница ${note.dispatchNumber}: −${qty} ${prod.name} (${note.customer?.companyName || note.customer?.name || 'Клиент'})`,
+              {
+                productId: prod.id,
+                projectId: note.projectId,
+                offerId: note.offerId,
+                quantity: qty,
+              }
+            );
+          }
+        } else {
+          this.addInventoryMovement(
+            'ИЗЛЕЗ',
+            `Испратница ${note.dispatchNumber}: −${it.quantity} ${it.title}`,
+            { projectId: note.projectId, offerId: note.offerId, quantity: it.quantity }
+          );
+        }
+
+        // Register in customer's Installed Equipment history
+        if (note.customerId) {
+          this.saveInstalledItem({
+            id: `inst-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            customerId: note.customerId,
+            projectId: note.projectId,
+            productId: it.productId,
+            title: it.title,
+            serialNumber: it.serialNumber || note.dispatchNumber,
+            installationDate: note.issueDate || new Date().toISOString().split('T')[0],
+          });
+        }
+      });
+    }
+
+    const updatedNote: DispatchNote = {
+      ...note,
+      status: 'ISSUED',
+      stockDeducted: true,
+    };
+    this.saveDispatchNote(updatedNote);
+
+    if (note.projectId) {
+      const prj = this.getProjectById(note.projectId);
+      if (prj && !prj.dispatchIssued) {
+        this.saveProject({
+          ...prj,
+          status: 'COMPLETED',
+          dispatchIssued: true,
+          dispatchIssuedAt: new Date().toISOString(),
+          procurementNotes: `${prj.procurementNotes || ''}\n[ИЗЛЕЗ] Издадена испратница ${note.dispatchNumber} — залихата е раздолжена`.trim(),
+        });
+      }
+    }
+
+    return updatedNote;
+  }
+
+  // 4. Payments (Уплати од клиенти и Исплати кон добавувачи/трошоци)
+  getPayments(): PaymentRecord[] {
+    return [...this.payments].sort((a, b) => (b.date || b.createdAt || '').localeCompare(a.date || a.createdAt || ''));
+  }
+
+  generatePaymentNumber(): string {
+    const year = new Date().getFullYear();
+    const count = this.payments.length + 1;
+    return `UPL-${year}-${String(count).padStart(4, '0')}`;
+  }
+
+  recordPayment(payment: Omit<PaymentRecord, 'id' | 'paymentNumber' | 'createdAt'>): PaymentRecord {
+    const record: PaymentRecord = {
+      ...payment,
+      id: `pay-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      paymentNumber: this.generatePaymentNumber(),
+      createdAt: new Date().toISOString(),
+    };
+    this.payments.unshift(record);
+
+    if (record.salesInvoiceId) {
+      const sinv = this.getSalesInvoiceById(record.salesInvoiceId);
+      if (sinv) {
+        const nextPaid = Number(sinv.paidAmount || 0) + Number(record.amount || 0);
+        sinv.paidAmount = nextPaid;
+        sinv.status = nextPaid >= Number(sinv.totalAmount || 0) ? 'PAID' : 'PARTIAL_PAID';
+        this.saveSalesInvoice(sinv);
+      }
+    }
+
+    if (record.purchaseInvoiceId) {
+      const pinv = this.getPurchaseInvoiceById(record.purchaseInvoiceId);
+      if (pinv) {
+        const nextPaid = Number(pinv.paidAmount || 0) + Number(record.amount || 0);
+        pinv.paidAmount = nextPaid;
+        pinv.status = nextPaid >= Number(pinv.totalAmount || 0) ? 'PAID' : 'PARTIAL_PAID';
+        this.savePurchaseInvoice(pinv);
+      }
+    }
+
+    this.persistWarehouseState();
+    this.notifyListeners();
+    return record;
+  }
+
+  deletePayment(id: string) {
+    this.payments = this.payments.filter((p) => p.id !== id);
+    this.persistWarehouseState();
+    this.notifyListeners();
+  }
+
+  // 5. Interactive Advance Payment Flow ("Евидентирај уплата на аванс" со избор)
+  executeAdvancePaymentFlow(params: {
+    projectId?: string;
+    offerId?: string;
+    customerId: string;
+    amount: number;
+    date: string;
+    method: PaymentMethod;
+    bankAccount?: string;
+    createAdvanceInvoice: boolean;
+    nextAction: 'PROCUREMENT_AND_DRAFT' | 'CUSTOM_STATUS' | 'ONLY_RECORD';
+    customProjectStatus?: ProjectStatus;
+    preferredSupplierId?: string;
+    preferredSupplierName?: string;
+    notes?: string;
+  }): {
+    project?: Project;
+    advanceInvoice?: SalesInvoice;
+    payment: PaymentRecord;
+    draftPurchase?: PurchaseInvoice;
+  } {
+    let project = params.projectId ? this.getProjectById(params.projectId) : undefined;
+    const offer = params.offerId
+      ? this.getOfferById(params.offerId)
+      : project?.offerId
+      ? this.getOfferById(project.offerId)
+      : undefined;
+
+    if (!project && offer) {
+      // Ensure offer is marked ACCEPTED and project is created
+      if (offer.status !== 'ACCEPTED') {
+        this.setOfferStatus(offer.id, 'ACCEPTED');
+      }
+      project = this.projects.find((p) => p.offerId === offer.id) || this.createProjectFromOffer(offer);
+    }
+
+    const cust = this.getCustomerById(params.customerId || project?.customerId || offer?.customerId || '');
+    let advanceInvoice: SalesInvoice | undefined;
+
+    if (params.createAdvanceInvoice) {
+      advanceInvoice = this.createSalesInvoiceFromOfferOrProject({
+        invoiceType: 'ADVANCE',
+        offerId: offer?.id,
+        projectId: project?.id,
+        customerId: cust?.id,
+        advanceAmountOverride: params.amount,
+        notes: params.notes || `Авансна фактура по уплата од ${params.date}`,
+      });
+    }
+
+    const payment = this.recordPayment({
+      direction: 'IN',
+      amount: params.amount,
+      date: params.date,
+      method: params.method,
+      bankAccount: params.bankAccount || 'Комерцијална Банка - Денарска/Евро',
+      customerId: cust?.id,
+      partnerName: cust?.companyName || cust?.name || 'Клиент',
+      projectId: project?.id,
+      offerId: offer?.id,
+      salesInvoiceId: advanceInvoice?.id,
+      isAdvance: true,
+      notes: params.notes || `Уплата на аванс за ${project?.projectNumber || offer?.offerNumber || ''}`,
+    });
+
+    this.addInventoryMovement(
+      'УПЛАТА',
+      `Евидентиран аванс €${Number(params.amount).toFixed(2)} за ${project?.projectNumber || offer?.offerNumber || ''}`,
+      { projectId: project?.id, offerId: offer?.id }
+    );
+
+    let draftPurchase: PurchaseInvoice | undefined;
+
+    if (project) {
+      let nextStatus: ProjectStatus = project.status;
+      let nextProcStatus = project.procurementStatus || 'NOT_STARTED';
+      let supplierOrdered = Boolean(project.supplierOrdered);
+
+      if (params.nextAction === 'PROCUREMENT_AND_DRAFT') {
+        nextStatus = 'PROCUREMENT';
+        nextProcStatus = 'ORDERED';
+        supplierOrdered = true;
+
+        // Build draft PurchaseInvoice items for CUSTOM products or missing stock items
+        const draftItems: PurchaseInvoiceItem[] = [];
+        (offer?.items || []).forEach((it, idx) => {
+          const prod = it.productId ? this.getProductById(it.productId) : undefined;
+          const isCustom = !prod || prod.stockType === 'CUSTOM';
+          const available = prod ? (prod.stockQuantity ?? 0) - (prod.reservedQuantity ?? 0) : 0;
+          const needed = Number(it.quantity || 1);
+
+          if (isCustom || available < needed) {
+            const estCost = prod?.purchasePrice || Math.round(Number(it.unitPrice || 500) * 0.62 * 100) / 100;
+            draftItems.push({
+              id: `pitem-${Date.now()}-${idx}`,
+              itemType: 'STOCK',
+              productId: prod?.id,
+              productCode: prod?.code,
+              title: it.customTitle || prod?.name || 'Ставка за набавка',
+              projectId: project!.id,
+              quantity: needed,
+              unitCost: estCost,
+              totalCost: Math.round(estCost * needed * 100) / 100,
+              receivedInWarehouse: false,
+            });
+          }
+
+          if (it.selectedAccessories) {
+            Object.values(it.selectedAccessories).forEach((accId) => {
+              if (!accId) return;
+              const accProd = this.getProductById(accId);
+              if (accProd) {
+                const freeAcc = (accProd.stockQuantity ?? 0);
+                if (freeAcc <= 0) {
+                  const estAccCost = accProd.purchasePrice || Math.round(Number(accProd.models?.[0]?.basePrice || 120) * 0.6 * 100) / 100;
+                  draftItems.push({
+                    id: `pitem-acc-${Date.now()}-${accProd.id}`,
+                    itemType: 'STOCK',
+                    productId: accProd.id,
+                    productCode: accProd.code,
+                    title: accProd.name,
+                    projectId: project!.id,
+                    quantity: 1,
+                    unitCost: estAccCost,
+                    totalCost: estAccCost,
+                    receivedInWarehouse: false,
+                  });
+                }
+              }
+            });
+          }
+        });
+
+        if (draftItems.length === 0) {
+          // Fallback: add main item from offer
+          const firstIt = offer?.items?.[0];
+          const prod = firstIt?.productId ? this.getProductById(firstIt.productId) : undefined;
+          const estCost = prod?.purchasePrice || Math.round(Number(firstIt?.unitPrice || 600) * 0.62 * 100) / 100;
+          draftItems.push({
+            id: `pitem-${Date.now()}-0`,
+            itemType: 'STOCK',
+            productId: prod?.id,
+            productCode: prod?.code,
+            title: firstIt?.customTitle || prod?.name || `Набавка за ${project.projectNumber}`,
+            projectId: project.id,
+            quantity: Number(firstIt?.quantity || 1),
+            unitCost: estCost,
+            totalCost: Math.round(estCost * Number(firstIt?.quantity || 1) * 100) / 100,
+            receivedInWarehouse: false,
+          });
+        }
+
+        const sub = draftItems.reduce((s, i) => s + i.totalCost, 0);
+        const vat = Math.round(sub * 0.18 * 100) / 100;
+        const tot = Math.round((sub + vat) * 100) / 100;
+
+        draftPurchase = this.savePurchaseInvoice({
+          id: `pinv-${Date.now()}`,
+          internalNumber: this.generatePurchaseNumber(),
+          supplierInvoiceNumber: '',
+          supplierId: params.preferredSupplierId || 'partner-doors-impex',
+          supplierName: params.preferredSupplierName || 'Doors Impex (Добавувач)',
+          projectId: project.id,
+          offerId: offer?.id,
+          issueDate: params.date,
+          status: 'DRAFT',
+          receiptStatus: 'PENDING',
+          taxRate: 18,
+          subtotal: sub,
+          taxAmount: vat,
+          totalAmount: tot,
+          paidAmount: 0,
+          notes: `Автоматски креирана нацрт-набавка по уплатен аванс за проект ${project.projectNumber}`,
+          items: draftItems,
+          createdAt: new Date().toISOString(),
+        });
+
+        this.addInventoryMovement(
+          'НАБАВКА',
+          `Креирана нацрт-набавка ${draftPurchase.internalNumber} за ${project.projectNumber}`,
+          { projectId: project.id, offerId: offer?.id }
+        );
+      } else if (params.nextAction === 'CUSTOM_STATUS' && params.customProjectStatus) {
+        nextStatus = params.customProjectStatus;
+        if (nextStatus === 'PROCUREMENT') {
+          nextProcStatus = 'ORDERED';
+          supplierOrdered = true;
+        }
+      }
+
+      project = this.saveProject({
+        ...project,
+        status: nextStatus,
+        procurementStatus: nextProcStatus,
+        advancePaid: true,
+        advancePaidAt: new Date().toISOString(),
+        supplierOrdered,
+        supplierOrderedAt: supplierOrdered ? (project.supplierOrderedAt || new Date().toISOString()) : undefined,
+        procurementNotes: `${project.procurementNotes || ''}\n[АВАНС] Уплатен аванс €${Number(params.amount).toFixed(2)} (${params.date})${draftPurchase ? ` → Нацрт-набавка ${draftPurchase.internalNumber}` : ''}`.trim(),
+      });
+    }
+
+    return { project, advanceInvoice, payment, draftPurchase };
+  }
+
+  // 6. Real-time Project Profitability & Financial Balance
+  getProjectFinancialSummary(projectId: string) {
+    const project = this.getProjectById(projectId);
+    const offer = project?.offerId ? this.getOfferById(project.offerId) : undefined;
+    const agreedRevenue = Number(offer?.totalAmount || 0);
+
+    const projectSalesInvoices = this.salesInvoices.filter(
+      (s) => s.status !== 'CANCELLED' && (s.projectId === projectId || (offer && s.offerId === offer.id))
+    );
+
+    const projectPaymentsIn = this.payments.filter(
+      (p) => p.direction === 'IN' && (p.projectId === projectId || (offer && p.offerId === offer.id))
+    );
+    const paidByCustomer = projectPaymentsIn.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const remainingToPay = Math.max(0, Math.round((agreedRevenue - paidByCustomer) * 100) / 100);
+
+    // Purchase costs (STOCK vs EXPENSE) linked to this project
+    let stockPurchaseCost = 0;
+    let directExpensesCost = 0;
+    const linkedPurchases: PurchaseInvoice[] = [];
+
+    this.purchaseInvoices.forEach((pinv) => {
+      let hasProjectItem = pinv.projectId === projectId;
+      pinv.items.forEach((item) => {
+        if (item.projectId === projectId || pinv.projectId === projectId) {
+          hasProjectItem = true;
+          if (item.itemType === 'STOCK') {
+            stockPurchaseCost += Number(item.totalCost || 0);
+          } else {
+            directExpensesCost += Number(item.totalCost || 0);
+          }
+        }
+      });
+      if (hasProjectItem) {
+        linkedPurchases.push(pinv);
+      }
+    });
+
+    // If no purchase invoice for stock yet, estimate from product purchasePrice if available
+    let estimatedStockCost = 0;
+    (offer?.items || []).forEach((it) => {
+      if (it.productId) {
+        const prod = this.getProductById(it.productId);
+        if (prod?.purchasePrice) {
+          estimatedStockCost += Number(prod.purchasePrice) * Number(it.quantity || 1);
+        }
+      }
+    });
+
+    const effectiveStockCost = stockPurchaseCost > 0 ? stockPurchaseCost : estimatedStockCost;
+    const totalCosts = Math.round((effectiveStockCost + directExpensesCost) * 100) / 100;
+    const netProfit = Math.round((agreedRevenue - totalCosts) * 100) / 100;
+    const marginPercent = agreedRevenue > 0 ? Math.round((netProfit / agreedRevenue) * 1000) / 10 : 0;
+
+    return {
+      agreedRevenue,
+      paidByCustomer,
+      remainingToPay,
+      stockPurchaseCost: Math.round(effectiveStockCost * 100) / 100,
+      hasActualStockInvoice: stockPurchaseCost > 0,
+      directExpensesCost: Math.round(directExpensesCost * 100) / 100,
+      totalCosts,
+      netProfit,
+      marginPercent,
+      projectSalesInvoices,
+      projectPaymentsIn,
+      linkedPurchases,
+    };
   }
 }
 

@@ -3,9 +3,12 @@
 import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
-import { Project, ProjectStatus, UserProfile } from '@/types';
+import { Project, ProjectStatus, UserProfile, SalesInvoice, DispatchNote } from '@/types';
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
+import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
+import { toast } from '@/components/ui/toastr';
 import {
   Briefcase,
   ArrowLeft,
@@ -19,6 +22,9 @@ import {
   PenTool,
   Building2,
   Loader2,
+  Euro,
+  FileText,
+  TrendingUp,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +56,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [signatureData, setSignatureData] = useState<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
+  const [previewDispatch, setPreviewDispatch] = useState<DispatchNote | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const applyProjectData = (prj: Project) => {
@@ -401,13 +410,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <button
                     type="button"
                     disabled={Boolean(project.advancePaid)}
-                    onClick={() => {
-                      const updated = imfexStore.projectStepRecordAdvance(project.id);
-                      if (updated) applyProjectData(updated);
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
+                    onClick={() => setShowAdvanceModal(true)}
+                    className="px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-extrabold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer block"
                   >
-                    2. Евидентирај аванс 70%
+                    2. Евидентирај уплата на аванс (со избор)
                   </button>
                 </div>
               </div>
@@ -456,10 +462,33 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     onClick={() => {
                       const updated = imfexStore.projectStepIssueDispatch(project.id);
                       if (updated) applyProjectData(updated);
+                      const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
+                      const note = imfexStore.saveDispatchNote({
+                        id: `disp-${Date.now()}`,
+                        dispatchNumber: imfexStore.generateDispatchNumber(),
+                        status: 'ISSUED',
+                        customerId: project.customerId,
+                        customer: project.customer,
+                        projectId: project.id,
+                        offerId: project.offerId,
+                        issueDate: new Date().toISOString().split('T')[0],
+                        deliveryAddress: project.installationAddress || project.customer?.address,
+                        receivedBy: project.customer?.companyName || project.customer?.name,
+                        issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
+                        items: (offer?.items || []).map((it, i) => ({
+                          id: `di-${Date.now()}-${i}`,
+                          productId: it.productId,
+                          title: it.customTitle || 'Врата и опрема',
+                          quantity: Number(it.quantity || 1),
+                        })),
+                        stockDeducted: true,
+                        createdAt: new Date().toISOString(),
+                      });
+                      setPreviewDispatch(note);
                     }}
                     className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
                   >
-                    5. Издај испратница
+                    5. Издај испратница (PDF + Раздолжи залиха)
                   </button>
                 </div>
               </div>
@@ -478,6 +507,107 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 : 'Чека авансна уплата.'}
             </div>
           </div>
+
+          {/* Card 2.8: Real-Time Project Profitability & Invoices */}
+          {(() => {
+            const fin = imfexStore.getProjectFinancialSummary(project.id);
+            return (
+              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                  <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    <span>Финансиски биланс и Добивка по Проект (Реално време)</span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvanceModal(true)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Euro className="w-3.5 h-3.5" /> Евидентирај Аванс
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const finalInv = imfexStore.createSalesInvoiceFromOfferOrProject({
+                          invoiceType: 'FINAL',
+                          projectId: project.id,
+                          offerId: project.offerId,
+                          customerId: project.customerId,
+                        });
+                        setPreviewInvoice(finalInv);
+                        toast.success(
+                          `Креирана Конечна Фактура ${finalInv.invoiceNumber}`,
+                          finalInv.advanceDeductedAmount > 0
+                            ? `Одбиен аванс: -€${finalInv.advanceDeductedAmount.toFixed(2)}`
+                            : 'Подготвена за печатење.'
+                        );
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:brightness-110 flex items-center gap-1 cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Издај Конечна Фактура (со одбиен аванс)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                      Продажна вредност
+                    </span>
+                    <strong className="text-base font-black text-foreground mt-1 block">
+                      €{fin.agreedRevenue.toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                      Уплатено / Остаток
+                    </span>
+                    <strong className="text-base font-black text-emerald-500 mt-1 block">
+                      €{fin.paidByCustomer.toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      Долг: €{fin.remainingToPay.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                      Набавка на стока
+                    </span>
+                    <strong className="text-base font-black text-sky-400 mt-1 block">
+                      €{fin.stockPurchaseCost.toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      {fin.hasActualStockInvoice ? 'Од влезна фактура' : 'Пресметана набавна'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
+                      Трошоци на проект
+                    </span>
+                    <strong className="text-base font-black text-amber-500 mt-1 block">
+                      €{fin.directExpensesCost.toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      Гориво, штрафчиња, ситно
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <span className="text-[10px] font-extrabold uppercase text-emerald-400 block">
+                      Чиста Добивка (Маржа)
+                    </span>
+                    <strong className="text-base font-black text-emerald-400 mt-1 block">
+                      €{fin.netProfit.toFixed(2)} ({fin.marginPercent}%)
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Card 3: Procurement */}
           <div className="bg-card border border-border rounded-xl p-5 space-y-4">
@@ -644,6 +774,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       </div>
+
+      {/* Advance Payment Modal */}
+      <AdvancePaymentModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        project={project}
+        onSuccess={({ project: updatedPrj, advanceInvoice }) => {
+          if (updatedPrj) applyProjectData(updatedPrj);
+          if (advanceInvoice) setPreviewInvoice(advanceInvoice);
+        }}
+      />
+
+      {/* Official Finance Invoice / Dispatch PDF Modal */}
+      <FinancePdfModal
+        isOpen={Boolean(previewInvoice || previewDispatch)}
+        onClose={() => {
+          setPreviewInvoice(null);
+          setPreviewDispatch(null);
+        }}
+        invoice={previewInvoice}
+        dispatchNote={previewDispatch}
+      />
     </div>
   );
 }

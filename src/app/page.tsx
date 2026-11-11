@@ -83,10 +83,10 @@ export default function DashboardPage() {
             <Plus className="w-4 h-4" /> {t('dashboard.new_offer')}
           </Link>
           <Link
-            href="/service/new"
+            href="/finance"
             className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
           >
-            <Wrench className="w-4 h-4 text-orange-500" /> {t('nav.service')}
+            <Euro className="w-4 h-4 text-emerald-500" /> {t('nav.finance') || 'Финансии и Набавки'}
           </Link>
           <Link
             href="/products"

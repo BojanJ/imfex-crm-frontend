@@ -3,9 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { Product, ProductStockType, UserRole, Project } from '@/types';
+import { Product, ProductStockType, UserRole, Project, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { ProductEditor } from '@/components/product-spec-builder/product-editor';
+import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
+import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { toast } from '@/components/ui/toastr';
 import {
   Package,
@@ -48,6 +50,8 @@ export default function ProductsPage() {
   // Modals for adding product / categories
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
   const [newProdName, setNewProdName] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
   const [newProdCatId, setNewProdCatId] = useState('');
@@ -215,9 +219,7 @@ export default function ProductsPage() {
 
   const handleStep2Payment = () => {
     if (!activeRealProject) return;
-    imfexStore.projectStepRecordAdvance(activeRealProject.id);
-    toast.success('Авансна уплата', `Евидентиран аванс 70% за ${activeRealProject.projectNumber}.`);
-    refreshProducts();
+    setShowAdvanceModal(true);
   };
 
   const handleStep3Order = () => {
@@ -1089,6 +1091,26 @@ export default function ProductsPage() {
       {showCategoryModal && (
         <CategoriesModal onClose={() => setShowCategoryModal(false)} />
       )}
+
+      {/* Advance Payment Modal with 3 Workflow Choices */}
+      <AdvancePaymentModal
+        isOpen={showAdvanceModal}
+        onClose={() => setShowAdvanceModal(false)}
+        project={activeRealProject}
+        onSuccess={({ advanceInvoice }) => {
+          refreshProducts();
+          if (advanceInvoice) {
+            setPreviewInvoice(advanceInvoice);
+          }
+        }}
+      />
+
+      {/* Official Finance Invoice PDF Modal */}
+      <FinancePdfModal
+        isOpen={Boolean(previewInvoice)}
+        onClose={() => setPreviewInvoice(null)}
+        invoice={previewInvoice}
+      />
     </div>
   );
 }

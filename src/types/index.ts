@@ -82,6 +82,7 @@ export interface Product {
   stockType?: ProductStockType; // 'STOCK' (Залиха) | 'CUSTOM' (По нарачка)
   stockQuantity?: number;
   reservedQuantity?: number;
+  purchasePrice?: number; // Набавна цена (€)
   linkedAccessoryCategories?: string[]; // e.g. ['Автоматика', 'Шини', 'Додатоци']
   defaultAccessories?: Record<string, string>; // categoryName -> productId
   models: ProductModel[];
@@ -123,6 +124,13 @@ export interface OfferItem {
   totalPrice: number;
   specifications?: OfferItemSpecSelection[];
   selectedAccessories?: Record<string, string>; // e.g. { motorId: '...', railId: '...' }
+  // Service & Maintenance embedded fields (when 'SERVICE' is in serviceTypes)
+  serviceEquipmentId?: string;
+  serviceEquipmentTitle?: string;
+  defectDescription?: string;
+  laborHours?: number;
+  consumedPartProductId?: string;
+  consumedPartQty?: number;
 }
 
 export interface Offer {
@@ -253,3 +261,152 @@ export interface CalendarEvent {
   color?: string;
   createdAt: string;
 }
+
+// ============================================================================
+// ФИНАНСИИ И НАБАВКИ (Finance, Procurement, Sales Invoices, Dispatch & Payments)
+// ============================================================================
+
+export type PurchaseItemType = 'STOCK' | 'EXPENSE';
+
+export type ExpenseCategory =
+  | 'ГОРИВО'
+  | 'ПОТРОШЕН_МАТЕРИЈАЛ'
+  | 'СТРУЈА_ТЕЛЕФОН_КИРИЈА'
+  | 'ТРАНСПОРТ_И_ЦАРИНА'
+  | 'АЛАТ_И_ОПРЕМА'
+  | 'ОСТАНАТО';
+
+export type PurchaseInvoiceStatus = 'DRAFT' | 'INVOICED' | 'PARTIAL_PAID' | 'PAID';
+export type WarehouseReceiptStatus = 'PENDING' | 'PARTIAL' | 'RECEIVED';
+
+export interface PurchaseInvoiceItem {
+  id: string;
+  itemType: PurchaseItemType; // 'STOCK' (Стока за залиха) | 'EXPENSE' (Трошок)
+  productId?: string; // If STOCK, linked to existing or newly created Product
+  productCode?: string;
+  title: string;
+  expenseCategory?: ExpenseCategory; // If EXPENSE
+  projectId?: string; // Optional link to Project (both for STOCK or EXPENSE)
+  quantity: number;
+  unitCost: number; // Набавна цена без ДДВ или со ДДВ
+  totalCost: number;
+  receivedInWarehouse?: boolean;
+  receivedAt?: string;
+}
+
+export interface PurchaseInvoice {
+  id: string;
+  internalNumber: string; // e.g. NAB-2026-0001
+  supplierInvoiceNumber?: string; // Број на влезна фактура / фискална од добавувач
+  supplierId: string; // Links to Customer (PARTNER / COMPANY)
+  supplierName: string;
+  projectId?: string; // Optional main project link
+  offerId?: string;
+  issueDate: string;
+  dueDate?: string;
+  status: PurchaseInvoiceStatus;
+  receiptStatus: WarehouseReceiptStatus;
+  taxRate: number; // 18% or 5% or 0%
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  notes?: string;
+  items: PurchaseInvoiceItem[];
+  createdAt: string;
+}
+
+export type SalesInvoiceType = 'PROFORMA' | 'ADVANCE' | 'FINAL';
+export type SalesInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
+
+export interface SalesInvoiceItem {
+  id: string;
+  productId?: string;
+  title: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface SalesInvoice {
+  id: string;
+  invoiceNumber: string; // e.g. PRO-2026-0001, AVN-2026-0001, FAK-2026-0001
+  externalAccountingNumber?: string; // Број од сметководство (опционално)
+  invoiceType: SalesInvoiceType;
+  status: SalesInvoiceStatus;
+  customerId: string;
+  customer?: Customer;
+  offerId?: string;
+  projectId?: string;
+  issueDate: string;
+  dueDate?: string;
+  taxRate: number;
+  discountRate: number;
+  discountAmount: number;
+  subtotal: number;
+  taxAmount: number;
+  grossTotalAmount: number; // Вкупна вредност на ставките со ДДВ
+  // Advance deduction fields (for FINAL invoices that deduct a prior ADVANCE)
+  linkedAdvanceInvoiceId?: string;
+  linkedAdvanceInvoiceNumber?: string;
+  advanceDeductedAmount: number; // Износ на веќе платен аванс што се одбива
+  totalAmount: number; // Конечен износ за доплата (grossTotalAmount - advanceDeductedAmount)
+  paidAmount: number;
+  notes?: string;
+  items: SalesInvoiceItem[];
+  createdAt: string;
+}
+
+export type DispatchNoteStatus = 'DRAFT' | 'ISSUED';
+
+export interface DispatchNoteItem {
+  id: string;
+  productId?: string;
+  productCode?: string;
+  title: string;
+  quantity: number;
+  serialNumber?: string;
+}
+
+export interface DispatchNote {
+  id: string;
+  dispatchNumber: string; // e.g. ISP-2026-0001
+  status: DispatchNoteStatus;
+  customerId: string;
+  customer?: Customer;
+  projectId?: string;
+  offerId?: string;
+  salesInvoiceId?: string;
+  issueDate: string;
+  deliveryAddress?: string;
+  receivedBy?: string;
+  issuedBy?: string;
+  notes?: string;
+  items: DispatchNoteItem[];
+  stockDeducted: boolean;
+  createdAt: string;
+}
+
+export type PaymentDirection = 'IN' | 'OUT';
+export type PaymentMethod = 'BANK' | 'CASH' | 'CARD';
+
+export interface PaymentRecord {
+  id: string;
+  paymentNumber: string; // e.g. UPL-2026-0001
+  direction: PaymentDirection; // 'IN' (Уплата од клиент) | 'OUT' (Исплата кон добавувач/трошок)
+  amount: number;
+  date: string;
+  method: PaymentMethod;
+  bankAccount?: string;
+  customerId?: string;
+  partnerName?: string;
+  projectId?: string;
+  offerId?: string;
+  salesInvoiceId?: string;
+  purchaseInvoiceId?: string;
+  isAdvance?: boolean;
+  notes?: string;
+  createdAt: string;
+}
+

@@ -7,6 +7,8 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
+import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
+import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -70,6 +72,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [previewFinanceInvoice, setPreviewFinanceInvoice] = useState<any>(null);
   const [emailSuccessMsg, setEmailSuccessMsg] = useState('');
   const [savedOfferForPdf, setSavedOfferForPdf] = useState<Offer | null>(existingOffer || null);
 
@@ -387,6 +391,17 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const saved = handleSaveOffer('ACCEPTED');
+              setSavedOfferForPdf(saved);
+              setIsAdvanceModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-sm cursor-pointer"
+          >
+            Евидентирај уплата на аванс
+          </button>
           <button
             onClick={() => setIsEmailModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm"
@@ -817,7 +832,89 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   </div>
                 ) : (
                   <div className="p-4 bg-muted/20 border border-border rounded-xl text-xs text-muted-foreground italic">
-                    Pure Service / Installation item without dynamic physical product options.
+                    Ставка за чист Сервис / Монтажа (без физички производ од главен каталог).
+                  </div>
+                )}
+
+                {/* Service & Maintenance Embedded Panel (when SERVICE is checked) */}
+                {item.serviceTypes.includes('SERVICE') && (
+                  <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                    <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                      <span className="text-xs font-extrabold text-amber-500 uppercase tracking-wider">
+                        Детали за Сервис и Одржување (се запишува во историја на клиентот)
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Замена за поранешниот сервисен модул — сè оди преку Понуди
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <label className="block text-[11px] font-bold text-foreground mb-1">
+                          Опрема кај клиентот (или внеси рачно)
+                        </label>
+                        <input
+                          type="text"
+                          value={item.serviceEquipmentTitle || ''}
+                          onChange={(e) => handleUpdateItem(idx, { serviceEquipmentTitle: e.target.value })}
+                          placeholder="пр. Сегментна врата Хоrmann / Мотор..."
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-foreground mb-1">
+                          Опис на дефект / сервисна работа
+                        </label>
+                        <input
+                          type="text"
+                          value={item.defectDescription || ''}
+                          onChange={(e) => handleUpdateItem(idx, { defectDescription: e.target.value })}
+                          placeholder="пр. Замена на сајла и торзиона пружина"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-foreground mb-1">
+                          Резервен дел од магацин (опционално)
+                        </label>
+                        <select
+                          value={item.consumedPartProductId || ''}
+                          onChange={(e) => {
+                            const partProd = products.find((p) => p.id === e.target.value);
+                            const partPrice = Number(partProd?.models?.[0]?.basePrice || 0);
+                            handleUpdateItem(idx, {
+                              consumedPartProductId: e.target.value || undefined,
+                              unitPrice: partPrice > 0 ? partPrice + Number((item.laborHours || 0) * 25) : item.unitPrice,
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
+                        >
+                          <option value="">-- Без дел од залиха --</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.code} — {p.name} (Залиха: {p.stockQuantity ?? 0})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-foreground mb-1">
+                          Работни часови (Сервис)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          value={item.laborHours ?? ''}
+                          onChange={(e) => handleUpdateItem(idx, { laborHours: parseFloat(e.target.value) || 0 })}
+                          placeholder="пр. 2"
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-bold outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1017,6 +1114,25 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           products={products}
         />
       )}
+
+      {/* Advance Payment Modal */}
+      <AdvancePaymentModal
+        isOpen={isAdvanceModalOpen}
+        onClose={() => setIsAdvanceModalOpen(false)}
+        offer={savedOfferForPdf || existingOffer}
+        onSuccess={({ advanceInvoice }) => {
+          if (advanceInvoice) {
+            setPreviewFinanceInvoice(advanceInvoice);
+          }
+        }}
+      />
+
+      {/* Official Finance Invoice PDF Modal */}
+      <FinancePdfModal
+        isOpen={Boolean(previewFinanceInvoice)}
+        onClose={() => setPreviewFinanceInvoice(null)}
+        invoice={previewFinanceInvoice}
+      />
 
       {/* Hidden Offscreen PDF Render Container for Email Dispatch Attachment */}
       {savedOfferForPdf && (

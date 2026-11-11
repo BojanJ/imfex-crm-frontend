@@ -3,9 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { Offer } from '@/types';
+import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { PdfModal } from '@/components/pdf/pdf-modal';
+import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
+import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import {
   FileSpreadsheet,
   Plus,
@@ -14,6 +16,7 @@ import {
   Edit3,
   Trash2,
   Briefcase,
+  Euro,
 } from 'lucide-react';
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -27,6 +30,8 @@ export default function OffersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
+  const [advanceOffer, setAdvanceOffer] = useState<Offer | null>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
 
   const statusOptions = [
     { value: 'DRAFT', label: t('offers.draft') },
@@ -283,7 +288,29 @@ export default function OffersPage() {
                         €{Number(offer.totalAmount || 0).toFixed(2)}
                       </td>
                       <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => setAdvanceOffer(offer)}
+                            className="p-1.5 bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 rounded-lg font-bold flex items-center gap-1 text-[11px] cursor-pointer"
+                            title="Евидентирај уплата на аванс (со избор за Набавка)"
+                          >
+                            <Euro className="w-3.5 h-3.5" /> Аванс
+                          </button>
+                          <button
+                            onClick={() => {
+                              const pro = imfexStore.createSalesInvoiceFromOfferOrProject({
+                                invoiceType: 'PROFORMA',
+                                offerId: offer.id,
+                                customerId: offer.customerId,
+                              });
+                              setPreviewInvoice(pro);
+                              toast.success('Креирана Про-фактура!', pro.invoiceNumber);
+                            }}
+                            className="p-1.5 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 rounded-lg font-bold flex items-center gap-1 text-[11px] cursor-pointer"
+                            title="Генерирај Про-фактура од понудата"
+                          >
+                            Про-ф-ра
+                          </button>
                           {offer.status === 'ACCEPTED' && (
                             <Link
                               href="/projects"
@@ -334,6 +361,26 @@ export default function OffersPage() {
           products={imfexStore.getProducts()}
         />
       )}
+
+      {/* Advance Payment Modal */}
+      <AdvancePaymentModal
+        isOpen={Boolean(advanceOffer)}
+        onClose={() => setAdvanceOffer(null)}
+        offer={advanceOffer}
+        onSuccess={({ advanceInvoice }) => {
+          refreshList();
+          if (advanceInvoice) {
+            setPreviewInvoice(advanceInvoice);
+          }
+        }}
+      />
+
+      {/* Official Finance Invoice PDF Modal */}
+      <FinancePdfModal
+        isOpen={Boolean(previewInvoice)}
+        onClose={() => setPreviewInvoice(null)}
+        invoice={previewInvoice}
+      />
     </div>
   );
 }
