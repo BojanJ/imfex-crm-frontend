@@ -331,7 +331,7 @@ export default function ProductsPage() {
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all shadow-sm cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> + Нов Артикл
+                <Plus className="w-4 h-4" /> Нов Артикл
               </button>
             </>
           )}
