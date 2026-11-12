@@ -13,6 +13,7 @@ import {
   DispatchNote,
 } from '@/types';
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
@@ -1238,7 +1239,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                                 {formatFileSize(att.sizeBytes)}
                               </span>
                               <span className="text-[10px] text-muted-foreground">
-                                • {new Date(att.createdAt).toLocaleDateString('mk-MK')}
+                                • {formatDate(att.createdAt)}
                               </span>
                             </div>
                           </div>
@@ -1329,7 +1330,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   </h4>
                   <p className="text-[10px] text-muted-foreground">
                     {previewAttachment.category} • {formatFileSize(previewAttachment.sizeBytes)} •{' '}
-                    {new Date(previewAttachment.createdAt).toLocaleDateString('mk-MK')}
+                    {formatDate(previewAttachment.createdAt)}
                   </p>
                 </div>
               </div>

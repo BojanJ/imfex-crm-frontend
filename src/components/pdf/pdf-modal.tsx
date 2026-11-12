@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PrintableOfferDocument } from './printable-offer-document';
 import { Offer, Product } from '@/types';
+import { formatDate } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 
@@ -87,7 +88,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
                 IMFEX Document Export - {offer.offerNumber}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Customer: {offer.customer?.companyName || offer.customer?.name || 'Customer'} • Valid until: {offer.validUntil || 'N/A'}
+                Customer: {offer.customer?.companyName || offer.customer?.name || 'Customer'} • Valid until: {formatDate(offer.validUntil, 'N/A')}
               </p>
             </div>
           </div>

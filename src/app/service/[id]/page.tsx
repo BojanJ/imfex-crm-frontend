@@ -7,6 +7,7 @@ import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfil
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect } from '@/components/ui/entity-selectors';
+import { formatDate } from '@/lib/date-format';
 import { toast } from '@/components/ui/toastr';
 import {
   Wrench,
@@ -183,7 +184,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               <span>Барање за Сервис {ticket.ticketNumber}</span>
             </h1>
             <p className="text-xs text-muted-foreground">
-              {t('offers.customer')}: {ticket.customer?.companyName || ticket.customer?.name} • Опрема: {ticket.installedItem?.title || 'Општо Одржување'}
+              {t('offers.customer')}: {ticket.customer?.companyName || ticket.customer?.name} • Опрема: {ticket.installedItem?.title || 'Општо Одржување'} • Датум: {formatDate(ticket.createdAt)}
             </p>
           </div>
         </div>

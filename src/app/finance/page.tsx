@@ -31,6 +31,7 @@ import {
   OfferSelect,
   CustomerSelect,
 } from '@/components/ui/entity-selectors';
+import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
@@ -952,7 +953,7 @@ function FinancePageContent() {
                                 Ф-ра бр: {pinv.supplierInvoiceNumber}
                               </p>
                             )}
-                            <p className="text-[10px] text-muted-foreground">{pinv.issueDate}</p>
+                            <p className="text-[10px] text-muted-foreground">{formatDate(pinv.issueDate)}</p>
                           </td>
                           <td className="p-4 font-bold text-foreground">{pinv.supplierName}</td>
                           <td className="p-4 space-y-1">
@@ -1177,7 +1178,7 @@ function FinancePageContent() {
                       <tr key={sinv.id} className="hover:bg-muted/20 transition-colors">
                         <td className="p-4">
                           <p className="font-extrabold text-primary">{sinv.invoiceNumber}</p>
-                          <p className="text-[10px] text-muted-foreground">{sinv.issueDate}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatDate(sinv.issueDate)}</p>
                         </td>
                         <td className="p-4">
                           <span
@@ -1335,7 +1336,7 @@ function FinancePageContent() {
                     filteredDispatches.map((d) => (
                       <tr key={d.id} className="hover:bg-muted/20 transition-colors">
                         <td className="p-4 font-extrabold text-primary">{d.dispatchNumber}</td>
-                        <td className="p-4 text-muted-foreground">{d.issueDate}</td>
+                        <td className="p-4 text-muted-foreground">{formatDate(d.issueDate)}</td>
                         <td className="p-4">
                           <p className="font-bold text-foreground">
                             {d.customer?.companyName || d.customer?.name || 'Клиент'}
@@ -1478,7 +1479,7 @@ function FinancePageContent() {
                     filteredPayments.map((pay) => (
                       <tr key={pay.id} className="hover:bg-muted/20 transition-colors">
                         <td className="p-4 font-extrabold text-primary">{pay.paymentNumber}</td>
-                        <td className="p-4 text-muted-foreground">{pay.date}</td>
+                        <td className="p-4 text-muted-foreground">{formatDate(pay.date)}</td>
                         <td className="p-4">
                           <span
                             className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase inline-flex items-center gap-1 ${

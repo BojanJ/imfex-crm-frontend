@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Offer, Product } from '@/types';
+import { formatDate } from '@/lib/date-format';
 
 interface PrintableOfferDocumentProps {
   offer: Offer;
@@ -17,13 +18,12 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
   const customerPhone = offer.customer?.phone || '+389 70 123 456';
   const customerEmail = offer.customer?.email || 'client@imfex.com';
 
-  const dateCreated = offer.createdAt
-    ? new Date(offer.createdAt).toLocaleDateString('mk-MK')
-    : new Date().toLocaleDateString('mk-MK');
+  const dateCreated = formatDate(offer.createdAt, formatDate(new Date()));
 
-  const validUntil = offer.validUntil
-    ? new Date(offer.validUntil).toLocaleDateString('mk-MK')
-    : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('mk-MK');
+  const validUntil = formatDate(
+    offer.validUntil,
+    formatDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))
+  );
 
   const firstItem = offer.items?.[0];
   const firstProduct = products.find((p) => p.id === firstItem?.productId);

@@ -7,6 +7,7 @@ import { CalendarEvent, CalendarEventType, Customer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
+import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
   Calendar as CalendarIcon,
@@ -218,9 +219,9 @@ export default function CalendarPage() {
       start.setDate(start.getDate() - day);
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+      return `${formatDate(start)} - ${formatDate(end)}`;
     } else if (viewMode === 'day') {
-      return currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      return formatDate(currentDate);
     } else {
       return 'Agenda Overview';
     }
@@ -478,7 +479,7 @@ export default function CalendarPage() {
                         <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-0.5">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {ev.startDate.replace('T', ' ')}
+                            {formatDate(ev.startDate)}{ev.startDate.includes('T') ? ` ${ev.startDate.split('T')[1].slice(0, 5)}` : ''}
                           </span>
                           {ev.customer && (
                             <span className="flex items-center gap-1">
@@ -592,8 +593,16 @@ export default function CalendarPage() {
             <div className="space-y-3 text-xs">
               <div className="flex items-center gap-2 text-foreground font-semibold">
                 <Clock className="w-4 h-4 text-primary shrink-0" />
-                <span>{selectedEvent.startDate.replace('T', ' ')}</span>
-                {selectedEvent.endDate && <span>- {selectedEvent.endDate.replace('T', ' ')}</span>}
+                <span>
+                  {formatDate(selectedEvent.startDate)}
+                  {selectedEvent.startDate.includes('T') ? ` ${selectedEvent.startDate.split('T')[1].slice(0, 5)}` : ''}
+                </span>
+                {selectedEvent.endDate && (
+                  <span>
+                    - {formatDate(selectedEvent.endDate)}
+                    {selectedEvent.endDate.includes('T') ? ` ${selectedEvent.endDate.split('T')[1].slice(0, 5)}` : ''}
+                  </span>
+                )}
               </div>
 
               {selectedEvent.customer && (

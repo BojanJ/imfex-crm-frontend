@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { SalesInvoice, DispatchNote } from '@/types';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
+import { formatDate } from '@/lib/date-format';
 import { Download, Printer, X, FileText, Loader2, Truck } from 'lucide-react';
 
 interface PrintableInvoiceProps {
@@ -74,9 +75,9 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                   Сметководствен бр: <span className="font-mono">{invoice.externalAccountingNumber}</span>
                 </p>
               )}
-              <p className="text-[11px] text-slate-500">Датум на издавање: <strong>{invoice.issueDate}</strong></p>
+              <p className="text-[11px] text-slate-500">Датум на издавање: <strong>{formatDate(invoice.issueDate)}</strong></p>
               {invoice.dueDate && (
-                <p className="text-[11px] text-slate-500">Валута / Рок на плаќање: <strong>{invoice.dueDate}</strong></p>
+                <p className="text-[11px] text-slate-500">Валута / Рок на плаќање: <strong>{formatDate(invoice.dueDate)}</strong></p>
               )}
             </div>
           </div>
@@ -291,7 +292,7 @@ export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispat
                 ИСПРАТНИЦА
               </span>
               <p className="text-lg font-black font-mono text-slate-900 pt-1">{dispatch.dispatchNumber}</p>
-              <p className="text-[11px] text-slate-500">Датум на испорака: <strong>{dispatch.issueDate}</strong></p>
+              <p className="text-[11px] text-slate-500">Датум на испорака: <strong>{formatDate(dispatch.issueDate)}</strong></p>
             </div>
           </div>
 

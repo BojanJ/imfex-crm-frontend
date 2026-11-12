@@ -10,6 +10,7 @@ import {
   Font,
 } from '@react-pdf/renderer';
 import { Offer, Product } from '@/types';
+import { formatDate } from '@/lib/date-format';
 
 // Register clean font styles
 const styles = StyleSheet.create({
@@ -233,11 +234,11 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Date Created: </Text>
-              {new Date(offer.createdAt).toLocaleDateString('en-GB')}
+              {formatDate(offer.createdAt)}
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Valid Until: </Text>
-              {offer.validUntil ? new Date(offer.validUntil).toLocaleDateString('en-GB') : '30 Days from issue'}
+              {offer.validUntil ? formatDate(offer.validUntil) : '30 Days from issue'}
             </Text>
             <Text style={styles.textRow}>
               <Text style={styles.label}>Status: </Text>
@@ -342,7 +343,7 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
             TERMS & CONDITIONS
           </Text>
           <Text style={{ fontSize: 7, color: '#64748b', lineHeight: 1.3 }}>
-            1. Offer is valid until {offer.validUntil || '30 days from creation date'}.
+            1. Offer is valid until {offer.validUntil ? formatDate(offer.validUntil) : '30 days from creation date'}.
             2. Payment terms: 50% deposit upon order confirmation, 50% upon delivery/installation completion.
             3. Standard warranty of 24 months applies to all structural product components and motors.
           </Text>

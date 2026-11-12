@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { Project, Product, Offer, Customer, ProjectStatus, OfferStatus } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { SearchableSelect, SearchableSelectOption } from '@/components/ui/searchable-select';
 
 // ============================================================================
@@ -66,7 +67,7 @@ export const ProjectSelect: React.FC<ProjectSelectProps> = ({
       const sublabelParts = [
         p.installationAddress ? `Адреса: ${p.installationAddress}` : '',
         p.offer?.offerNumber ? `Понуда: ${p.offer.offerNumber}` : '',
-        p.targetDeliveryDate ? `Рок: ${p.targetDeliveryDate}` : '',
+        p.targetDeliveryDate ? `Рок: ${formatDate(p.targetDeliveryDate)}` : '',
         p.responsibleUser?.fullName ? `Одговорен: ${p.responsibleUser.fullName}` : '',
       ].filter(Boolean);
 
@@ -292,7 +293,7 @@ export const OfferSelect: React.FC<OfferSelectProps> = ({
 
       const sublabelParts = [
         `Износ: €${Number(o.totalAmount || 0).toFixed(2)}`,
-        o.validUntil ? `Важи до: ${o.validUntil}` : '',
+        o.validUntil ? `Важи до: ${formatDate(o.validUntil)}` : '',
         `Ставки: ${(o.items || []).length}`,
       ].filter(Boolean);
 

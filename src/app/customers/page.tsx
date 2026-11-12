@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import {
   Users,
@@ -352,7 +353,7 @@ export default function CustomersPage() {
                                 {doc.title}
                               </p>
                               <p className="text-[10px] text-muted-foreground">
-                                {new Date(doc.createdAt).toLocaleDateString('en-GB')} • {doc.fileType}
+                                {formatDate(doc.createdAt)} • {doc.fileType}
                                 {doc.sizeBytes
                                   ? ` • ${
                                       doc.sizeBytes < 1024 * 1024
@@ -410,7 +411,7 @@ export default function CustomersPage() {
                           </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                          {item.installationDate}
+                          Монтирано: {formatDate(item.installationDate)}
                         </p>
                       </div>
                     ))}

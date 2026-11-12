@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
@@ -288,7 +289,7 @@ export default function ProjectsPage() {
                                 <User className="w-3 h-3 text-primary" /> {prj.responsibleUser?.fullName || 'Агент'}
                               </span>
                               <span className="flex items-center gap-1 font-bold text-amber-600">
-                                <Calendar className="w-3 h-3" /> {prj.targetDeliveryDate || 'TBD'}
+                                <Calendar className="w-3 h-3" /> {formatDate(prj.targetDeliveryDate, 'TBD')}
                               </span>
                             </div>
                           </div>
@@ -388,7 +389,7 @@ export default function ProjectsPage() {
                             ))}
                           </select>
                         </td>
-                        <td className="p-4 text-amber-600 font-bold">{p.targetDeliveryDate || 'N/A'}</td>
+                        <td className="p-4 text-amber-600 font-bold">{formatDate(p.targetDeliveryDate, 'N/A')}</td>
                         <td className="p-4 text-muted-foreground truncate max-w-xs">{p.installationAddress || 'N/A'}</td>
                         <td className="p-4 text-center">
                           <Link

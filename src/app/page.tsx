@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { Offer, Customer, Project, ServiceTicket } from '@/types';
 import {
   TrendingUp,
@@ -216,7 +217,7 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>{t('projects.installation_date')}: {prj.installationDate || 'TBD'}</span>
+                    <span>{t('projects.installation_date')}: {formatDate(prj.installationDate, 'TBD')}</span>
                     <span>{t('projects.responsible')}: {prj.responsibleUser?.fullName || 'IMFEX Agent'}</span>
                   </div>
                 </div>

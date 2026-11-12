@@ -30,6 +30,7 @@ import {
   PaymentRecord,
   PaymentMethod,
 } from '@/types';
+import { formatDate } from './date-format';
 
 export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
@@ -1394,7 +1395,7 @@ class ImfexStore {
       ...prj,
       advancePaid: true,
       advancePaidAt: new Date().toISOString(),
-      procurementNotes: `${prj.procurementNotes || ''}\n[УПЛАТА] Евидентиран аванс 70% (${new Date().toLocaleDateString('mk-MK')})`.trim(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[УПЛАТА] Евидентиран аванс 70% (${formatDate(new Date())})`.trim(),
     };
     this.addInventoryMovement('УПЛАТА', `Евидентиран аванс 70% за проект ${prj.projectNumber}`, { projectId: prj.id });
     return this.saveProject(updated);

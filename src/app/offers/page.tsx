@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-format';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
@@ -185,7 +186,10 @@ export default function OffersPage() {
               {filtered.map((offer) => (
                 <div key={offer.id} className="p-5 space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
+                    <div>
+                      <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
+                      <p className="text-[10px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
+                    </div>
                     <div className="w-32">
                       <SearchableSelect
                         options={statusOptions}
@@ -287,7 +291,10 @@ export default function OffersPage() {
                 <tbody className="divide-y divide-border">
                   {filtered.map((offer) => (
                     <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="p-4 font-extrabold text-primary">{offer.offerNumber}</td>
+                      <td className="p-4">
+                        <p className="font-extrabold text-primary">{offer.offerNumber}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
+                      </td>
                       <td className="p-4">
                         <p className="font-bold text-foreground">
                           {offer.customer?.companyName || offer.customer?.name || 'Customer'}

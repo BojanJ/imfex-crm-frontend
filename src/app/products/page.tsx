@@ -10,6 +10,7 @@ import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal'
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { ProductSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { formatDate } from '@/lib/date-format';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
@@ -850,7 +851,7 @@ export default function ProductsPage() {
                         <span className="text-foreground font-medium">{m.detail}</span>
                       </div>
                       <small className="text-xs text-muted-foreground shrink-0 font-mono">
-                        {m.at}
+                        {formatDate(m.createdAt || m.at)} {m.at?.includes(':') ? m.at : ''}
                       </small>
                     </div>
                   );

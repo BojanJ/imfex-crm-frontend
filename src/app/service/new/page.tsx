@@ -7,6 +7,7 @@ import { imfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect } from '@/components/ui/entity-selectors';
+import { formatDate } from '@/lib/date-format';
 import {
   Wrench,
   ArrowLeft,
@@ -151,7 +152,7 @@ export default function NewServiceTicketPage() {
             <SearchableSelect
               options={customerInstalledItems.map((item) => ({
                 value: item.id,
-                label: `${item.title} (SN: ${item.serialNumber || 'N/A'}) - Installed ${item.installationDate}`,
+                label: `${item.title} (SN: ${item.serialNumber || 'N/A'}) - Монтирано ${formatDate(item.installationDate)}`,
               }))}
               value={selectedInstalledItemId}
               onChange={(val) => setSelectedInstalledItemId(val)}
