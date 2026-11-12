@@ -9,6 +9,8 @@ import {
   UserRole,
   Project,
   ProjectStatus,
+  ProjectAttachment,
+  ProjectFileCategory,
   ServiceTicket,
   ClientDocument,
   InstalledItem,
@@ -53,6 +55,7 @@ class ImfexStore {
   private specDefaultsOverlay: Record<string, Record<string, { defaultValue?: string; defaultOptionId?: string }>> = {};
   private offerSpecsOverlay: Record<string, OfferItemSpecSelection[][]> = {};
   private projectFlowOverlay: Record<string, Partial<Project>> = {};
+  private projectAttachments: Record<string, ProjectAttachment[]> = {};
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
   private listeners: Array<() => void> = [];
@@ -144,22 +147,146 @@ class ImfexStore {
         } catch (e) {}
       }
 
+      const storedProjectAttachments = localStorage.getItem('imfex_project_attachments');
+      if (storedProjectAttachments) {
+        try {
+          this.projectAttachments = JSON.parse(storedProjectAttachments);
+        } catch (e) {}
+      }
+
+      const storedDocuments = localStorage.getItem('imfex_client_documents');
+      if (storedDocuments) {
+        try {
+          this.documents = JSON.parse(storedDocuments);
+        } catch (e) {}
+      }
+
       this.ensureWarehouseCatalog();
       this.fetchInitialDataFromBackend();
     }
   }
 
+  private safeSetLocalStorage(key: string, value: string): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e) {
+      console.warn(`localStorage quota/write notice for ${key}:`, e);
+      return false;
+    }
+  }
+
+  private persistProjectAttachments(): boolean {
+    if (typeof window === 'undefined') return false;
+    return this.safeSetLocalStorage('imfex_project_attachments', JSON.stringify(this.projectAttachments));
+  }
+
+  private clientDocToProjectAttachment(doc: ClientDocument): ProjectAttachment | null {
+    if (!doc.projectId || !doc.fileUrl || doc.fileUrl === '#') return null;
+    if (!doc.fileUrl.startsWith('data:') && !doc.fileUrl.startsWith('http')) return null;
+    const upperType = (doc.fileType || '').toUpperCase();
+    if (upperType === 'PROTOCOL' || upperType === 'SIGNATURE') return null;
+
+    const cleanName = doc.fileName || doc.title.replace(/\s*\(PRJ-[^)]+\)\s*$/, '') || doc.title || 'Документ';
+    let mimeType = 'application/octet-stream';
+    const dataMimeMatch = doc.fileUrl.match(/^data:([^;,]+)[;,]/i);
+    if (dataMimeMatch && dataMimeMatch[1]) {
+      mimeType = dataMimeMatch[1];
+    }
+
+    let category: ProjectFileCategory = 'OTHER';
+    if (['IMAGE', 'PDF', 'EXCEL', 'WORD', 'OTHER'].includes(upperType)) {
+      category = upperType as ProjectFileCategory;
+    } else if (mimeType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|avif)$/i.test(cleanName)) {
+      category = 'IMAGE';
+    } else if (mimeType === 'application/pdf' || /\.pdf$/i.test(cleanName)) {
+      category = 'PDF';
+    } else if (
+      mimeType.includes('excel') ||
+      mimeType.includes('spreadsheet') ||
+      mimeType === 'text/csv' ||
+      /\.(xls|xlsx|csv|ods)$/i.test(cleanName)
+    ) {
+      category = 'EXCEL';
+    } else if (
+      mimeType.includes('word') ||
+      mimeType.includes('msword') ||
+      mimeType.includes('wordprocessingml') ||
+      /\.(doc|docx|rtf|odt)$/i.test(cleanName)
+    ) {
+      category = 'WORD';
+    }
+
+    let estimatedSize = doc.sizeBytes ?? 0;
+    if (!estimatedSize && doc.fileUrl.startsWith('data:')) {
+      const commaIdx = doc.fileUrl.indexOf(',');
+      if (commaIdx > 0) {
+        const base64Len = doc.fileUrl.length - (commaIdx + 1);
+        estimatedSize = Math.round((base64Len * 3) / 4);
+      }
+    }
+
+    return {
+      id: doc.id,
+      projectId: doc.projectId,
+      customerId: doc.customerId,
+      name: cleanName,
+      mimeType,
+      category,
+      sizeBytes: estimatedSize,
+      dataUrl: doc.fileUrl,
+      createdAt: doc.createdAt || new Date().toISOString(),
+    };
+  }
+
+  private hydrateProjectAttachmentsFromDocs(docs: ClientDocument[]) {
+    let changed = false;
+    for (const doc of docs) {
+      const att = this.clientDocToProjectAttachment(doc);
+      if (!att) continue;
+      const list = this.projectAttachments[att.projectId] || [];
+      const existingIdx = list.findIndex(
+        (a) => a.id === att.id || (a.name === att.name && Math.abs((a.sizeBytes || 0) - (att.sizeBytes || 0)) <= 4)
+      );
+      if (existingIdx >= 0) {
+        if (list[existingIdx].id !== att.id || !list[existingIdx].dataUrl) {
+          list[existingIdx] = { ...list[existingIdx], ...att };
+          this.projectAttachments[att.projectId] = list;
+          changed = true;
+        }
+      } else {
+        this.projectAttachments[att.projectId] = [att, ...list];
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.persistProjectAttachments();
+    }
+  }
+
+  private persistClientDocuments(): boolean {
+    if (typeof window === 'undefined') return false;
+    // Strip heavy data: URLs from imfex_client_documents to avoid duplicating base64 in localStorage;
+    // dataUrls are resolved from projectAttachments on read.
+    const lightDocs = this.documents.map((d) =>
+      d.fileUrl && d.fileUrl.startsWith('data:') ? { ...d, fileUrl: '' } : d
+    );
+    return this.safeSetLocalStorage('imfex_client_documents', JSON.stringify(lightDocs));
+  }
+
   private persistWarehouseState() {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('imfex_inventory_movements', JSON.stringify(this.movements));
-      localStorage.setItem('imfex_stock_overlay', JSON.stringify(this.stockOverlay));
-      localStorage.setItem('imfex_spec_defaults_overlay', JSON.stringify(this.specDefaultsOverlay));
-      localStorage.setItem('imfex_offer_specs_overlay', JSON.stringify(this.offerSpecsOverlay));
-      localStorage.setItem('imfex_project_flow_overlay', JSON.stringify(this.projectFlowOverlay));
-      localStorage.setItem('imfex_purchase_invoices', JSON.stringify(this.purchaseInvoices));
-      localStorage.setItem('imfex_sales_invoices', JSON.stringify(this.salesInvoices));
-      localStorage.setItem('imfex_dispatch_notes', JSON.stringify(this.dispatchNotes));
-      localStorage.setItem('imfex_payments', JSON.stringify(this.payments));
+      this.safeSetLocalStorage('imfex_inventory_movements', JSON.stringify(this.movements));
+      this.safeSetLocalStorage('imfex_stock_overlay', JSON.stringify(this.stockOverlay));
+      this.safeSetLocalStorage('imfex_spec_defaults_overlay', JSON.stringify(this.specDefaultsOverlay));
+      this.safeSetLocalStorage('imfex_offer_specs_overlay', JSON.stringify(this.offerSpecsOverlay));
+      this.safeSetLocalStorage('imfex_project_flow_overlay', JSON.stringify(this.projectFlowOverlay));
+      this.safeSetLocalStorage('imfex_purchase_invoices', JSON.stringify(this.purchaseInvoices));
+      this.safeSetLocalStorage('imfex_sales_invoices', JSON.stringify(this.salesInvoices));
+      this.safeSetLocalStorage('imfex_dispatch_notes', JSON.stringify(this.dispatchNotes));
+      this.safeSetLocalStorage('imfex_payments', JSON.stringify(this.payments));
+      this.persistClientDocuments();
     }
   }
 
@@ -265,16 +392,60 @@ class ImfexStore {
       if (resProj && resProj.ok) {
         const dbProjs = await resProj.json();
         if (Array.isArray(dbProjs)) {
-          this.projects = dbProjs.map((pr: Project) => ({
-            ...pr,
-            ...(this.projectFlowOverlay[pr.id] || this.projectFlowOverlay[pr.projectNumber] || {}),
-          }));
+          this.projects = dbProjs.map((pr: Project & { documents?: ClientDocument[] }) => {
+            if (Array.isArray(pr.documents) && pr.documents.length > 0) {
+              this.hydrateProjectAttachmentsFromDocs(pr.documents);
+            }
+            const { attachments: _legacyOvAtts, ...flowOv } =
+              this.projectFlowOverlay[pr.id] || this.projectFlowOverlay[pr.projectNumber] || {};
+            const storedAtts =
+              this.projectAttachments[pr.id] ||
+              this.projectAttachments[pr.projectNumber] ||
+              pr.attachments ||
+              [];
+            if (storedAtts.length > 0) {
+              this.projectAttachments[pr.id] = storedAtts;
+              if (pr.projectNumber && pr.projectNumber !== pr.id && this.projectAttachments[pr.projectNumber]) {
+                delete this.projectAttachments[pr.projectNumber];
+              }
+            }
+            return {
+              ...pr,
+              ...flowOv,
+              attachments: storedAtts,
+            };
+          });
         }
       }
       if (resServ && resServ.ok) this.serviceTickets = await resServ.json();
       if (resProf && resProf.ok) this.profiles = await resProf.json();
       if (resInst && resInst.ok) this.installedItems = await resInst.json();
-      if (resDocs && resDocs.ok) this.documents = await resDocs.json();
+      if (resDocs && resDocs.ok) {
+        const dbDocs = await resDocs.json();
+        if (Array.isArray(dbDocs)) {
+          this.hydrateProjectAttachmentsFromDocs(dbDocs);
+          const mergedMap = new Map<string, ClientDocument>();
+          dbDocs.forEach((d: ClientDocument) => mergedMap.set(d.id, d));
+          this.documents.forEach((d) => {
+            if (!mergedMap.has(d.id)) {
+              const dup = dbDocs.find(
+                (bd: ClientDocument) =>
+                  bd.title === d.title &&
+                  ((bd.projectId && bd.projectId === d.projectId) || bd.customerId === d.customerId)
+              );
+              if (!dup) {
+                mergedMap.set(d.id, d);
+              }
+            }
+          });
+          this.documents = Array.from(mergedMap.values());
+          this.persistClientDocuments();
+          this.projects = this.projects.map((pr) => ({
+            ...pr,
+            attachments: this.projectAttachments[pr.id] || pr.attachments || [],
+          }));
+        }
+      }
       if (resCal && resCal.ok) {
         const dbEvents = await resCal.json();
         if (Array.isArray(dbEvents)) {
@@ -321,11 +492,14 @@ class ImfexStore {
       this.movements = [];
       this.stockOverlay = {};
       this.projectFlowOverlay = {};
+      this.projectAttachments = {};
       if (typeof window !== 'undefined') {
         localStorage.removeItem('imfex_calendar_events');
         localStorage.removeItem('imfex_inventory_movements');
         localStorage.removeItem('imfex_stock_overlay');
         localStorage.removeItem('imfex_project_flow_overlay');
+        localStorage.removeItem('imfex_project_attachments');
+        localStorage.removeItem('imfex_client_documents');
       }
       await this.fetchInitialDataFromBackend();
       this.notifyListeners();
@@ -896,8 +1070,34 @@ class ImfexStore {
   }
 
   // Documents & Client Documentation
+  private resolveDocumentWithAttachmentUrl(doc: ClientDocument): ClientDocument {
+    if (doc.fileUrl && doc.fileUrl !== '#') return doc;
+    if (doc.projectId) {
+      const prjAtts = this.projectAttachments[doc.projectId] || [];
+      const found = prjAtts.find((a) => a.id === doc.id);
+      if (found?.dataUrl) {
+        return { ...doc, fileUrl: found.dataUrl };
+      }
+    }
+    for (const attList of Object.values(this.projectAttachments)) {
+      const found = attList.find((a) => a.id === doc.id);
+      if (found?.dataUrl) {
+        return { ...doc, fileUrl: found.dataUrl };
+      }
+    }
+    return doc;
+  }
+
   getDocumentsByCustomer(customerId: string): ClientDocument[] {
-    return this.documents.filter((d) => d.customerId === customerId);
+    return this.documents
+      .filter((d) => d.customerId === customerId)
+      .map((d) => this.resolveDocumentWithAttachmentUrl(d));
+  }
+
+  getDocumentsByProject(projectId: string): ClientDocument[] {
+    return this.documents
+      .filter((d) => d.projectId === projectId)
+      .map((d) => this.resolveDocumentWithAttachmentUrl(d));
   }
 
   saveDocument(doc: ClientDocument): ClientDocument {
@@ -905,10 +1105,12 @@ class ImfexStore {
     if (idx >= 0) {
       this.documents[idx] = doc;
     } else {
-      this.documents.push(doc);
+      this.documents.unshift(doc);
     }
+    this.persistClientDocuments();
     this.notifyListeners();
     const baseUrl = getApiUrl();
+    // Backend API sync (note: large data: URLs may be rejected by backend payload limits, handled via catch)
     fetch(`${baseUrl}/api/client-documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -917,8 +1119,34 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedDoc) => {
         if (savedDoc && savedDoc.id) {
+          const mergedDoc = { ...doc, ...savedDoc, fileUrl: savedDoc.fileUrl || doc.fileUrl };
           const freshIdx = this.documents.findIndex((d) => d.id === doc.id || d.id === savedDoc.id);
-          if (freshIdx >= 0) this.documents[freshIdx] = savedDoc;
+          if (freshIdx >= 0) this.documents[freshIdx] = mergedDoc;
+          const targetProjId = savedDoc.projectId || doc.projectId;
+          if (targetProjId) {
+            const keysToCheck = Array.from(new Set([targetProjId, doc.projectId].filter(Boolean) as string[]));
+            let attUpdated = false;
+            for (const key of keysToCheck) {
+              const list = this.projectAttachments[key];
+              if (Array.isArray(list)) {
+                const aIdx = list.findIndex((a) => a.id === doc.id || a.id === savedDoc.id);
+                if (aIdx >= 0 && list[aIdx].id !== savedDoc.id) {
+                  list[aIdx] = { ...list[aIdx], id: savedDoc.id, projectId: targetProjId };
+                  this.projectAttachments[key] = [...list];
+                  attUpdated = true;
+                }
+              }
+            }
+            if (attUpdated) {
+              this.persistProjectAttachments();
+              this.projects = this.projects.map((p) =>
+                p.id === targetProjId || p.id === doc.projectId
+                  ? { ...p, attachments: this.projectAttachments[p.id] || p.attachments }
+                  : p
+              );
+            }
+          }
+          this.persistClientDocuments();
           this.notifyListeners();
         }
       })
@@ -928,9 +1156,100 @@ class ImfexStore {
 
   deleteDocument(id: string) {
     this.documents = this.documents.filter((d) => d.id !== id);
+    this.persistClientDocuments();
     this.notifyListeners();
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/client-documents/${id}`, { method: 'DELETE' }).catch(console.warn);
+  }
+
+  // Project Global File Attachments
+  getProjectAttachments(projectId: string): ProjectAttachment[] {
+    const byId = this.projectAttachments[projectId];
+    if (byId && byId.length > 0) return [...byId];
+    const prj = this.projects.find((p) => p.id === projectId || p.projectNumber === projectId);
+    if (prj) {
+      const byResolvedId = this.projectAttachments[prj.id];
+      if (byResolvedId && byResolvedId.length > 0) return [...byResolvedId];
+      const byNum = prj.projectNumber ? this.projectAttachments[prj.projectNumber] : undefined;
+      if (byNum && byNum.length > 0) return [...byNum];
+      if (prj.attachments && prj.attachments.length > 0) return [...prj.attachments];
+    }
+    return [];
+  }
+
+  addProjectAttachment(
+    projectId: string,
+    attachment: ProjectAttachment
+  ): { attachments: ProjectAttachment[]; persisted: boolean } {
+    const prj = this.getProjectById(projectId);
+    const canonicalId = prj?.id || projectId;
+    const existing = this.getProjectAttachments(canonicalId);
+    const nextList = [attachment, ...existing.filter((a) => a.id !== attachment.id)];
+
+    // Store single copy under canonicalId only (do not duplicate under projectNumber or projectFlowOverlay)
+    this.projectAttachments[canonicalId] = nextList;
+    if (prj?.projectNumber && prj.projectNumber !== canonicalId && this.projectAttachments[prj.projectNumber]) {
+      delete this.projectAttachments[prj.projectNumber];
+    }
+
+    const persisted = this.persistProjectAttachments();
+
+    if (prj) {
+      const updatedPrj: Project = {
+        ...prj,
+        attachments: nextList,
+      };
+      const idx = this.projects.findIndex((p) => p.id === prj.id);
+      if (idx >= 0) {
+        this.projects[idx] = updatedPrj;
+      }
+    }
+
+    const custId = attachment.customerId || prj?.customerId;
+    if (custId) {
+      this.saveDocument({
+        id: attachment.id,
+        customerId: custId,
+        projectId: canonicalId,
+        offerId: prj?.offerId,
+        title: `${attachment.name}${prj?.projectNumber ? ` (${prj.projectNumber})` : ''}`,
+        fileName: attachment.name,
+        fileType: attachment.category,
+        fileUrl: attachment.dataUrl,
+        sizeBytes: attachment.sizeBytes,
+        createdAt: attachment.createdAt,
+      });
+    } else {
+      this.notifyListeners();
+    }
+
+    return { attachments: nextList, persisted };
+  }
+
+  deleteProjectAttachment(projectId: string, attachmentId: string): ProjectAttachment[] {
+    const prj = this.getProjectById(projectId);
+    const canonicalId = prj?.id || projectId;
+    const existing = this.getProjectAttachments(canonicalId);
+    const nextList = existing.filter((a) => a.id !== attachmentId);
+    this.projectAttachments[canonicalId] = nextList;
+    if (prj?.projectNumber && prj.projectNumber !== canonicalId && this.projectAttachments[prj.projectNumber]) {
+      delete this.projectAttachments[prj.projectNumber];
+    }
+    this.persistProjectAttachments();
+
+    if (prj) {
+      const updatedPrj: Project = {
+        ...prj,
+        attachments: nextList,
+      };
+      const idx = this.projects.findIndex((p) => p.id === prj.id);
+      if (idx >= 0) {
+        this.projects[idx] = updatedPrj;
+      }
+    }
+
+    this.deleteDocument(attachmentId);
+    return nextList;
   }
 
   // Projects & 4.2 Operational Workflow
@@ -940,6 +1259,7 @@ class ImfexStore {
       customer: p.customer || this.getCustomerById(p.customerId),
       offer: p.offer || this.getOfferById(p.offerId),
       responsibleUser: p.responsibleUser || this.profiles.find((pr) => pr.id === p.responsibleUserId),
+      attachments: this.projectAttachments[p.id] || this.projectAttachments[p.projectNumber] || p.attachments || [],
     }));
   }
 
@@ -951,6 +1271,7 @@ class ImfexStore {
       customer: p.customer || this.getCustomerById(p.customerId),
       offer: p.offer || this.getOfferById(p.offerId),
       responsibleUser: p.responsibleUser || this.profiles.find((pr) => pr.id === p.responsibleUserId),
+      attachments: this.projectAttachments[p.id] || this.projectAttachments[p.projectNumber] || p.attachments || [],
     };
   }
 
@@ -1136,6 +1457,17 @@ class ImfexStore {
   }
 
   saveProject(project: Project): Project {
+    const resolvedAttachments =
+      project.attachments ??
+      this.projectAttachments[project.id] ??
+      (project.projectNumber ? this.projectAttachments[project.projectNumber] : undefined) ??
+      [];
+    this.projectAttachments[project.id] = resolvedAttachments;
+    if (project.projectNumber && project.projectNumber !== project.id && this.projectAttachments[project.projectNumber]) {
+      delete this.projectAttachments[project.projectNumber];
+    }
+    this.persistProjectAttachments();
+
     const flowMeta: Partial<Project> = {
       acceptedAt: project.acceptedAt,
       advancePaid: project.advancePaid,
@@ -1157,24 +1489,31 @@ class ImfexStore {
     }
     this.persistWarehouseState();
 
+    const projectWithAtts: Project = {
+      ...project,
+      attachments: resolvedAttachments,
+    };
+
     const idx = this.projects.findIndex((p) => p.id === project.id);
     if (idx >= 0) {
-      this.projects[idx] = project;
+      this.projects[idx] = projectWithAtts;
     } else {
-      this.projects.push(project);
+      this.projects.push(projectWithAtts);
     }
     this.notifyListeners();
 
+    // Strip heavy base64 attachments from backend /api/projects payload
+    const { attachments: _omitAttachments, ...apiProjectPayload } = projectWithAtts;
     const baseUrl = getApiUrl();
     fetch(`${baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(project),
+      body: JSON.stringify(apiProjectPayload),
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((savedProj) => {
         if (savedProj && savedProj.id) {
-          const merged = { ...project, ...savedProj, ...flowMeta };
+          const merged = { ...projectWithAtts, ...savedProj, ...flowMeta, attachments: resolvedAttachments };
           const freshIdx = this.projects.findIndex((p) => p.id === project.id || p.projectNumber === project.projectNumber || p.id === savedProj.id);
           if (freshIdx >= 0) this.projects[freshIdx] = merged;
           this.notifyListeners();
@@ -1182,7 +1521,7 @@ class ImfexStore {
       })
       .catch((e) => console.warn('saveProject API notice:', e));
 
-    return project;
+    return projectWithAtts;
   }
 
   deleteProject(id: string) {

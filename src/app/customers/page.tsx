@@ -21,6 +21,9 @@ import {
   PackageCheck,
   Download,
   FileText,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  File,
 } from 'lucide-react';
 
 import { toast } from '@/components/ui/toastr';
@@ -305,33 +308,79 @@ export default function CustomersPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {docsForActiveCust.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="p-3 bg-muted/30 border border-border rounded-xl flex items-center justify-between text-xs"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-red-500" />
-                          <div>
-                            <p className="font-bold text-foreground">{doc.title}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {new Date(doc.createdAt).toLocaleDateString('en-GB')} • {doc.fileType}
-                            </p>
-                          </div>
-                        </div>
+                    {docsForActiveCust.map((doc) => {
+                      const hasRealUrl =
+                        Boolean(doc.fileUrl) &&
+                        doc.fileUrl !== '#' &&
+                        (doc.fileUrl.startsWith('data:') ||
+                          doc.fileUrl.startsWith('http://') ||
+                          doc.fileUrl.startsWith('https://') ||
+                          doc.fileUrl.startsWith('blob:') ||
+                          doc.fileUrl.startsWith('/'));
+                      const upperType = (doc.fileType || 'PDF').toUpperCase();
 
-                        <a
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            alert(`Преземање на документ ${doc.title}...`);
-                          }}
-                          className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                      return (
+                        <div
+                          key={doc.id}
+                          className="p-3 bg-muted/30 border border-border rounded-xl flex items-center justify-between gap-3 text-xs"
                         >
-                          <Download className="w-3.5 h-3.5" /> {t('customers.download_pdf')}
-                        </a>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-3 min-w-0">
+                            {upperType === 'IMAGE' && hasRealUrl ? (
+                              <img
+                                src={doc.fileUrl}
+                                alt={doc.title}
+                                className="w-9 h-9 rounded-lg object-cover border border-border shrink-0"
+                              />
+                            ) : upperType === 'EXCEL' ? (
+                              <FileSpreadsheet className="w-5 h-5 text-emerald-500 shrink-0" />
+                            ) : upperType === 'WORD' ? (
+                              <FileText className="w-5 h-5 text-indigo-500 shrink-0" />
+                            ) : upperType === 'IMAGE' ? (
+                              <ImageIcon className="w-5 h-5 text-sky-500 shrink-0" />
+                            ) : upperType === 'OTHER' ? (
+                              <File className="w-5 h-5 text-amber-500 shrink-0" />
+                            ) : (
+                              <FileText className="w-5 h-5 text-red-500 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate" title={doc.title}>
+                                {doc.title}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(doc.createdAt).toLocaleDateString('en-GB')} • {doc.fileType}
+                                {doc.sizeBytes
+                                  ? ` • ${
+                                      doc.sizeBytes < 1024 * 1024
+                                        ? `${(doc.sizeBytes / 1024).toFixed(1)} KB`
+                                        : `${(doc.sizeBytes / (1024 * 1024)).toFixed(2)} MB`
+                                    }`
+                                  : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          {hasRealUrl ? (
+                            <a
+                              href={doc.fileUrl}
+                              download={doc.fileName || doc.title}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 shrink-0"
+                            >
+                              <Download className="w-3.5 h-3.5" /> {t('customers.download_pdf')}
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => toast.info(`Документ: ${doc.title}`, 'Овој запис нема прикачен фајл за преземање.')}
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 shrink-0 cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" /> {t('customers.download_pdf')}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

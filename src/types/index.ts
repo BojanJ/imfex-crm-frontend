@@ -158,6 +158,21 @@ export interface Offer {
   items: OfferItem[];
 }
 
+export type ProjectFileCategory = 'IMAGE' | 'PDF' | 'EXCEL' | 'WORD' | 'OTHER';
+
+export interface ProjectAttachment {
+  id: string;
+  projectId: string;
+  customerId?: string;
+  name: string;
+  mimeType: string;
+  category: ProjectFileCategory;
+  sizeBytes: number;
+  dataUrl: string;
+  uploadedBy?: string;
+  createdAt: string;
+}
+
 export interface ClientDocument {
   id: string;
   customerId: string;
@@ -165,8 +180,10 @@ export interface ClientDocument {
   projectId?: string;
   serviceId?: string;
   title: string;
-  fileType: string; // 'PDF' | 'IMAGE' | 'PROTOCOL' | 'SIGNATURE'
+  fileType: string; // 'PDF' | 'IMAGE' | 'EXCEL' | 'WORD' | 'PROTOCOL' | 'SIGNATURE' | 'OTHER'
   fileUrl: string;
+  fileName?: string;
+  sizeBytes?: number;
   createdAt: string;
 }
 
@@ -192,6 +209,7 @@ export interface Project {
   installationMinutes?: string;
   signatureUrl?: string;
   photos?: string[];
+  attachments?: ProjectAttachment[];
   // 5-Step Warehouse & Order Flow fields
   acceptedAt?: string;
   advancePaid?: boolean;

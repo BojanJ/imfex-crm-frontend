@@ -3,7 +3,15 @@
 import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
-import { Project, ProjectStatus, UserProfile, SalesInvoice, DispatchNote } from '@/types';
+import {
+  Project,
+  ProjectStatus,
+  ProjectAttachment,
+  ProjectFileCategory,
+  UserProfile,
+  SalesInvoice,
+  DispatchNote,
+} from '@/types';
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -18,7 +26,6 @@ import {
   MapPin,
   CheckCircle2,
   Save,
-  Camera,
   FileCheck,
   PenTool,
   Building2,
@@ -26,9 +33,56 @@ import {
   Euro,
   FileText,
   TrendingUp,
+  Paperclip,
+  Upload,
+  FileSpreadsheet,
+  Image as ImageIcon,
+  File,
+  Download,
+  Trash2,
+  Eye,
+  X,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
+
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB per file (safe for localStorage persistence)
+
+function detectFileCategory(fileName: string, mimeType: string): ProjectFileCategory {
+  const lowerName = (fileName || '').toLowerCase();
+  const lowerMime = (mimeType || '').toLowerCase();
+
+  if (lowerMime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|avif)$/i.test(lowerName)) {
+    return 'IMAGE';
+  }
+  if (lowerMime === 'application/pdf' || /\.pdf$/i.test(lowerName)) {
+    return 'PDF';
+  }
+  if (
+    lowerMime.includes('excel') ||
+    lowerMime.includes('spreadsheet') ||
+    lowerMime === 'text/csv' ||
+    /\.(xls|xlsx|csv|ods)$/i.test(lowerName)
+  ) {
+    return 'EXCEL';
+  }
+  if (
+    lowerMime.includes('word') ||
+    lowerMime.includes('msword') ||
+    lowerMime.includes('wordprocessingml') ||
+    /\.(doc|docx|rtf|odt)$/i.test(lowerName)
+  ) {
+    return 'WORD';
+  }
+  return 'OTHER';
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { t } = useI18n();
@@ -52,8 +106,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [installationContact, setInstallationContact] = useState('');
   const [installationMinutes, setInstallationMinutes] = useState('');
 
-  // Photos & Signature state
-  const [photos, setPhotos] = useState<string[]>([]);
+  // Global Project Attachments & Signature state
+  const [attachments, setAttachments] = useState<ProjectAttachment[]>([]);
+  const [fileFilter, setFileFilter] = useState<'ALL' | ProjectFileCategory>('ALL');
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<ProjectAttachment | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string>('');
   const [signatureData, setSignatureData] = useState<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,9 +132,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     onConfirm: () => {},
   });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const applyProjectData = (prj: Project) => {
-    setProject(prj);
+    const resolvedAtts =
+      prj.attachments && prj.attachments.length > 0
+        ? prj.attachments
+        : imfexStore.getProjectAttachments(prj.id);
+    setProject({ ...prj, attachments: resolvedAtts });
     setStatus(prj.status);
     setResponsibleUserId(prj.responsibleUserId || '');
     setStartDate(prj.startDate || '');
@@ -89,7 +152,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setInstallationAddress(prj.installationAddress || '');
     setInstallationContact(prj.installationContact || '');
     setInstallationMinutes(prj.installationMinutes || '');
-    setPhotos(prj.photos || ['https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop']);
+    setAttachments(resolvedAtts);
     setSignatureData(prj.signatureUrl || '');
   };
 
@@ -141,7 +204,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       installationContact,
       installationMinutes,
       signatureUrl: signatureData,
-      photos,
+      attachments,
     };
 
     const saved = imfexStore.saveProject(updated);
@@ -263,13 +326,112 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const handleAddSamplePhoto = () => {
-    const sampleUrls = [
-      'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop',
-      'https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop',
-    ];
-    const pick = sampleUrls[photos.length % sampleUrls.length];
-    setPhotos((prev) => [...prev, pick]);
+  const handleFilesUpload = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || !project) return;
+    const filesArray = Array.from(fileList);
+
+    filesArray.forEach((file) => {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(
+          `Фајлот „${file.name}“ е преголем (${formatFileSize(file.size)})`,
+          'Максималната дозволена големина по фајл е 3 MB.'
+        );
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+        if (!dataUrl) return;
+        const category = detectFileCategory(file.name, file.type);
+        const newAtt: ProjectAttachment = {
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          projectId: project.id,
+          customerId: project.customerId,
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          category,
+          sizeBytes: file.size,
+          dataUrl,
+          uploadedBy: imfexStore.getCurrentUser()?.fullName || 'IMFEX Тим',
+          createdAt: new Date().toISOString(),
+        };
+        const { attachments: updatedList, persisted } = imfexStore.addProjectAttachment(project.id, newAtt);
+        setAttachments(updatedList);
+        setProject((prev) => (prev ? { ...prev, attachments: updatedList } : prev));
+        if (persisted) {
+          toast.success(`Фајлот „${file.name}“ е прикачен`, `${category} • ${formatFileSize(file.size)}`);
+        } else {
+          toast.warning(
+            `Фајлот „${file.name}“ е додаден во оваа сесија, но не е зачуван трајно`,
+            'Локалната меморија на прелистувачот е полна (премногу/преголеми фајлови).'
+          );
+        }
+      };
+      reader.onerror = () => {
+        toast.error(`Грешка при читање на фајлот „${file.name}“`);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  useEffect(() => {
+    if (!previewAttachment || !previewAttachment.dataUrl) {
+      setPreviewBlobUrl('');
+      return;
+    }
+    if (!previewAttachment.dataUrl.startsWith('data:')) {
+      setPreviewBlobUrl(previewAttachment.dataUrl);
+      return;
+    }
+    let objectUrl = '';
+    try {
+      const parts = previewAttachment.dataUrl.split(',');
+      const meta = parts[0] || '';
+      const base64Data = parts[1] || '';
+      const mimeMatch = meta.match(/data:([^;]+);base64/);
+      const mime = mimeMatch ? mimeMatch[1] : previewAttachment.mimeType || 'application/octet-stream';
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteNumbers], { type: mime });
+      objectUrl = URL.createObjectURL(blob);
+      setPreviewBlobUrl(objectUrl);
+    } catch (e) {
+      setPreviewBlobUrl(previewAttachment.dataUrl);
+    }
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [previewAttachment]);
+
+  const handleDeleteAttachment = (att: ProjectAttachment) => {
+    if (!project) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Прикачен Фајл',
+      message: `Дали сте сигурни дека сакате да го избришете фајлот „${att.name}“ од проектот „${project.projectNumber}“?`,
+      variant: 'danger',
+      confirmLabel: 'Да, избриши',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        const nextList = imfexStore.deleteProjectAttachment(project.id, att.id);
+        setAttachments(nextList);
+        setProject((prev) => (prev ? { ...prev, attachments: nextList } : prev));
+        if (previewAttachment?.id === att.id) {
+          setPreviewAttachment(null);
+        }
+        toast.info(`Фајлот „${att.name}“ е избришан`);
+      },
+    });
   };
 
   if (isLoading && !project && !imfexStore.isLoadedFromBackend) {
@@ -829,25 +991,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </h3>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-foreground flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-primary" /> {t('projects.installation_photos')} ({photos.length})
-                </label>
-                <button onClick={handleAddSamplePhoto} className="text-primary font-bold hover:underline cursor-pointer">
-                  {t('projects.add_photo')}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {photos.map((src, idx) => (
-                  <div key={idx} className="relative group border border-border rounded-lg overflow-hidden h-24 bg-muted">
-                    <img src={src} alt="Install Photo" className="w-full h-full object-cover" />
-                  </div>
-                ))}
-              </div>
-            </div>
-
             <div>
               <label className="block font-bold mb-1 text-foreground">
                 {t('projects.handover_minutes')}
@@ -888,6 +1031,256 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           </div>
+
+          {/* Card 6: Global Project Documents & File Attachments */}
+          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-primary" />
+                  <span>{t('projects.project_files')}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-primary/10 text-primary border border-primary/20">
+                    {attachments.length}
+                  </span>
+                </h3>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {t('projects.project_files_subtitle')}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" /> {t('projects.upload_files')}
+              </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,*/*"
+                onChange={(e) => handleFilesUpload(e.target.files)}
+                className="hidden"
+              />
+            </div>
+
+            {/* Drag & Drop Upload Zone */}
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!isDraggingFiles) setIsDraggingFiles(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setIsDraggingFiles(false);
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDraggingFiles(false);
+                handleFilesUpload(e.dataTransfer.files);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+                isDraggingFiles
+                  ? 'border-primary bg-primary/10 scale-[1.01]'
+                  : 'border-border bg-background/50 hover:border-primary/60 hover:bg-muted/30'
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <div className="p-3 rounded-full bg-primary/10 text-primary">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <p className="font-bold text-xs text-foreground">
+                  {t('projects.drop_files_here')}
+                </p>
+                <p className="text-[11px] text-muted-foreground max-w-md">
+                  {t('projects.supported_formats')}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    JPG / PNG / WEBP
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">
+                    PDF
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    EXCEL (.XLS / .XLSX / .CSV)
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    WORD (.DOC / .DOCX)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Category Filter Tabs */}
+            {attachments.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(
+                  [
+                    { key: 'ALL', label: t('projects.filter_all') },
+                    { key: 'IMAGE', label: t('projects.filter_images') },
+                    { key: 'PDF', label: t('projects.filter_pdf') },
+                    { key: 'EXCEL', label: t('projects.filter_excel') },
+                    { key: 'WORD', label: t('projects.filter_word') },
+                    { key: 'OTHER', label: t('projects.filter_other') },
+                  ] as const
+                ).map((tab) => {
+                  const count =
+                    tab.key === 'ALL'
+                      ? attachments.length
+                      : attachments.filter((a) => a.category === tab.key).length;
+                  if (tab.key !== 'ALL' && count === 0) return null;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setFileFilter(tab.key)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        fileFilter === tab.key
+                          ? 'bg-primary text-primary-foreground shadow-xs'
+                          : 'bg-muted text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tab.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Attached Files List / Grid */}
+            {(() => {
+              const visibleAttachments =
+                fileFilter === 'ALL'
+                  ? attachments
+                  : attachments.filter((a) => a.category === fileFilter);
+
+              if (visibleAttachments.length === 0) {
+                return (
+                  <div className="p-6 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                    {t('projects.no_files')}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {visibleAttachments.map((att) => {
+                    const isPreviewable = att.category === 'IMAGE' || att.category === 'PDF';
+                    const badgeStyle =
+                      att.category === 'IMAGE'
+                        ? 'bg-sky-500/15 text-sky-400 border-sky-500/30'
+                        : att.category === 'PDF'
+                        ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                        : att.category === 'EXCEL'
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        : att.category === 'WORD'
+                        ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30'
+                        : 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+
+                    return (
+                      <div
+                        key={att.id}
+                        className="p-3 rounded-xl border border-border bg-background/70 hover:border-primary/40 transition-all flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {att.category === 'IMAGE' ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAttachment(att)}
+                              className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-muted shrink-0 cursor-pointer group relative"
+                              title={t('projects.file_preview')}
+                            >
+                              <img
+                                src={att.dataUrl}
+                                alt={att.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                              />
+                            </button>
+                          ) : (
+                            <div
+                              className={`w-12 h-12 rounded-lg border flex items-center justify-center shrink-0 ${badgeStyle}`}
+                            >
+                              {att.category === 'PDF' ? (
+                                <FileText className="w-6 h-6" />
+                              ) : att.category === 'EXCEL' ? (
+                                <FileSpreadsheet className="w-6 h-6" />
+                              ) : att.category === 'WORD' ? (
+                                <FileText className="w-6 h-6" />
+                              ) : (
+                                <File className="w-6 h-6" />
+                              )}
+                            </div>
+                          )}
+
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="font-bold text-xs text-foreground truncate"
+                              title={att.name}
+                            >
+                              {att.name}
+                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                              <span
+                                className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${badgeStyle}`}
+                              >
+                                {att.category}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground font-medium">
+                                {formatFileSize(att.sizeBytes)}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                • {new Date(att.createdAt).toLocaleDateString('mk-MK')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isPreviewable && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAttachment(att)}
+                              className="p-2 rounded-lg text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                              title={t('projects.file_preview')}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          <a
+                            href={att.dataUrl}
+                            download={att.name}
+                            className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                            title={t('projects.file_download')}
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(att)}
+                            className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                            title={t('projects.file_delete')}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
 
@@ -912,6 +1305,84 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         invoice={previewInvoice}
         dispatchNote={previewDispatch}
       />
+
+      {/* Attachment Preview Modal (Images & PDF) */}
+      {previewAttachment && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 p-4 border-b border-border">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {previewAttachment.category === 'IMAGE' ? (
+                  <ImageIcon className="w-4 h-4 text-sky-400 shrink-0" />
+                ) : (
+                  <FileText className="w-4 h-4 text-red-400 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <h4 className="font-bold text-sm text-foreground truncate">
+                    {previewAttachment.name}
+                  </h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {previewAttachment.category} • {formatFileSize(previewAttachment.sizeBytes)} •{' '}
+                    {new Date(previewAttachment.createdAt).toLocaleDateString('mk-MK')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href={previewAttachment.dataUrl}
+                  download={previewAttachment.name}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> {t('projects.file_download')}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewAttachment(null)}
+                  className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-background/50">
+              {previewAttachment.category === 'IMAGE' ? (
+                <img
+                  src={previewBlobUrl || previewAttachment.dataUrl}
+                  alt={previewAttachment.name}
+                  className="max-h-[75vh] max-w-full object-contain rounded-lg"
+                />
+              ) : previewAttachment.category === 'PDF' ? (
+                <iframe
+                  src={previewBlobUrl || previewAttachment.dataUrl}
+                  title={previewAttachment.name}
+                  className="w-full h-[75vh] rounded-lg border border-border bg-white"
+                />
+              ) : (
+                <div className="p-12 text-center space-y-3">
+                  <p className="text-muted-foreground">
+                    Овој формат ({previewAttachment.category}) се презема директно на вашиот уред.
+                  </p>
+                  <a
+                    href={previewAttachment.dataUrl}
+                    download={previewAttachment.name}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs"
+                  >
+                    <Download className="w-4 h-4" /> {t('projects.file_download')}
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={confirmState.isOpen}

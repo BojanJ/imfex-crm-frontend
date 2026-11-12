@@ -110,7 +110,22 @@
     "in_production": "Produktion",
     "scheduled": "Montage Geplant",
     "completed": "Abgeschlossen",
-    "closed": "Geschlossen"
+    "closed": "Geschlossen",
+    "project_files": "Projektdokumente & Dateien",
+    "project_files_subtitle": "Bilder, PDF-Dokumente, Excel-Tabellen, Word-Verträge oder andere Projektdateien anhängen.",
+    "upload_files": "+ Dateien Hochladen",
+    "drop_files_here": "Dateien hierher ziehen oder klicken zum Auswählen",
+    "supported_formats": "Bilder (JPG, PNG, WEBP), PDF, Excel (.xls, .xlsx, .csv), Word (.doc, .docx) und andere Dokumente (max. 3MB)",
+    "no_files": "Noch keine Dateien für dieses Projekt angehängt.",
+    "file_preview": "Vorschau",
+    "file_download": "Herunterladen",
+    "file_delete": "Löschen",
+    "filter_all": "Alle",
+    "filter_images": "Bilder",
+    "filter_pdf": "PDF",
+    "filter_excel": "Excel",
+    "filter_word": "Word",
+    "filter_other": "Sonstige"
   },
   "service": {
     "title": "Service & Wartungs-Center",
