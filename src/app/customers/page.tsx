@@ -61,11 +61,16 @@ export default function CustomersPage() {
   };
 
   const filtered = customers.filter((c) => {
+    const term = search.toLowerCase().trim();
     const matchesSearch =
-      (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (c.companyName || '').toLowerCase().includes(search.toLowerCase()) ||
-      (c.email || '').toLowerCase().includes(search.toLowerCase()) ||
-      (c.taxId || '').toLowerCase().includes(search.toLowerCase());
+      !term ||
+      (c.name || '').toLowerCase().includes(term) ||
+      (c.companyName || '').toLowerCase().includes(term) ||
+      (c.taxId || '').toLowerCase().includes(term) ||
+      (c.phone || '').toLowerCase().includes(term) ||
+      (c.city || '').toLowerCase().includes(term) ||
+      (c.address || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term);
 
     const matchesType = filterType === 'ALL' || c.customerType === filterType;
     return matchesSearch && matchesType;

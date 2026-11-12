@@ -8,6 +8,8 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { ProductEditor } from '@/components/product-spec-builder/product-editor';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
+import { ProductSelect, ProjectSelect } from '@/components/ui/entity-selectors';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
@@ -640,17 +642,13 @@ export default function ProductsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={selectedProduct.id}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
-                  className="px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground font-semibold outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.code} — {p.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="min-w-[220px] max-w-xs">
+                  <ProductSelect
+                    value={selectedProduct.id}
+                    onChange={(id) => id && setSelectedProductId(id)}
+                    products={products}
+                  />
+                </div>
 
                 <button
                   onClick={() => setShowAdvancedEditor((prev) => !prev)}
@@ -697,17 +695,12 @@ export default function ProductsPage() {
 
                     <div className="space-y-1.5">
                       <small className="text-xs text-muted-foreground block font-semibold">Автоматика</small>
-                      <select
+                      <ProductSelect
                         value={motorProd?.id || ''}
-                        onChange={(e) => setSelectedMotorId(e.target.value)}
-                        className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-border bg-card text-foreground outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                      >
-                        {motorProducts.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name} ({m.code})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(id) => setSelectedMotorId(id)}
+                        products={motorProducts}
+                        placeholder="-- Избери мотор (со пребарување) --"
+                      />
                       {motorProd && (
                         <p className="text-xs text-muted-foreground pt-0.5">
                           Физичка залиха:{' '}
@@ -722,17 +715,12 @@ export default function ProductsPage() {
 
                     <div className="space-y-1.5">
                       <small className="text-xs text-muted-foreground block font-semibold">Шина</small>
-                      <select
+                      <ProductSelect
                         value={railProd?.id || ''}
-                        onChange={(e) => setSelectedRailId(e.target.value)}
-                        className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-border bg-card text-foreground outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                      >
-                        {railProducts.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name} ({r.code})
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(id) => setSelectedRailId(id)}
+                        products={railProducts}
+                        placeholder="-- Избери шина (со пребарување) --"
+                      />
                       {railProd && (
                         <p className="text-xs text-muted-foreground pt-0.5">
                           Физичка залиха:{' '}
@@ -895,17 +883,14 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select
-                      value={activeRealProject.id}
-                      onChange={(e) => setSelectedProjectId(e.target.value)}
-                      className="px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground font-semibold outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                    >
-                      {realProjects.map((rp) => (
-                        <option key={rp.id} value={rp.id}>
-                          {rp.projectNumber} — {rp.customer?.companyName || rp.customer?.name || 'Клиент'}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="min-w-[240px] max-w-sm">
+                      <ProjectSelect
+                        value={activeRealProject.id}
+                        onChange={(id) => id && setSelectedProjectId(id)}
+                        projects={realProjects}
+                        placeholder="-- Пребарај проект по PRJ- или клиент --"
+                      />
+                    </div>
                     <Link
                       href={`/projects/${activeRealProject.id}`}
                       className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 transition-all shrink-0"
@@ -1088,18 +1073,16 @@ export default function ProductsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold mb-1">Категорија</label>
-                  <select
+                  <SearchableSelect
+                    options={[
+                      { value: '', label: '-- Без категорија --' },
+                      ...categories.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
                     value={newProdCatId}
-                    onChange={(e) => setNewProdCatId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
-                  >
-                    <option value="">-- Избери категорија --</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setNewProdCatId(val)}
+                    placeholder="-- Избери категорија --"
+                    searchPlaceholder="Пребарај категорија..."
+                  />
                 </div>
 
                 <div>

@@ -25,6 +25,12 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import {
+  ProjectSelect,
+  ProductSelect,
+  OfferSelect,
+  CustomerSelect,
+} from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
@@ -161,6 +167,7 @@ function FinancePageContent() {
   const [paySalesInvoiceId, setPaySalesInvoiceId] = useState('');
   const [payPurchaseInvoiceId, setPayPurchaseInvoiceId] = useState('');
   const [payProjectId, setPayProjectId] = useState('');
+  const [payOfferId, setPayOfferId] = useState('');
   const [payNotes, setPayNotes] = useState('');
 
   // --- Confirmation Modal State ---
@@ -634,6 +641,7 @@ function FinancePageContent() {
           salesInvoiceId: paySalesInvoiceId || undefined,
           purchaseInvoiceId: payPurchaseInvoiceId || undefined,
           projectId: payProjectId || undefined,
+          offerId: payOfferId || undefined,
           notes: payNotes,
         });
         refreshAll();
@@ -1662,18 +1670,13 @@ function FinancePageContent() {
 
                 <div>
                   <label className="block font-bold mb-1">Поврзи со Проект (Опционално)</label>
-                  <select
+                  <ProjectSelect
                     value={pProjectId}
-                    onChange={(e) => setPProjectId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background font-semibold outline-none"
-                  >
-                    <option value="">-- Општа набавка / Магацин --</option>
-                    {projects.map((prj) => (
-                      <option key={prj.id} value={prj.id}>
-                        {prj.projectNumber} ({prj.customer?.companyName || prj.customer?.name})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setPProjectId(val)}
+                    allowClear
+                    clearLabel="-- Општа набавка / Магацин --"
+                    placeholder="-- Пребарај проект по код PRJ- или клиент --"
+                  />
                 </div>
               </div>
 
@@ -1763,10 +1766,9 @@ function FinancePageContent() {
                               <PackagePlus className="w-3 h-3" /> + Креирај нов производ тука
                             </button>
                           </div>
-                          <select
+                          <ProductSelect
                             value={item.productId || ''}
-                            onChange={(e) => {
-                              const prod = products.find((p) => p.id === e.target.value);
+                            onChange={(val, prod) => {
                               handleUpdatePItem(idx, {
                                 productId: prod?.id,
                                 productCode: prod?.code,
@@ -1774,15 +1776,10 @@ function FinancePageContent() {
                                 unitCost: prod?.purchasePrice || item.unitCost || 0,
                               });
                             }}
-                            className="w-full px-2.5 py-2 rounded-lg border border-border bg-card font-semibold outline-none"
-                          >
-                            <option value="">-- Избери постоечки производ (или креирај нов) --</option>
-                            {products.map((prod) => (
-                              <option key={prod.id} value={prod.id}>
-                                {prod.code} — {prod.name} (Залиха: {prod.stockQuantity ?? 0})
-                              </option>
-                            ))}
-                          </select>
+                            allowClear
+                            clearLabel="-- Избери постоечки производ --"
+                            placeholder="-- Пребарај производ по код PRD- или назив --"
+                          />
                         </div>
                       ) : (
                         <div className="md:col-span-5 grid grid-cols-2 gap-2">
@@ -2141,45 +2138,33 @@ function FinancePageContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border border-border bg-background">
                   <div>
                     <label className="block font-bold mb-1">Избери Проект</label>
-                    <select
+                    <ProjectSelect
                       value={sSelectedProjectId}
-                      onChange={(e) => {
-                        setSSelectedProjectId(e.target.value);
-                        const prj = projects.find((p) => p.id === e.target.value);
+                      onChange={(val, prj) => {
+                        setSSelectedProjectId(val);
                         if (prj) {
                           setSCustomerId(prj.customerId);
                           setSSelectedOfferId(prj.offerId);
                         }
                       }}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-card font-bold outline-none"
-                    >
-                      <option value="">-- Избери Проект --</option>
-                      {projects.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.projectNumber} — {p.customer?.companyName || p.customer?.name}
-                        </option>
-                      ))}
-                    </select>
+                      allowClear
+                      clearLabel="-- Без избран проект --"
+                      placeholder="-- Пребарај проект по код PRJ- или клиент --"
+                    />
                   </div>
 
                   <div>
                     <label className="block font-bold mb-1">Или избери Понуда</label>
-                    <select
+                    <OfferSelect
                       value={sSelectedOfferId}
-                      onChange={(e) => {
-                        setSSelectedOfferId(e.target.value);
-                        const off = offers.find((o) => o.id === e.target.value);
+                      onChange={(val, off) => {
+                        setSSelectedOfferId(val);
                         if (off) setSCustomerId(off.customerId);
                       }}
-                      className="w-full px-3 py-2 rounded-lg border border-border bg-card font-bold outline-none"
-                    >
-                      <option value="">-- Избери Понуда --</option>
-                      {offers.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.offerNumber} — {o.customer?.companyName || o.customer?.name} (€{Number(o.totalAmount).toFixed(2)})
-                        </option>
-                      ))}
-                    </select>
+                      allowClear
+                      clearLabel="-- Без избрана понуда --"
+                      placeholder="-- Пребарај понуда по код OFF- или клиент --"
+                    />
                   </div>
                 </div>
               ) : (
@@ -2187,45 +2172,31 @@ function FinancePageContent() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block font-bold mb-1">Клиент *</label>
-                      <select
-                        required
+                      <CustomerSelect
                         value={sCustomerId}
-                        onChange={(e) => setSCustomerId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-border bg-card font-bold outline-none"
-                      >
-                        <option value="">-- Избери Клиент --</option>
-                        {customers.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.companyName || c.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setSCustomerId(val)}
+                        placeholder="-- Пребарај и избери Клиент --"
+                      />
                     </div>
                     <div>
                       <label className="block font-bold mb-1">Поврзи со проект (за одбивање аванс)</label>
-                      <select
+                      <ProjectSelect
                         value={sSelectedProjectId}
-                        onChange={(e) => setSSelectedProjectId(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-border bg-card font-semibold outline-none"
-                      >
-                        <option value="">-- Без проект --</option>
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.projectNumber}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(val) => setSSelectedProjectId(val)}
+                        allowClear
+                        clearLabel="-- Без проект --"
+                        placeholder="-- Пребарај проект по код PRJ- или клиент --"
+                      />
                     </div>
                   </div>
 
                   {sManualItems.map((it, idx) => (
                     <div key={it.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
                       <div className="sm:col-span-4">
-                        <label className="block text-[10px] text-muted-foreground">Производ од залиха</label>
-                        <select
+                        <label className="block text-[10px] text-muted-foreground mb-1">Производ од залиха</label>
+                        <ProductSelect
                           value={it.productId || ''}
-                          onChange={(e) => {
-                            const prod = products.find((p) => p.id === e.target.value);
+                          onChange={(val, prod) => {
                             const price = Number(prod?.models?.[0]?.basePrice || it.unitPrice || 0);
                             const copy = [...sManualItems];
                             copy[idx] = {
@@ -2237,15 +2208,10 @@ function FinancePageContent() {
                             };
                             setSManualItems(copy);
                           }}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-card"
-                        >
-                          <option value="">-- Избери од магацин --</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.code} — {p.name} (Залиха: {p.stockQuantity ?? 0})
-                            </option>
-                          ))}
-                        </select>
+                          allowClear
+                          clearLabel="-- Избери од магацин --"
+                          placeholder="-- Пребарај производ по код PRD- или назив --"
+                        />
                       </div>
                       <div className="sm:col-span-4">
                         <label className="block text-[10px] text-muted-foreground">Назив на фактура</label>
@@ -2365,35 +2331,22 @@ function FinancePageContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-4 rounded-xl border border-border">
                 <div>
                   <label className="block font-bold mb-1">Повлечи ставки од Проект</label>
-                  <select
+                  <ProjectSelect
                     value={dProjectId}
-                    onChange={(e) => handleSelectDispatchProject(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
-                  >
-                    <option value="">-- Избери Проект (или рачно) --</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.projectNumber} — {p.customer?.companyName || p.customer?.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleSelectDispatchProject(val)}
+                    allowClear
+                    clearLabel="-- Избери Проект (или рачно) --"
+                    placeholder="-- Пребарај проект по код PRJ- или клиент --"
+                  />
                 </div>
 
                 <div>
                   <label className="block font-bold mb-1">Клиент *</label>
-                  <select
-                    required
+                  <CustomerSelect
                     value={dCustomerId}
-                    onChange={(e) => setDCustomerId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
-                  >
-                    <option value="">-- Избери Клиент --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.companyName || c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setDCustomerId(val)}
+                    placeholder="-- Пребарај и избери Клиент --"
+                  />
                 </div>
               </div>
 
@@ -2403,28 +2356,24 @@ function FinancePageContent() {
                 </label>
                 {dItems.map((it, idx) => (
                   <div key={it.id} className="grid grid-cols-12 gap-2 items-center">
-                    <select
-                      value={it.productId || ''}
-                      onChange={(e) => {
-                        const prod = products.find((p) => p.id === e.target.value);
-                        const copy = [...dItems];
-                        copy[idx] = {
-                          ...copy[idx],
-                          productId: prod?.id,
-                          productCode: prod?.code,
-                          title: prod?.name || copy[idx].title,
-                        };
-                        setDItems(copy);
-                      }}
-                      className="col-span-5 px-2.5 py-1.5 rounded-lg border border-border bg-background"
-                    >
-                      <option value="">-- Избери од залиха --</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.code} — {p.name} (Залиха: {p.stockQuantity ?? 0})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="col-span-5">
+                      <ProductSelect
+                        value={it.productId || ''}
+                        onChange={(val, prod) => {
+                          const copy = [...dItems];
+                          copy[idx] = {
+                            ...copy[idx],
+                            productId: prod?.id,
+                            productCode: prod?.code,
+                            title: prod?.name || copy[idx].title,
+                          };
+                          setDItems(copy);
+                        }}
+                        placeholder="-- Пребарај производ по код или назив --"
+                        allowClear
+                        clearLabel="-- Избери од залиха --"
+                      />
+                    </div>
                     <input
                       type="text"
                       value={it.title}
@@ -2538,40 +2487,16 @@ function FinancePageContent() {
                 <label className="block font-bold mb-1">
                   Избери Клиент / Партнер (со пребарување) *
                 </label>
-                <SearchableSelect
-                  options={[
-                    ...customers.map((c) => {
-                      const display = c.companyName || c.name;
-                      return {
-                        value: `CUST:${c.id}`,
-                        label: `${display} (${c.customerType})`,
-                        sublabel: [c.taxId ? `ЕДБ: ${c.taxId}` : '', c.phone || '', c.email || '']
-                          .filter(Boolean)
-                          .join(' • '),
-                      };
-                    }),
-                    { value: 'SUPPLIER:Doors Impex', label: 'Doors Impex (Добавувач)', sublabel: 'Стандарден партнер' },
-                    { value: 'SUPPLIER:Макпетрол (Гориво)', label: 'Макпетрол (Гориво)', sublabel: 'Добавувач за гориво' },
-                    { value: 'SUPPLIER:ЕВН Македонија', label: 'ЕВН Македонија', sublabel: 'Режиски трошоци' },
-                  ]}
-                  value={
-                    payCustomerId
-                      ? `CUST:${payCustomerId}`
-                      : payPartnerName
-                      ? customers.find((c) => (c.companyName || c.name) === payPartnerName)
-                        ? `CUST:${customers.find((c) => (c.companyName || c.name) === payPartnerName)!.id}`
-                        : `SUPPLIER:${payPartnerName}`
-                      : ''
-                  }
-                  onChange={(val) => {
-                    if (val.startsWith('CUST:')) {
-                      const cId = val.replace('CUST:', '');
-                      const cObj = customers.find((c) => c.id === cId);
-                      setPayCustomerId(cId);
-                      setPayPartnerName(cObj ? cObj.companyName || cObj.name : '');
-                    } else if (val.startsWith('SUPPLIER:')) {
+                <CustomerSelect
+                  includeSuppliers
+                  value={payCustomerId || (payPartnerName ? `SUPPLIER:${payPartnerName}` : '')}
+                  onChange={(val, cust) => {
+                    if (val.startsWith('SUPPLIER:')) {
                       setPayCustomerId('');
                       setPayPartnerName(val.replace('SUPPLIER:', ''));
+                    } else if (cust) {
+                      setPayCustomerId(cust.id);
+                      setPayPartnerName(cust.companyName || cust.name);
                     } else {
                       setPayCustomerId('');
                       setPayPartnerName('');
@@ -2579,7 +2504,6 @@ function FinancePageContent() {
                   }}
                   placeholder="Пребарај и избери клиент или партнер..."
                   searchPlaceholder="Пребарај по име, компанија, ЕДБ, телефон..."
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
                 />
                 <input
                   type="text"
@@ -2594,6 +2518,30 @@ function FinancePageContent() {
                   placeholder="Или внесете / коригирајте назив на клиент или партнер..."
                   className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background/70 font-semibold outline-none"
                 />
+              </div>
+
+              {/* Link Payment with Project or Offer */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-muted/20 rounded-xl border border-border">
+                <div>
+                  <label className="block text-[11px] font-bold mb-1">Поврзи со Проект (опц.)</label>
+                  <ProjectSelect
+                    value={payProjectId}
+                    onChange={(val) => setPayProjectId(val)}
+                    allowClear
+                    clearLabel="-- Без проект --"
+                    placeholder="-- Избери проект (PRJ-) --"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold mb-1">Поврзи со Понуда (опц.)</label>
+                  <OfferSelect
+                    value={payOfferId}
+                    onChange={(val) => setPayOfferId(val)}
+                    allowClear
+                    clearLabel="-- Без понуда --"
+                    placeholder="-- Избери понуда (OFF-) --"
+                  />
+                </div>
               </div>
 
               <div>

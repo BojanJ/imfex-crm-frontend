@@ -6,6 +6,8 @@ import { useI18n } from '@/lib/i18n-context';
 import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfile } from '@/types';
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ProductSelect } from '@/components/ui/entity-selectors';
+import { toast } from '@/components/ui/toastr';
 import {
   Wrench,
   ArrowLeft,
@@ -292,8 +294,35 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 <Wrench className="w-4 h-4 text-primary" /> {t('service.parts_consumed')}
               </h3>
               <button onClick={handleAddPart} className="flex items-center gap-1 text-xs font-bold text-primary hover:underline cursor-pointer">
-                <Plus className="w-3.5 h-3.5" /> {t('service.add_part')}
+                <Plus className="w-3.5 h-3.5" /> {t('service.add_part')} (Рачно)
               </button>
+            </div>
+
+            {/* Quick Part Selector from Inventory */}
+            <div className="p-3 bg-muted/20 rounded-xl border border-border flex flex-col sm:flex-row items-center gap-2">
+              <span className="text-xs font-bold text-muted-foreground shrink-0">+ Избери дел од магацин:</span>
+              <div className="flex-1 w-full">
+                <ProductSelect
+                  value=""
+                  onChange={(prodId, prod) => {
+                    if (prod) {
+                      setPartsConsumed((prev) => [
+                        ...prev,
+                        {
+                          id: `part-${Date.now()}`,
+                          name: `${prod.name}`,
+                          code: prod.code,
+                          quantity: 1,
+                          unitCost: Number(prod.models?.[0]?.basePrice || prod.purchasePrice || 0),
+                        },
+                      ]);
+                      toast.success('Резервен дел додаден', `${prod.code} — ${prod.name}`);
+                    }
+                  }}
+                  placeholder="Пребарај резервен дел по код (PRD-) или назив..."
+                  allowClear
+                />
+              </div>
             </div>
 
             {partsConsumed.map((part, idx) => (

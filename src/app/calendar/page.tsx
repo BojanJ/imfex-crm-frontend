@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { CalendarEvent, CalendarEventType, Customer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
   Calendar as CalendarIcon,
@@ -52,6 +53,7 @@ export default function CalendarPage() {
   const [eventEndTime, setEventEndTime] = useState('10:00');
   const [eventAllDay, setEventAllDay] = useState(false);
   const [eventCustomerId, setEventCustomerId] = useState('');
+  const [eventProjectId, setEventProjectId] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export default function CalendarPage() {
     setEventEndTime('10:00');
     setEventAllDay(false);
     setEventCustomerId('');
+    setEventProjectId('');
     setEventLocation('');
     setEventDescription('');
     setIsNewEventModalOpen(true);
@@ -124,6 +127,7 @@ export default function CalendarPage() {
 
     setEventAllDay(!!event.allDay);
     setEventCustomerId(event.customerId || '');
+    setEventProjectId(event.projectId || '');
     setEventLocation(event.location || '');
     setEventDescription(event.description || '');
 
@@ -149,6 +153,7 @@ export default function CalendarPage() {
       eventType: eventType,
       customerId: eventCustomerId || undefined,
       customer: eventCustomerId ? imfexStore.getCustomerById(eventCustomerId) : undefined,
+      projectId: eventProjectId || undefined,
       location: eventLocation,
       color: eventType === 'MEETING' ? 'purple' : eventType === 'INSTALLATION' ? 'amber' : 'blue',
       createdAt: new Date().toISOString(),
@@ -701,20 +706,30 @@ export default function CalendarPage() {
 
                 <div>
                   <label className="block font-semibold mb-1">Tag Client Account</label>
-                  <SearchableSelect
-                    options={[
-                      { value: '', label: '-- None / Internal --' },
-                      ...customers.map((c) => ({
-                        value: c.id,
-                        label: c.companyName || c.name,
-                      })),
-                    ]}
+                  <CustomerSelect
                     value={eventCustomerId}
                     onChange={(val) => setEventCustomerId(val)}
                     placeholder="-- Select Client --"
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background font-semibold"
+                    allowClear
+                    clearLabel="-- None / Internal --"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Link with Project (Optional)</label>
+                <ProjectSelect
+                  value={eventProjectId}
+                  onChange={(val, prj) => {
+                    setEventProjectId(val);
+                    if (prj?.customerId && !eventCustomerId) {
+                      setEventCustomerId(prj.customerId);
+                    }
+                  }}
+                  placeholder="-- Search project by PRJ- or client --"
+                  allowClear
+                  clearLabel="-- No Project Linked --"
+                />
               </div>
 
               <div className="space-y-2 pt-1 border-t border-border">

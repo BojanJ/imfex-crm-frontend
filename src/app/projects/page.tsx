@@ -48,10 +48,17 @@ export default function ProjectsPage() {
   }, [imfexStore.getProjects().length]);
 
   const filtered = projects.filter((p) => {
+    const term = search.toLowerCase().trim();
     const matchesSearch =
-      p.projectNumber.toLowerCase().includes(search.toLowerCase()) ||
-      (p.customer?.companyName || p.customer?.name || '').toLowerCase().includes(search.toLowerCase()) ||
-      (p.installationAddress || '').toLowerCase().includes(search.toLowerCase());
+      !term ||
+      p.projectNumber.toLowerCase().includes(term) ||
+      (p.customer?.companyName || p.customer?.name || '').toLowerCase().includes(term) ||
+      (p.customer?.taxId || '').toLowerCase().includes(term) ||
+      (p.customer?.city || '').toLowerCase().includes(term) ||
+      (p.customer?.phone || '').toLowerCase().includes(term) ||
+      (p.offer?.offerNumber || '').toLowerCase().includes(term) ||
+      (p.responsibleUser?.fullName || '').toLowerCase().includes(term) ||
+      (p.installationAddress || '').toLowerCase().includes(term);
 
     const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
     return matchesSearch && matchesStatus;

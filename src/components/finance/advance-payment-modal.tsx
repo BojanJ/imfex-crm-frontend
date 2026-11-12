@@ -140,20 +140,32 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
       const off = p.offerId ? imfexStore.getOfferById(p.offerId) : p.offer;
       const cust = p.customer || allCustomers.find((c) => c.id === p.customerId);
       const custName = cust?.companyName || cust?.name || 'Клиент';
+      const isProjActive = p.status !== 'COMPLETED' && p.status !== 'CLOSED';
       return {
         value: `PROJECT:${p.id}`,
-        label: `Проект: ${p.projectNumber} — ${custName}${off ? ` (Понуда ${off.offerNumber})` : ''}`,
-        sublabel: `Статус: ${p.status}${off ? ` • Вкупно по понуда: €${Number(off.totalAmount || 0).toFixed(2)}` : ''}`,
+        code: p.projectNumber,
+        label: `${custName}${off ? ` (${off.offerNumber})` : ''}`,
+        customerName: custName,
+        badge: p.status,
+        isActive: isProjActive,
+        sublabel: `Проект • Статус: ${p.status}${off ? ` • Вкупно по понуда: €${Number(off.totalAmount || 0).toFixed(2)}` : ''}`,
+        keywords: [p.projectNumber, custName, cust?.taxId || '', off?.offerNumber || '', 'проект'],
       };
     }),
     ...allOffers.map((o) => {
       const cust = o.customer || allCustomers.find((c) => c.id === o.customerId);
       const custName = cust?.companyName || cust?.name || 'Клиент';
       const linkedProj = allProjects.find((p) => p.offerId === o.id);
+      const isOffActive = o.status !== 'REJECTED' && o.status !== 'EXPIRED';
       return {
         value: `OFFER:${o.id}`,
-        label: `Понуда: ${o.offerNumber} — ${custName} (€${Number(o.totalAmount || 0).toFixed(2)})`,
-        sublabel: `Статус: ${o.status}${linkedProj ? ` • Поврзан проект: ${linkedProj.projectNumber}` : ' • Нема креиран проект'}`,
+        code: o.offerNumber,
+        label: `${custName} (€${Number(o.totalAmount || 0).toFixed(2)})`,
+        customerName: custName,
+        badge: o.status,
+        isActive: isOffActive,
+        sublabel: `Понуда • Статус: ${o.status}${linkedProj ? ` • Поврзан проект: ${linkedProj.projectNumber}` : ' • Нема проект'}`,
+        keywords: [o.offerNumber, custName, cust?.taxId || '', `${o.totalAmount}`, 'понуда'],
       };
     }),
   ];

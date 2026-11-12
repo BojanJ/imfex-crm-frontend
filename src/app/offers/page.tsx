@@ -102,9 +102,18 @@ export default function OffersPage() {
   };
 
   const filtered = offers.filter((o) => {
+    const term = search.toLowerCase().trim();
     const matchesSearch =
-      o.offerNumber.toLowerCase().includes(search.toLowerCase()) ||
-      (o.customer?.companyName || o.customer?.name || '').toLowerCase().includes(search.toLowerCase());
+      !term ||
+      o.offerNumber.toLowerCase().includes(term) ||
+      (o.customer?.companyName || o.customer?.name || '').toLowerCase().includes(term) ||
+      (o.customer?.taxId || '').toLowerCase().includes(term) ||
+      (o.customer?.city || '').toLowerCase().includes(term) ||
+      (o.items || []).some(
+        (it) =>
+          (it.customTitle || '').toLowerCase().includes(term) ||
+          (it.productId || '').toLowerCase().includes(term)
+      );
 
     const matchesStatus = statusFilter === 'ALL' || o.status === statusFilter;
     return matchesSearch && matchesStatus;

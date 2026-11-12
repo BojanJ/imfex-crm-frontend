@@ -12,6 +12,7 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ProductSelect, CustomerSelect } from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
@@ -578,17 +579,12 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1">Choose Client Account</label>
-              <SearchableSelect
-                options={customers.map((c) => ({
-                  value: c.id,
-                  label: `${c.companyName || c.name} (${c.customerType})`,
-                  sublabel: c.email ? `${c.email} • ${c.phone || ''}` : undefined,
-                }))}
+              <CustomerSelect
                 value={selectedCustomerId}
                 onChange={(val) => setSelectedCustomerId(val)}
+                customers={customers}
                 placeholder="Choose Client Account..."
-                searchPlaceholder="Search client account..."
-                className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none font-semibold focus:ring-2 focus:ring-primary"
+                searchPlaceholder="Search client by name, company, tax ID..."
               />
             </div>
 
@@ -807,28 +803,24 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Product Family</label>
-                          <SearchableSelect
-                            options={products
-                              .filter(p => !item.categoryId || p.categoryId === item.categoryId)
-                              .map((p) => ({
-                                value: p.id,
-                                label: `${p.name} (${p.code})`,
-                              }))}
+                          <ProductSelect
+                            products={products.filter((p) => !item.categoryId || p.categoryId === item.categoryId)}
                             value={item.productId || ''}
-                            onChange={(pId) => {
-                              const pObj = products.find((p) => p.id === pId);
-                              const firstMod = pObj?.models[0];
+                            onChange={(pId, pObj) => {
+                              const prod = pObj || products.find((p) => p.id === pId);
+                              const firstMod = prod?.models[0];
                               handleUpdateItem(idx, {
-                                categoryId: pObj?.categoryId || item.categoryId,
+                                categoryId: prod?.categoryId || item.categoryId,
                                 productId: pId,
                                 productModelId: firstMod?.id,
-                                customTitle: pObj?.name || item.customTitle,
-                                specifications: buildDefaultSpecificationsForProduct(pObj),
+                                customTitle: prod?.name || item.customTitle,
+                                specifications: buildDefaultSpecificationsForProduct(prod),
                               });
                             }}
                             placeholder="Select Product Family..."
-                            searchPlaceholder="Search products..."
-                            className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
+                            searchPlaceholder="Search products by code or name..."
+                            allowClear
+                            clearLabel="-- Clear product --"
                           />
                         </div>
                       </div>
@@ -1088,45 +1080,33 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                               <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Автоматика (Мотор)</label>
-                              <select
+                              <ProductSelect
+                                products={products.filter((p) => p.code.startsWith('AV-') || p.category?.name === 'Автоматика')}
                                 value={item.selectedAccessories?.motorId || ''}
-                                onChange={(e) =>
+                                onChange={(val) =>
                                   handleUpdateItem(idx, {
-                                    selectedAccessories: { ...(item.selectedAccessories || {}), motorId: e.target.value },
+                                    selectedAccessories: { ...(item.selectedAccessories || {}), motorId: val },
                                   })
                                 }
-                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
-                              >
-                                <option value="">-- Избери Автоматика --</option>
-                                {products
-                                  .filter((p) => p.code.startsWith('AV-') || p.category?.name === 'Автоматика')
-                                  .map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.name} (Залиха: {m.stockQuantity ?? 0} | Рез: {m.reservedQuantity ?? 0})
-                                    </option>
-                                  ))}
-                              </select>
+                                allowClear
+                                clearLabel="-- Без автоматика --"
+                                placeholder="-- Избери Автоматика --"
+                              />
                             </div>
                             <div>
                               <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Шина</label>
-                              <select
+                              <ProductSelect
+                                products={products.filter((p) => p.code.startsWith('SH-') || p.category?.name === 'Шини')}
                                 value={item.selectedAccessories?.railId || ''}
-                                onChange={(e) =>
+                                onChange={(val) =>
                                   handleUpdateItem(idx, {
-                                    selectedAccessories: { ...(item.selectedAccessories || {}), railId: e.target.value },
+                                    selectedAccessories: { ...(item.selectedAccessories || {}), railId: val },
                                   })
                                 }
-                                className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
-                              >
-                                <option value="">-- Избери Шина --</option>
-                                {products
-                                  .filter((p) => p.code.startsWith('SH-') || p.category?.name === 'Шини')
-                                  .map((r) => (
-                                    <option key={r.id} value={r.id}>
-                                      {r.name} (Залиха: {r.stockQuantity ?? 0} | Рез: {r.reservedQuantity ?? 0})
-                                    </option>
-                                  ))}
-                              </select>
+                                allowClear
+                                clearLabel="-- Без шина --"
+                                placeholder="-- Избери Шина --"
+                              />
                             </div>
                           </div>
                         </div>
@@ -1182,25 +1162,20 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                         <label className="block text-[11px] font-bold text-foreground mb-1">
                           Резервен дел од магацин (опционално)
                         </label>
-                        <select
+                        <ProductSelect
                           value={item.consumedPartProductId || ''}
-                          onChange={(e) => {
-                            const partProd = products.find((p) => p.id === e.target.value);
+                          onChange={(val, partProd) => {
                             const partPrice = Number(partProd?.models?.[0]?.basePrice || 0);
                             handleUpdateItem(idx, {
-                              consumedPartProductId: e.target.value || undefined,
+                              consumedPartProductId: val || undefined,
                               unitPrice: partPrice > 0 ? partPrice + Number((item.laborHours || 0) * 25) : item.unitPrice,
                             });
                           }}
-                          className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
-                        >
-                          <option value="">-- Без дел од залиха --</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.code} — {p.name} (Залиха: {p.stockQuantity ?? 0})
-                            </option>
-                          ))}
-                        </select>
+                          products={products}
+                          allowClear
+                          clearLabel="-- Без дел од залиха --"
+                          placeholder="-- Пребарај дел од магацин --"
+                        />
                       </div>
 
                       <div>

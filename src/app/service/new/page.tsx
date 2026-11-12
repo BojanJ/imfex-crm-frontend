@@ -6,6 +6,7 @@ import { Customer, InstalledItem, ServicePriority, ServiceTicket } from '@/types
 import { imfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { CustomerSelect } from '@/components/ui/entity-selectors';
 import {
   Wrench,
   ArrowLeft,
@@ -124,17 +125,12 @@ export default function NewServiceTicketPage() {
             </button>
           </div>
 
-          <SearchableSelect
-            options={customers.map((c) => ({
-              value: c.id,
-              label: `${c.companyName || c.name} (${c.customerType})`,
-              sublabel: c.email ? `${c.email} • ${c.phone || ''}` : undefined,
-            }))}
+          <CustomerSelect
+            customers={customers}
             value={selectedCustomerId}
             onChange={(val) => setSelectedCustomerId(val)}
             placeholder="Select Customer Account..."
-            searchPlaceholder="Search customer..."
-            className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-xs"
+            searchPlaceholder="Search customer by name, company, tax ID, phone..."
           />
 
           {selectedCustObj && (
