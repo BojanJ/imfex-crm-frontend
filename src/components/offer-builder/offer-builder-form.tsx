@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Customer, Offer, OfferItem, OfferStatus, Product, ServiceType } from '@/types';
+import { Customer, Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
@@ -12,6 +12,7 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
   Plus,
@@ -77,6 +78,44 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [emailSuccessMsg, setEmailSuccessMsg] = useState('');
   const [savedOfferForPdf, setSavedOfferForPdf] = useState<Offer | null>(existingOffer || null);
 
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    confirmLabel?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const buildDefaultSpecificationsForProduct = (prod?: Product): OfferItemSpecSelection[] => {
+    if (!prod || !prod.specificationKeys) return [];
+    return prod.specificationKeys.map((key) => {
+      if (key.inputType === 'SELECT' || key.inputType === 'MULTISELECT') {
+        const defOpt =
+          (key.options || []).find((o) => o.isDefault) ||
+          (key.defaultValue
+            ? (key.options || []).find(
+                (o) => o.label.toLowerCase() === key.defaultValue!.trim().toLowerCase()
+              )
+            : undefined);
+        return {
+          specificationKeyId: key.id,
+          specificationOptionId: defOpt?.id,
+          customValue: defOpt ? undefined : key.defaultValue || undefined,
+        };
+      }
+      return {
+        specificationKeyId: key.id,
+        customValue: key.defaultValue || '',
+      };
+    });
+  };
+
   // Sync customers and products when store updates
   useEffect(() => {
     const custs = imfexStore.getCustomers();
@@ -92,12 +131,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       }
       if (existingOffer.items && existingOffer.items.length > 0) {
         setItems(
-          existingOffer.items.map((it) => ({
-            ...it,
-            specifications: (it.specifications && it.specifications.length > 0)
+          existingOffer.items.map((it) => {
+            const hasExplicitSpecs = Array.isArray(it.specifications);
+            const rawSpecs = hasExplicitSpecs
               ? it.specifications
-              : ((it as any).offerItemSpecifications || []),
-          }))
+              : (it as any).offerItemSpecifications || [];
+            return {
+              ...it,
+              specifications: rawSpecs,
+            };
+          })
         );
       }
     } else {
@@ -109,6 +152,17 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       if (items.length === 0 && prods.length > 0) {
         const firstProd = (urlProductId && prods.find((p) => p.id === urlProductId)) || prods[0];
         const firstModel = firstProd?.models[0];
+        const defaultSpecs = buildDefaultSpecificationsForProduct(firstProd);
+        let initUnitPrice = Number(firstModel?.basePrice || 945);
+        defaultSpecs.forEach((s) => {
+          const k = firstProd.specificationKeys.find((key) => key.id === s.specificationKeyId);
+          const o = k?.options.find((opt) => opt.id === s.specificationOptionId);
+          if (o) initUnitPrice += Number(o.priceModifier || 0);
+        });
+        // Area > 8m2 for 4000x3000 (12m2)
+        initUnitPrice += (12 - 8) * 45;
+        initUnitPrice = Math.round(initUnitPrice * 100) / 100;
+
         setItems([
           {
             id: `item-${Date.now()}`,
@@ -120,9 +174,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
             widthMm: 4000,
             heightMm: 3000,
             quantity: 1,
-            unitPrice: Number(firstModel?.basePrice || 945),
-            totalPrice: Number(firstModel?.basePrice || 945),
-            specifications: [],
+            unitPrice: initUnitPrice,
+            totalPrice: initUnitPrice,
+            specifications: defaultSpecs,
             selectedAccessories: {},
           },
         ]);
@@ -148,6 +202,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       if (key && specSel.specificationOptionId) {
         const option = key.options.find((o) => o.id === specSel.specificationOptionId);
         if (option) price += Number(option.priceModifier || 0);
+      }
+      if (specSel.customPriceModifier) {
+        price += Number(specSel.customPriceModifier || 0);
       }
     });
 
@@ -185,7 +242,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const handleAddItem = () => {
     const firstProd = products[0];
     const firstModel = firstProd?.models[0];
-    const newItem: OfferItem = {
+    const defaultSpecs = buildDefaultSpecificationsForProduct(firstProd);
+    const baseItem: OfferItem = {
       id: `item-${Date.now()}`,
       serviceTypes: ['PRODUCT', 'INSTALLATION'],
       categoryId: firstProd?.categoryId || undefined,
@@ -197,14 +255,28 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       quantity: 1,
       unitPrice: firstModel?.basePrice || 500,
       totalPrice: firstModel?.basePrice || 500,
-      specifications: [],
+      specifications: defaultSpecs,
     };
-    setItems((prev) => [...prev, newItem]);
+    const calcPrice = calculateItemUnitPrice(baseItem);
+    baseItem.unitPrice = calcPrice;
+    baseItem.totalPrice = calcPrice;
+    setItems((prev) => [...prev, baseItem]);
   };
 
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) return;
-    setItems((prev) => prev.filter((_, i) => i !== index));
+    const itemTitle = items[index]?.customTitle || `Ставка #${index + 1}`;
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Ставка од Понуда',
+      message: `Дали сте сигурни дека сакате да ја избришете ставката „${itemTitle}“ од понудата?`,
+      variant: 'danger',
+      confirmLabel: 'Избриши Ставка',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setItems((prev) => prev.filter((_, i) => i !== index));
+      },
+    });
   };
 
   const handleToggleServiceType = (index: number, service: ServiceType) => {
@@ -229,9 +301,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
     if (specIdx >= 0) {
       existingSpecs[specIdx] = {
+        ...existingSpecs[specIdx],
         specificationKeyId: specKeyId,
-        specificationOptionId: optionId,
-        customValue: customValue,
+        specificationOptionId: optionId !== undefined ? optionId : existingSpecs[specIdx].specificationOptionId,
+        customValue: customValue !== undefined ? customValue : existingSpecs[specIdx].customValue,
       };
     } else {
       existingSpecs.push({
@@ -242,6 +315,69 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     }
 
     handleUpdateItem(itemIndex, { specifications: existingSpecs });
+  };
+
+  const handleRemoveSpecFromItem = (itemIndex: number, specKeyId: string, specLabel: string) => {
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Спецификација од Понуда',
+      message: `Дали сте сигурни дека сакате да ја отстраните спецификацијата „${specLabel}“ од оваа ставка во понудата?`,
+      variant: 'danger',
+      confirmLabel: 'Избриши',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        const item = items[itemIndex];
+        const nextSpecs = (item.specifications || []).filter((s) => s.specificationKeyId !== specKeyId);
+        handleUpdateItem(itemIndex, { specifications: nextSpecs });
+      },
+    });
+  };
+
+  const handleRestoreProductSpec = (itemIndex: number, keyId: string) => {
+    const item = items[itemIndex];
+    const prod = products.find((p) => p.id === item.productId);
+    const key = prod?.specificationKeys.find((k) => k.id === keyId);
+    if (!key) return;
+    const defOpt =
+      (key.options || []).find((o) => o.isDefault) ||
+      (key.defaultValue
+        ? (key.options || []).find(
+            (o) => o.label.toLowerCase() === key.defaultValue!.trim().toLowerCase()
+          )
+        : undefined);
+    const restored: OfferItemSpecSelection = {
+      specificationKeyId: key.id,
+      specificationOptionId: defOpt?.id,
+      customValue: defOpt ? undefined : key.defaultValue || '',
+    };
+    handleUpdateItem(itemIndex, {
+      specifications: [...(item.specifications || []), restored],
+    });
+  };
+
+  const handleAddCustomSpecToItem = (itemIndex: number) => {
+    const item = items[itemIndex];
+    const newCustom: OfferItemSpecSelection = {
+      specificationKeyId: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      customKeyName: '',
+      customValue: '',
+      customPriceModifier: 0,
+    };
+    handleUpdateItem(itemIndex, {
+      specifications: [...(item.specifications || []), newCustom],
+    });
+  };
+
+  const handleUpdateCustomSpec = (
+    itemIndex: number,
+    specKeyId: string,
+    updates: Partial<OfferItemSpecSelection>
+  ) => {
+    const item = items[itemIndex];
+    const nextSpecs = (item.specifications || []).map((s) =>
+      s.specificationKeyId === specKeyId ? { ...s, ...updates } : s
+    );
+    handleUpdateItem(itemIndex, { specifications: nextSpecs });
   };
 
   // Calculations with Discount (Workflow 4.1.3)
@@ -487,11 +623,24 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                 value={status}
                 onChange={(val) => {
                   const newSt = val as OfferStatus;
-                  setStatus(newSt);
-                  if (newSt === 'ACCEPTED') {
-                    setOfferDate(new Date().toISOString().split('T')[0]);
-                    alert('Quote marked as ACCEPTED! An Operational Project will be automatically generated upon save.');
-                  }
+                  if (newSt === status) return;
+                  setConfirmState({
+                    isOpen: true,
+                    title: 'Промена на Статус на Понуда',
+                    message:
+                      newSt === 'ACCEPTED'
+                        ? `Дали сте сигурни дека сакате да го промените статусот на понудата во „ACCEPTED“? При зачувување автоматски ќе се генерира Оперативен Проект.`
+                        : `Дали сте сигурни дека сакате да го промените статусот на понудата од „${status}“ во „${newSt}“?`,
+                    variant: newSt === 'REJECTED' ? 'danger' : 'warning',
+                    confirmLabel: 'Потврди Промена',
+                    onConfirm: () => {
+                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                      setStatus(newSt);
+                      if (newSt === 'ACCEPTED') {
+                        setOfferDate(new Date().toISOString().split('T')[0]);
+                      }
+                    },
+                  });
                 }}
                 className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-bold text-primary outline-none"
               />
@@ -674,7 +823,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                 productId: pId,
                                 productModelId: firstMod?.id,
                                 customTitle: pObj?.name || item.customTitle,
-                                specifications: [],
+                                specifications: buildDefaultSpecificationsForProduct(pObj),
                               });
                             }}
                             placeholder="Select Product Family..."
@@ -726,55 +875,209 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
                     {/* Dynamic Specifications Configurator */}
                     <div className="md:col-span-2 bg-muted/20 border border-border rounded-xl p-4 space-y-3">
-                      <div className="flex items-center justify-between border-b border-border pb-2">
-                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Dynamic Product Specifications
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">Auto-updates unit price</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
+                        <div>
+                          <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Спецификации на Производ (Default + Промена / Дополнување / Бришење)
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            Default вредностите се вчитуваат автоматски од производот и може да се променат, дополнат или избришат за оваа понуда
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleAddCustomSpecToItem(idx)}
+                          className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-lg bg-primary/15 text-primary hover:bg-primary/25 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" /> Додај спецификација
+                        </button>
                       </div>
 
-                      {selectedProd?.specificationKeys.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic">No specifications defined for this product.</p>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {selectedProd?.specificationKeys.map((key) => {
-                            const specSel = (item.specifications || []).find((s) => s.specificationKeyId === key.id);
+                      {(() => {
+                        const activeSpecSelections = item.specifications || [];
+                        const prodKeys = selectedProd?.specificationKeys || [];
+                        const removedProdKeys = prodKeys.filter(
+                          (pk) => !activeSpecSelections.some((s) => s.specificationKeyId === pk.id)
+                        );
+                        const customSpecSelections = activeSpecSelections.filter(
+                          (s) => !prodKeys.some((pk) => pk.id === s.specificationKeyId)
+                        );
 
-                            return (
-                              <div key={key.id} className="space-y-1">
-                                <label className="block text-[11px] font-bold text-foreground">
-                                  {key.name}
-                                </label>
+                        return (
+                          <div className="space-y-3">
+                            {prodKeys.length === 0 && customSpecSelections.length === 0 ? (
+                              <p className="text-xs text-muted-foreground italic">
+                                Нема дефинирани спецификации за овој производ. Кликнете „+ Додај спецификација“ за да додадете.
+                              </p>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {prodKeys
+                                  .filter((key) => activeSpecSelections.some((s) => s.specificationKeyId === key.id))
+                                  .map((key) => {
+                                    const specSel = activeSpecSelections.find((s) => s.specificationKeyId === key.id);
 
-                                {key.inputType === 'SELECT' || key.inputType === 'MULTISELECT' ? (
-                                  <SearchableSelect
-                                    options={[
-                                      { value: '', label: '-- Select Option --' },
-                                      ...key.options.map((opt) => ({
-                                        value: opt.id,
-                                        label: `${opt.label} ${opt.priceModifier !== 0 ? `(+€${opt.priceModifier})` : ''}`,
-                                      })),
-                                    ]}
-                                    value={specSel?.specificationOptionId || ''}
-                                    onChange={(val) => handleSpecOptionChange(idx, key.id, val)}
-                                    placeholder="-- Select Option --"
-                                    searchPlaceholder="Search options..."
-                                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
-                                  />
-                                ) : (
-                                  <input
-                                    type={key.inputType === 'NUMBER' ? 'number' : 'text'}
-                                    value={specSel?.customValue || ''}
-                                    onChange={(e) => handleSpecOptionChange(idx, key.id, undefined, e.target.value)}
-                                    placeholder={`Enter ${key.name}`}
-                                    className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none"
-                                  />
-                                )}
+                                    return (
+                                      <div
+                                        key={key.id}
+                                        className="p-2.5 rounded-lg border border-border bg-background/60 space-y-1.5"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <label className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                                            <span>{key.name}</span>
+                                            {(key.defaultValue || (key.options || []).some((o) => o.isDefault)) && (
+                                              <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                                                Default
+                                              </span>
+                                            )}
+                                          </label>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveSpecFromItem(idx, key.id, key.name)}
+                                            title="Избриши ја оваа спецификација од понудата"
+                                            className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+
+                                        {key.inputType === 'SELECT' || key.inputType === 'MULTISELECT' ? (
+                                          <div className="space-y-1.5">
+                                            <SearchableSelect
+                                              options={[
+                                                { value: '', label: '-- Избери опција --' },
+                                                ...key.options.map((opt) => ({
+                                                  value: opt.id,
+                                                  label: `${opt.label}${opt.isDefault ? ' (Default)' : ''} ${
+                                                    opt.priceModifier !== 0 ? `(+€${opt.priceModifier})` : ''
+                                                  }`,
+                                                })),
+                                              ]}
+                                              value={specSel?.specificationOptionId || ''}
+                                              onChange={(val) =>
+                                                handleSpecOptionChange(idx, key.id, val, specSel?.customValue)
+                                              }
+                                              placeholder="-- Избери опција --"
+                                              searchPlaceholder="Пребарај опции..."
+                                              className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                                            />
+                                            <input
+                                              type="text"
+                                              value={specSel?.customValue || ''}
+                                              onChange={(e) =>
+                                                handleSpecOptionChange(
+                                                  idx,
+                                                  key.id,
+                                                  specSel?.specificationOptionId,
+                                                  e.target.value
+                                                )
+                                              }
+                                              placeholder="Дополни / забелешка за спецификацијата (опционално)..."
+                                              className="w-full px-2.5 py-1 text-[11px] rounded-lg border border-border bg-background outline-none text-muted-foreground focus:text-foreground"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <input
+                                            type={key.inputType === 'NUMBER' ? 'number' : 'text'}
+                                            value={specSel?.customValue || ''}
+                                            onChange={(e) =>
+                                              handleSpecOptionChange(idx, key.id, undefined, e.target.value)
+                                            }
+                                            placeholder={`Внеси или промени ${key.name}...`}
+                                            className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+                                {/* Custom specifications added directly on this offer item */}
+                                {customSpecSelections.map((customSpec) => (
+                                  <div
+                                    key={customSpec.specificationKeyId}
+                                    className="p-2.5 rounded-lg border border-primary/30 bg-primary/5 space-y-1.5"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <input
+                                        type="text"
+                                        value={customSpec.customKeyName || ''}
+                                        onChange={(e) =>
+                                          handleUpdateCustomSpec(idx, customSpec.specificationKeyId, {
+                                            customKeyName: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Клуч / Назив на спецификација..."
+                                        className="flex-1 px-2 py-1 text-[11px] font-bold rounded border border-border bg-background outline-none"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveSpecFromItem(
+                                            idx,
+                                            customSpec.specificationKeyId,
+                                            customSpec.customKeyName || 'Дополнителна спецификација'
+                                          )
+                                        }
+                                        title="Избриши дополнителна спецификација"
+                                        className="p-1 text-red-500 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        value={customSpec.customValue || ''}
+                                        onChange={(e) =>
+                                          handleUpdateCustomSpec(idx, customSpec.specificationKeyId, {
+                                            customValue: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Вредност на спецификација..."
+                                        className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                                      />
+                                      <div className="relative w-24">
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          value={customSpec.customPriceModifier || ''}
+                                          onChange={(e) =>
+                                            handleUpdateCustomSpec(idx, customSpec.specificationKeyId, {
+                                              customPriceModifier: parseFloat(e.target.value) || 0,
+                                            })
+                                          }
+                                          placeholder="+€0"
+                                          title="Доплата во евра (опционално)"
+                                          className="w-full pl-5 pr-2 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-bold"
+                                        />
+                                        <span className="absolute left-2 top-1.5 text-xs font-bold text-muted-foreground">€</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            )}
+
+                            {/* Removed product specifications that can be re-added */}
+                            {removedProdKeys.length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/60">
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                  Избришани спецификации (кликни за враќање):
+                                </span>
+                                {removedProdKeys.map((rk) => (
+                                  <button
+                                    key={rk.id}
+                                    type="button"
+                                    onClick={() => handleRestoreProductSpec(idx, rk.id)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted border border-border text-[10px] font-bold text-muted-foreground hover:text-foreground hover:border-primary transition-colors cursor-pointer"
+                                  >
+                                    <Plus className="w-2.5 h-2.5" /> {rk.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Linked Warehouse Accessories for Custom Products (Автоматика & Шина) */}
                       {selectedProd?.stockType === 'CUSTOM' && (
@@ -1140,6 +1443,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <PrintableOfferDocument offer={savedOfferForPdf} products={products} />
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { toast } from '@/components/ui/toastr';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -30,6 +31,14 @@ export default function SettingsPage() {
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    onConfirm: () => void;
+  } | null>(null);
 
   const handleSyncDatabase = async () => {
     setIsSyncing(true);
@@ -90,15 +99,37 @@ export default function SettingsPage() {
   };
 
   const handleResetPassword = (userId: string, email: string) => {
-    const tempPass = imfexStore.resetUserPassword(userId);
-    refreshProfiles();
-    setResetMessage(`Лозинката за ${email} е ресетирана на: ${tempPass}`);
-    setTimeout(() => setResetMessage(''), 5000);
+    setConfirmState({
+      isOpen: true,
+      title: 'Ресетирај лозинка на корисник',
+      message: `Дали сте сигурни дека сакате да ја ресетирате лозинката за корисникот „${email}“?`,
+      confirmLabel: 'Да, ресетирај',
+      variant: 'warning',
+      onConfirm: () => {
+        const tempPass = imfexStore.resetUserPassword(userId);
+        refreshProfiles();
+        setResetMessage(`Лозинката за ${email} е ресетирана на: ${tempPass}`);
+        setTimeout(() => setResetMessage(''), 5000);
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleToggleStatus = (userId: string) => {
-    imfexStore.toggleUserStatus(userId);
-    refreshProfiles();
+    const usr = profiles.find((p) => p.id === userId);
+    const nextAction = usr?.status === 'DISABLED' ? 'активирате' : 'оневозможите';
+    setConfirmState({
+      isOpen: true,
+      title: 'Промена на статус на корисник',
+      message: `Дали сте сигурни дека сакате да го ${nextAction} корисничкиот профил „${usr?.fullName || userId}“?`,
+      confirmLabel: 'Да, промени статус',
+      variant: usr?.status === 'DISABLED' ? 'success' : 'danger',
+      onConfirm: () => {
+        imfexStore.toggleUserStatus(userId);
+        refreshProfiles();
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleSaveCompanySettings = (e: React.FormEvent) => {
@@ -476,6 +507,17 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmState?.isOpen)}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant || 'warning'}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

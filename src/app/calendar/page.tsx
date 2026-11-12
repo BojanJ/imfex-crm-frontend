@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { CalendarEvent, CalendarEventType, Customer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -40,6 +41,7 @@ export default function CalendarPage() {
   // Modals state
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [eventIdToDelete, setEventIdToDelete] = useState<string | null>(null);
 
   // Form State
   const [eventTitle, setEventTitle] = useState('');
@@ -157,10 +159,7 @@ export default function CalendarPage() {
   };
 
   const handleDeleteEvent = (id: string) => {
-    if (confirm('Are you sure you want to delete this event?')) {
-      imfexStore.deleteCalendarEvent(id);
-      setSelectedEvent(null);
-    }
+    setEventIdToDelete(id);
   };
 
   // Helpers for Month Grid
@@ -799,6 +798,23 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Event Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(eventIdToDelete)}
+        title="Избриши Настан"
+        message="Дали сте сигурни дека сакате да го избришете овој календарски настан?"
+        confirmLabel="Да, избриши"
+        variant="danger"
+        onConfirm={() => {
+          if (eventIdToDelete) {
+            imfexStore.deleteCalendarEvent(eventIdToDelete);
+            setSelectedEvent(null);
+          }
+          setEventIdToDelete(null);
+        }}
+        onCancel={() => setEventIdToDelete(null)}
+      />
     </div>
   );
 }

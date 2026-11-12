@@ -30,6 +30,7 @@ export interface SpecificationOption {
   specificationKeyId: string;
   label: string;
   priceModifier: number;
+  isDefault?: boolean;
 }
 
 export interface SpecificationKey {
@@ -37,6 +38,7 @@ export interface SpecificationKey {
   productId: string;
   name: string;
   inputType: SpecInputType;
+  defaultValue?: string;
   options: SpecificationOption[];
 }
 
@@ -107,6 +109,8 @@ export interface OfferItemSpecSelection {
   specificationKeyId: string;
   specificationOptionId?: string;
   customValue?: string;
+  customKeyName?: string;
+  customPriceModifier?: number;
 }
 
 export interface OfferItem {

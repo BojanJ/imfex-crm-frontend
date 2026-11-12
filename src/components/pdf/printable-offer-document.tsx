@@ -193,21 +193,26 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                     ))}
                   </div>
 
-                  {specs.length > 0 ? (
+                  {specs.filter((s: any) => s.specificationOptionId || s.customValue).length > 0 ? (
                     <div className="border border-slate-200 rounded-lg overflow-hidden bg-white text-xs">
                       <table className="w-full text-left divide-y divide-slate-100">
                         <tbody className="divide-y divide-slate-100">
-                          {specs.map((s: any, sIdx: number) => {
-                            const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
-                            const opt = key?.options.find((o) => o.id === s.specificationOptionId);
-                            const label = opt?.label || s.customValue || 'Избрано';
-                            return (
-                              <tr key={sIdx} className={sIdx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
-                                <td className="p-2.5 font-bold text-slate-700 w-1/2">{key?.name || 'Спецификација'}</td>
-                                <td className="p-2.5 font-black text-slate-900">{label}</td>
-                              </tr>
-                            );
-                          })}
+                          {specs
+                            .filter((s: any) => s.specificationOptionId || s.customValue)
+                            .map((s: any, sIdx: number) => {
+                              const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
+                              const opt = key?.options.find((o) => o.id === s.specificationOptionId);
+                              const label =
+                                opt?.label && s.customValue && s.customValue !== opt.label
+                                  ? `${opt.label} (${s.customValue})`
+                                  : opt?.label || s.customValue || 'Избрано';
+                              return (
+                                <tr key={sIdx} className={sIdx % 2 === 0 ? 'bg-slate-50/50' : 'bg-white'}>
+                                  <td className="p-2.5 font-bold text-slate-700 w-1/2">{key?.name || s.customKeyName || 'Спецификација'}</td>
+                                  <td className="p-2.5 font-black text-slate-900">{label}</td>
+                                </tr>
+                              );
+                            })}
                         </tbody>
                       </table>
                     </div>

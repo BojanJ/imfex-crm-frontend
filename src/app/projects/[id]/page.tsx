@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus, UserProfile, SalesInvoice, DispatchNote } from '@/types';
 import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { toast } from '@/components/ui/toastr';
@@ -59,6 +60,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
   const [previewDispatch, setPreviewDispatch] = useState<DispatchNote | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    confirmLabel?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const applyProjectData = (prj: Project) => {
@@ -107,7 +121,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       .finally(() => setIsLoading(false));
   }, [projectId, imfexStore.isLoadedFromBackend, imfexStore.getProjects().length]);
 
-  const handleSaveProject = (overridingStatus?: ProjectStatus) => {
+  const executeSaveProject = (overridingStatus?: ProjectStatus) => {
     if (!project) return;
     const nextStatus = overridingStatus || status;
 
@@ -135,10 +149,47 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setStatus(nextStatus);
 
     if (nextStatus === 'CLOSED') {
-      alert(`Проектот ${saved.projectNumber} е успешно ЗАТВОРЕН! Опремата е регистрирана во историјата за сервис.`);
+      toast.success(
+        `Проектот ${saved.projectNumber} е ЗАТВОРЕН!`,
+        'Опремата е регистрирана во историјата за сервис.'
+      );
     } else {
-      alert(`Проектот ${saved.projectNumber} е успешно ажуриран.`);
+      toast.success(`Проектот ${saved.projectNumber} е зачуван!`, 'Сите промени се успешно ажурирани.');
     }
+  };
+
+  const handleSaveProject = (overridingStatus?: ProjectStatus) => {
+    if (!project) return;
+    const targetStatus = overridingStatus || status;
+    if (targetStatus === 'CLOSED') {
+      setConfirmState({
+        isOpen: true,
+        title: 'Затвори Проект',
+        message: `Дали сте сигурни дека сакате да го ЗАТВОРИТЕ проектот „${project.projectNumber}“? Статусот ќе се промени во CLOSED.`,
+        variant: 'success',
+        confirmLabel: 'Затвори Проект',
+        onConfirm: () => {
+          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+          executeSaveProject('CLOSED');
+        },
+      });
+      return;
+    }
+    if (targetStatus !== project.status) {
+      setConfirmState({
+        isOpen: true,
+        title: 'Промена на статус на проект',
+        message: `Дали сте сигурни дека сакате да го промените статусот на проектот „${project.projectNumber}“ од „${project.status}“ во „${targetStatus}“?`,
+        variant: 'warning',
+        confirmLabel: 'Да, промени статус',
+        onConfirm: () => {
+          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+          executeSaveProject(targetStatus);
+        },
+      });
+      return;
+    }
+    executeSaveProject(overridingStatus);
   };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -310,7 +361,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     { value: 'CLOSED', label: t('projects.closed') },
                   ]}
                   value={status}
-                  onChange={(val) => setStatus(val as ProjectStatus)}
+                  onChange={(val) => {
+                    const nextSt = val as ProjectStatus;
+                    if (nextSt === status) return;
+                    setConfirmState({
+                      isOpen: true,
+                      title: 'Промена на Статус на Проект',
+                      message: `Дали сте сигурни дека сакате да го промените статусот на проектот „${project.projectNumber}“ од „${status}“ во „${nextSt}“?`,
+                      variant: 'warning',
+                      confirmLabel: 'Потврди Промена',
+                      onConfirm: () => {
+                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                        setStatus(nextSt);
+                        executeSaveProject(nextSt);
+                      },
+                    });
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background font-extrabold text-primary outline-none"
                 />
               </div>
@@ -400,8 +466,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     disabled={Boolean(project.acceptedAt || project.offerId)}
                     onClick={() => {
-                      const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
-                      applyProjectData(updated);
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Прифати Финална Понуда',
+                        message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${project.projectNumber}“?`,
+                        variant: 'primary',
+                        confirmLabel: 'Потврди Понуда',
+                        onConfirm: () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
+                          applyProjectData(updated);
+                        },
+                      });
                     }}
                     className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 cursor-pointer block"
                   >
@@ -438,8 +514,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
                     onClick={() => {
-                      const updated = imfexStore.projectStepOrderSupplier(project.id);
-                      if (updated) applyProjectData(updated);
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Нарачај кај Добавувач',
+                        message: `Дали сте сигурни дека сакате да го промените статусот во Нарачано кај добавувач за проектот „${project.projectNumber}“?`,
+                        variant: 'warning',
+                        confirmLabel: 'Потврди Нарачка',
+                        onConfirm: () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          const updated = imfexStore.projectStepOrderSupplier(project.id);
+                          if (updated) applyProjectData(updated);
+                        },
+                      });
                     }}
                     className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
                   >
@@ -449,8 +535,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
                     onClick={() => {
-                      const updated = imfexStore.projectStepReceiveWarehouse(project.id);
-                      if (updated) applyProjectData(updated);
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Прими Врата во Магацин',
+                        message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${project.projectNumber}“?`,
+                        variant: 'success',
+                        confirmLabel: 'Потврди Прием',
+                        onConfirm: () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          const updated = imfexStore.projectStepReceiveWarehouse(project.id);
+                          if (updated) applyProjectData(updated);
+                        },
+                      });
                     }}
                     className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
                   >
@@ -460,31 +556,41 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     type="button"
                     disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
                     onClick={() => {
-                      const updated = imfexStore.projectStepIssueDispatch(project.id);
-                      if (updated) applyProjectData(updated);
-                      const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
-                      const note = imfexStore.saveDispatchNote({
-                        id: `disp-${Date.now()}`,
-                        dispatchNumber: imfexStore.generateDispatchNumber(),
-                        status: 'ISSUED',
-                        customerId: project.customerId,
-                        customer: project.customer,
-                        projectId: project.id,
-                        offerId: project.offerId,
-                        issueDate: new Date().toISOString().split('T')[0],
-                        deliveryAddress: project.installationAddress || project.customer?.address,
-                        receivedBy: project.customer?.companyName || project.customer?.name,
-                        issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
-                        items: (offer?.items || []).map((it, i) => ({
-                          id: `di-${Date.now()}-${i}`,
-                          productId: it.productId,
-                          title: it.customTitle || 'Врата и опрема',
-                          quantity: Number(it.quantity || 1),
-                        })),
-                        stockDeducted: true,
-                        createdAt: new Date().toISOString(),
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Издај Испратница и Раздолжи Залиха',
+                        message: `Дали сте сигурни дека сакате да издадете испратница и да ја раздолжите залихата од магацин за проектот „${project.projectNumber}“?`,
+                        variant: 'warning',
+                        confirmLabel: 'Издај Испратница',
+                        onConfirm: () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          const updated = imfexStore.projectStepIssueDispatch(project.id);
+                          if (updated) applyProjectData(updated);
+                          const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
+                          const note = imfexStore.saveDispatchNote({
+                            id: `disp-${Date.now()}`,
+                            dispatchNumber: imfexStore.generateDispatchNumber(),
+                            status: 'ISSUED',
+                            customerId: project.customerId,
+                            customer: project.customer,
+                            projectId: project.id,
+                            offerId: project.offerId,
+                            issueDate: new Date().toISOString().split('T')[0],
+                            deliveryAddress: project.installationAddress || project.customer?.address,
+                            receivedBy: project.customer?.companyName || project.customer?.name,
+                            issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
+                            items: (offer?.items || []).map((it, i) => ({
+                              id: `di-${Date.now()}-${i}`,
+                              productId: it.productId,
+                              title: it.customTitle || 'Врата и опрема',
+                              quantity: Number(it.quantity || 1),
+                            })),
+                            stockDeducted: true,
+                            createdAt: new Date().toISOString(),
+                          });
+                          setPreviewDispatch(note);
+                        },
                       });
-                      setPreviewDispatch(note);
                     }}
                     className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
                   >
@@ -529,19 +635,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     <button
                       type="button"
                       onClick={() => {
-                        const finalInv = imfexStore.createSalesInvoiceFromOfferOrProject({
-                          invoiceType: 'FINAL',
-                          projectId: project.id,
-                          offerId: project.offerId,
-                          customerId: project.customerId,
+                        setConfirmState({
+                          isOpen: true,
+                          title: 'Издај Конечна Фактура',
+                          message: `Дали сте сигурни дека сакате да издадете Конечна Фактура (со автоматски одбиен аванс) за проектот „${project.projectNumber}“?`,
+                          variant: 'primary',
+                          confirmLabel: 'Издај Конечна Фактура',
+                          onConfirm: () => {
+                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                            const finalInv = imfexStore.createSalesInvoiceFromOfferOrProject({
+                              invoiceType: 'FINAL',
+                              projectId: project.id,
+                              offerId: project.offerId,
+                              customerId: project.customerId,
+                            });
+                            setPreviewInvoice(finalInv);
+                            toast.success(
+                              `Креирана Конечна Фактура ${finalInv.invoiceNumber}`,
+                              finalInv.advanceDeductedAmount > 0
+                                ? `Одбиен аванс: -€${finalInv.advanceDeductedAmount.toFixed(2)}`
+                                : 'Подготвена за печатење.'
+                            );
+                          },
                         });
-                        setPreviewInvoice(finalInv);
-                        toast.success(
-                          `Креирана Конечна Фактура ${finalInv.invoiceNumber}`,
-                          finalInv.advanceDeductedAmount > 0
-                            ? `Одбиен аванс: -€${finalInv.advanceDeductedAmount.toFixed(2)}`
-                            : 'Подготвена за печатење.'
-                        );
                       }}
                       className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:brightness-110 flex items-center gap-1 cursor-pointer"
                     >
@@ -795,6 +911,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         }}
         invoice={previewInvoice}
         dispatchNote={previewDispatch}
+      />
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

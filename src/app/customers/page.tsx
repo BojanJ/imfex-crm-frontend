@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 
 import { toast } from '@/components/ui/toastr';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function CustomersPage() {
   const { t } = useI18n();
@@ -34,6 +35,7 @@ export default function CustomersPage() {
   const [filterType, setFilterType] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
 
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(null);
   const [detailTab, setDetailTab] = useState<'DETAILS' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>('DOCS');
@@ -51,12 +53,8 @@ export default function CustomersPage() {
   }, [imfexStore.getCustomers().length]);
 
   const handleDelete = (id: string) => {
-    if (confirm('Дали сте сигурни дека сакате да го избришете овој клиент?')) {
-      imfexStore.deleteCustomer(id);
-      if (activeCustomerDetail?.id === id) setActiveCustomerDetail(null);
-      refreshList();
-      toast.info('Клиентот е избришан');
-    }
+    const found = customers.find((c) => c.id === id);
+    if (found) setCustomerToDelete(found);
   };
 
   const filtered = customers.filter((c) => {
@@ -405,6 +403,25 @@ export default function CustomersPage() {
         onClose={() => setIsModalOpen(false)}
         customerToEdit={editingCustomer}
         onSaveSuccess={refreshList}
+      />
+
+      {/* Delete Customer Confirm Modal */}
+      <ConfirmModal
+        isOpen={Boolean(customerToDelete)}
+        title="Избриши Клиент / Партнер"
+        message={`Дали сте сигурни дека сакате да го избришете клиентот „${customerToDelete?.companyName || customerToDelete?.name || ''}“?`}
+        confirmLabel="Да, избриши"
+        variant="danger"
+        onConfirm={() => {
+          if (customerToDelete) {
+            imfexStore.deleteCustomer(customerToDelete.id);
+            if (activeCustomerDetail?.id === customerToDelete.id) setActiveCustomerDetail(null);
+            refreshList();
+            toast.info('Клиентот е избришан');
+          }
+          setCustomerToDelete(null);
+        }}
+        onCancel={() => setCustomerToDelete(null)}
       />
     </div>
   );

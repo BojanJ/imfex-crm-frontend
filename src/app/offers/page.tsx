@@ -21,6 +21,7 @@ import {
 
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function OffersPage() {
   const { t } = useI18n();
@@ -32,6 +33,14 @@ export default function OffersPage() {
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
   const [advanceOffer, setAdvanceOffer] = useState<Offer | null>(null);
   const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    onConfirm: () => void;
+  } | null>(null);
 
   const statusOptions = [
     { value: 'DRAFT', label: t('offers.draft') },
@@ -55,18 +64,41 @@ export default function OffersPage() {
   }, [imfexStore.getOffers().length]);
 
   const handleDelete = (id: string) => {
-    if (confirm('Дали сте сигурни дека сакате да ја избришете оваа понуда?')) {
-      imfexStore.deleteOffer(id);
-      refreshList();
-      toast.info('Понудата е избришана');
-    }
+    const offer = offers.find((o) => o.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Понуда',
+      message: `Дали сте сигурни дека сакате да ја избришете понудата „${offer?.offerNumber || id}“?`,
+      confirmLabel: 'Да, избриши',
+      variant: 'danger',
+      onConfirm: () => {
+        imfexStore.deleteOffer(id);
+        refreshList();
+        toast.info('Понудата е избришана');
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleSetStatus = (id: string, st: any) => {
     const offer = offers.find((o) => o.id === id);
-    imfexStore.setOfferStatus(id, st);
-    refreshList();
-    toast.success('Статусот е ажуриран!', `Понудата ${offer?.offerNumber || ''} е поставена во ${st}.`);
+    if (!offer || offer.status === st) return;
+    const statusLabel = statusOptions.find((opt) => opt.value === st)?.label || st;
+    setConfirmState({
+      isOpen: true,
+      title: 'Промена на статус на понуда',
+      message: `Дали сте сигурни дека сакате да го промените статусот на понудата „${offer.offerNumber}“ во „${statusLabel}“?${
+        st === 'ACCEPTED' ? ' (Ќе се креира оперативен проект доколку веќе не постои)' : ''
+      }`,
+      confirmLabel: 'Да, промени статус',
+      variant: st === 'ACCEPTED' ? 'success' : st === 'REJECTED' ? 'danger' : 'warning',
+      onConfirm: () => {
+        imfexStore.setOfferStatus(id, st);
+        refreshList();
+        toast.success('Статусот е ажуриран!', `Понудата ${offer?.offerNumber || ''} е поставена во ${statusLabel}.`);
+        setConfirmState(null);
+      },
+    });
   };
 
   const filtered = offers.filter((o) => {
@@ -380,6 +412,17 @@ export default function OffersPage() {
         isOpen={Boolean(previewInvoice)}
         onClose={() => setPreviewInvoice(null)}
         invoice={previewInvoice}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmState?.isOpen)}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant || 'warning'}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
       />
     </div>
   );

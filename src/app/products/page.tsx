@@ -9,6 +9,7 @@ import { ProductEditor } from '@/components/product-spec-builder/product-editor'
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { toast } from '@/components/ui/toastr';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import {
   Package,
   Plus,
@@ -52,6 +53,14 @@ export default function ProductsPage() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    onConfirm: () => void;
+  } | null>(null);
   const [newProdName, setNewProdName] = useState('');
   const [newProdCode, setNewProdCode] = useState('');
   const [newProdCatId, setNewProdCatId] = useState('');
@@ -178,43 +187,75 @@ export default function ProductsPage() {
 
   // Warehouse receive / sell handlers
   const handleReceive = (id: string) => {
-    const p = imfexStore.receiveProductStock(id, 1);
-    if (p) {
-      toast.success('Прием во магацин', `+1 ${p.name} (Нова залиха: ${p.stockQuantity})`);
-      refreshProducts();
-    }
+    const prod = products.find((item) => item.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Прием во магацин (+1)',
+      message: `Дали сте сигурни дека сакате да евидентирате прием во магацин (+1) за артиклот „${prod?.name || id}“?`,
+      confirmLabel: 'Да, прими во залиха',
+      variant: 'success',
+      onConfirm: () => {
+        const p = imfexStore.receiveProductStock(id, 1);
+        if (p) {
+          toast.success('Прием во магацин', `+1 ${p.name} (Нова залиха: ${p.stockQuantity})`);
+          refreshProducts();
+        }
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleSell = (id: string) => {
-    const p = imfexStore.issueProductStock(id, 1);
-    if (p) {
-      toast.info('Магацински излез', `−1 ${p.name} (Преостаната залиха: ${p.stockQuantity})`);
-      refreshProducts();
-    }
+    const prod = products.find((item) => item.id === id);
+    setConfirmState({
+      isOpen: true,
+      title: 'Магацински излез (-1)',
+      message: `Дали сте сигурни дека сакате да евидентирате магацински излез (-1) за артиклот „${prod?.name || id}“?`,
+      confirmLabel: 'Да, потврди излез',
+      variant: 'warning',
+      onConfirm: () => {
+        const p = imfexStore.issueProductStock(id, 1);
+        if (p) {
+          toast.info('Магацински излез', `−1 ${p.name} (Преостаната залиха: ${p.stockQuantity})`);
+          refreshProducts();
+        }
+        setConfirmState(null);
+      },
+    });
   };
 
   // Real Project 5-Step Flow Handlers
   const handleStep1Accept = () => {
     if (!activeRealProject || activeRealProject.acceptedAt) return;
-    const reservedIds: string[] = [];
-    for (const acc of [motorProd, railProd]) {
-      if (acc) {
-        const res = imfexStore.reserveProductStock(acc.id, 1);
-        if (res > 0) reservedIds.push(acc.id);
-      }
-    }
-    imfexStore.addInventoryMovement(
-      'РЕЗЕРВАЦИЈА',
-      `Прифатена финална понуда ${activeRealProject.projectNumber} — резервирани достапни додатоци`,
-      { projectId: activeRealProject.id }
-    );
-    imfexStore.saveProject({
-      ...activeRealProject,
-      acceptedAt: new Date().toISOString(),
-      reservedAccessoryIds: reservedIds,
+    setConfirmState({
+      isOpen: true,
+      title: 'Чекор 1: Прифати финална понуда',
+      message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${activeRealProject.projectNumber}“ и да резервирате магацински додатоци?`,
+      confirmLabel: 'Да, потврди',
+      variant: 'success',
+      onConfirm: () => {
+        const reservedIds: string[] = [];
+        for (const acc of [motorProd, railProd]) {
+          if (acc) {
+            const res = imfexStore.reserveProductStock(acc.id, 1);
+            if (res > 0) reservedIds.push(acc.id);
+          }
+        }
+        imfexStore.addInventoryMovement(
+          'РЕЗЕРВАЦИЈА',
+          `Прифатена финална понуда ${activeRealProject.projectNumber} — резервирани достапни додатоци`,
+          { projectId: activeRealProject.id }
+        );
+        imfexStore.saveProject({
+          ...activeRealProject,
+          acceptedAt: new Date().toISOString(),
+          reservedAccessoryIds: reservedIds,
+        });
+        toast.success('Финална понуда прифатена', 'Достапните магацински додатоци се резервирани.');
+        refreshProducts();
+        setConfirmState(null);
+      },
     });
-    toast.success('Финална понуда прифатена', 'Достапните магацински додатоци се резервирани.');
-    refreshProducts();
   };
 
   const handleStep2Payment = () => {
@@ -224,24 +265,54 @@ export default function ProductsPage() {
 
   const handleStep3Order = () => {
     if (!activeRealProject) return;
-    imfexStore.projectStepOrderSupplier(activeRealProject.id, selectedProduct?.name);
-    toast.success('Набавка', `Нарачано кај добавувач за ${activeRealProject.projectNumber}.`);
-    refreshProducts();
+    setConfirmState({
+      isOpen: true,
+      title: 'Чекор 3: Нарачај кај добавувач',
+      message: `Дали сте сигурни дека сакате да го промените статусот на набавка во „Нарачано кај добавувач“ за проектот „${activeRealProject.projectNumber}“?`,
+      confirmLabel: 'Да, нарачај',
+      variant: 'primary',
+      onConfirm: () => {
+        imfexStore.projectStepOrderSupplier(activeRealProject.id, selectedProduct?.name);
+        toast.success('Набавка', `Нарачано кај добавувач за ${activeRealProject.projectNumber}.`);
+        refreshProducts();
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleStep4ReceiveDoor = () => {
     if (!activeRealProject) return;
-    imfexStore.projectStepReceiveWarehouse(activeRealProject.id, selectedProduct?.name);
-    toast.success('Прием во магацин', `Вратата е примена и резервирана за ${activeRealProject.projectNumber}.`);
-    refreshProducts();
+    setConfirmState({
+      isOpen: true,
+      title: 'Чекор 4: Прими врата во магацин',
+      message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${activeRealProject.projectNumber}“?`,
+      confirmLabel: 'Да, прими во магацин',
+      variant: 'success',
+      onConfirm: () => {
+        imfexStore.projectStepReceiveWarehouse(activeRealProject.id, selectedProduct?.name);
+        toast.success('Прием во магацин', `Вратата е примена и резервирана за ${activeRealProject.projectNumber}.`);
+        refreshProducts();
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleStep5IssueDispatch = () => {
     if (!activeRealProject) return;
-    const ids = [motorProd?.id, railProd?.id].filter(Boolean) as string[];
-    imfexStore.projectStepIssueDispatch(activeRealProject.id, ids);
-    toast.success('Испратница издадена', `Издадена испратница за ${activeRealProject.projectNumber}.`);
-    refreshProducts();
+    setConfirmState({
+      isOpen: true,
+      title: 'Чекор 5: Издај испратница',
+      message: `Дали сте сигурни дека сакате да издадете испратница и магацински излез за проектот „${activeRealProject.projectNumber}“?`,
+      confirmLabel: 'Да, издај испратница',
+      variant: 'warning',
+      onConfirm: () => {
+        const ids = [motorProd?.id, railProd?.id].filter(Boolean) as string[];
+        imfexStore.projectStepIssueDispatch(activeRealProject.id, ids);
+        toast.success('Испратница издадена', `Издадена испратница за ${activeRealProject.projectNumber}.`);
+        refreshProducts();
+        setConfirmState(null);
+      },
+    });
   };
 
   const handleCreateProduct = (e: React.FormEvent) => {
@@ -1111,6 +1182,17 @@ export default function ProductsPage() {
         onClose={() => setPreviewInvoice(null)}
         invoice={previewInvoice}
       />
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(confirmState?.isOpen)}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant || 'warning'}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }
@@ -1118,6 +1200,7 @@ export default function ProductsPage() {
 function CategoriesModal({ onClose }: { onClose: () => void }) {
   const [categories, setCategories] = useState(imfexStore.getCategories());
   const [newCatName, setNewCatName] = useState('');
+  const [confirmDeleteCat, setConfirmDeleteCat] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     const unsubscribe = imfexStore.subscribe(() => {
@@ -1177,7 +1260,7 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
               >
                 <span className="font-bold">{c.name}</span>
                 <button
-                  onClick={() => imfexStore.deleteCategory(c.id)}
+                  onClick={() => setConfirmDeleteCat({ id: c.id, name: c.name })}
                   className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors"
                   title="Избриши категорија"
                 >
@@ -1188,6 +1271,21 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(confirmDeleteCat)}
+        title="Избриши Категорија"
+        message={`Дали сте сигурни дека сакате да ја избришете категоријата „${confirmDeleteCat?.name || ''}“?`}
+        confirmLabel="Да, избриши"
+        variant="danger"
+        onConfirm={() => {
+          if (confirmDeleteCat) {
+            imfexStore.deleteCategory(confirmDeleteCat.id);
+          }
+          setConfirmDeleteCat(null);
+        }}
+        onCancel={() => setConfirmDeleteCat(null)}
+      />
     </div>
   );
 }

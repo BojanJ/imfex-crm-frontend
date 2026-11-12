@@ -24,6 +24,8 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import {
   Landmark,
@@ -44,6 +46,7 @@ import {
   Printer,
   Euro,
   Sparkles,
+  Percent,
   X,
 } from 'lucide-react';
 
@@ -131,6 +134,7 @@ function FinancePageContent() {
   const [sCustomerId, setSCustomerId] = useState('');
   const [sExternalAccNum, setSExternalAccNum] = useState('');
   const [sTaxRate, setSTaxRate] = useState<number>(18);
+  const [sAdvancePercent, setSAdvancePercent] = useState<string>('70');
   const [sNotes, setSNotes] = useState('');
   const [sManualItems, setSManualItems] = useState<SalesInvoiceItem[]>([
     { id: `si-${Date.now()}`, title: '', quantity: 1, unitPrice: 0, totalPrice: 0 },
@@ -152,11 +156,27 @@ function FinancePageContent() {
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [payMethod, setPayMethod] = useState<PaymentMethod>('BANK');
+  const [payCustomerId, setPayCustomerId] = useState('');
   const [payPartnerName, setPayPartnerName] = useState('');
   const [paySalesInvoiceId, setPaySalesInvoiceId] = useState('');
   const [payPurchaseInvoiceId, setPayPurchaseInvoiceId] = useState('');
   const [payProjectId, setPayProjectId] = useState('');
   const [payNotes, setPayNotes] = useState('');
+
+  // --- Confirmation Modal State ---
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    confirmLabel?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const refreshAll = () => {
     setPurchases(imfexStore.getPurchaseInvoices());
@@ -292,36 +312,56 @@ function FinancePageContent() {
       createdAt: new Date().toISOString(),
     };
 
-    const saved = imfexStore.savePurchaseInvoice(newPurchase);
-
+    const extraNotes: string[] = [];
     if (hasStockItems && pReceiveImmediately) {
-      imfexStore.receivePurchaseInvoiceToWarehouse(saved.id);
+      extraNotes.push('производите веднаш ќе се примат во магацинска залиха');
     }
-
     if (pPaidImmediately) {
-      imfexStore.recordPayment({
-        direction: 'OUT',
-        amount: totalAmount,
-        date: pIssueDate,
-        method: pPaymentMethod,
-        partnerName: saved.supplierName,
-        projectId: saved.projectId,
-        purchaseInvoiceId: saved.id,
-        notes: `Платена влезна сметка ${saved.supplierInvoiceNumber || saved.internalNumber}`,
-      });
+      extraNotes.push('сметката веднаш ќе се означи како ПЛАТЕНА');
     }
 
-    refreshAll();
-    setShowPurchaseModal(false);
-    setPSupplierInvNum('');
-    setPNotes('');
-    setPItems([{ id: `pi-${Date.now()}`, itemType: 'STOCK', title: '', quantity: 1, unitCost: 0, totalCost: 0 }]);
-    toast.success(
-      'Влезната фактура / трошок е зачувана!',
-      hasStockItems && pReceiveImmediately
-        ? `${saved.internalNumber} — Производите автоматски влегоа во магацинска залиха.`
-        : `${saved.internalNumber} е евидентирана во Финансии.`
-    );
+    setConfirmState({
+      isOpen: true,
+      title: 'Потврда за Влезна Фактура / Трошок',
+      message: `Дали сте сигурни дека сакате да ја зачувате влезната фактура од „${newPurchase.supplierName}“ со вкупен износ од €${totalAmount.toFixed(2)}${
+        extraNotes.length > 0 ? ` (${extraNotes.join(' и ')})` : ''
+      }?`,
+      variant: 'success',
+      confirmLabel: 'Да, зачувај',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        const saved = imfexStore.savePurchaseInvoice(newPurchase);
+
+        if (hasStockItems && pReceiveImmediately) {
+          imfexStore.receivePurchaseInvoiceToWarehouse(saved.id);
+        }
+
+        if (pPaidImmediately) {
+          imfexStore.recordPayment({
+            direction: 'OUT',
+            amount: totalAmount,
+            date: pIssueDate,
+            method: pPaymentMethod,
+            partnerName: saved.supplierName,
+            projectId: saved.projectId,
+            purchaseInvoiceId: saved.id,
+            notes: `Платена влезна сметка ${saved.supplierInvoiceNumber || saved.internalNumber}`,
+          });
+        }
+
+        refreshAll();
+        setShowPurchaseModal(false);
+        setPSupplierInvNum('');
+        setPNotes('');
+        setPItems([{ id: `pi-${Date.now()}`, itemType: 'STOCK', title: '', quantity: 1, unitCost: 0, totalCost: 0 }]);
+        toast.success(
+          'Влезната фактура / трошок е зачувана!',
+          hasStockItems && pReceiveImmediately
+            ? `${saved.internalNumber} — Производите автоматски влегоа во магацинска залиха.`
+            : `${saved.internalNumber} е евидентирана во Финансии.`
+        );
+      },
+    });
   };
 
   // Create outgoing Sales Invoice directly from a Purchase Invoice's stock items
@@ -359,14 +399,29 @@ function FinancePageContent() {
   const handleSaveSalesInvoice = (e: React.FormEvent) => {
     e.preventDefault();
 
+    const pctNum = Math.max(0.01, Math.min(100, parseFloat(sAdvancePercent) || 70));
+
     if (sSourceMode === 'PROJECT_OR_OFFER' && (sSelectedProjectId || sSelectedOfferId)) {
+      const selProj = sSelectedProjectId ? imfexStore.getProjectById(sSelectedProjectId) : undefined;
+      const selOffer = sSelectedOfferId
+        ? imfexStore.getOfferById(sSelectedOfferId)
+        : selProj?.offerId
+        ? imfexStore.getOfferById(selProj.offerId)
+        : selProj?.offer;
+      const baseOfferTotal = Number(selOffer?.totalAmount || 1000);
+      const advanceAmountOverride =
+        sType === 'ADVANCE' ? Math.round(((baseOfferTotal * pctNum) / 100) * 100) / 100 : undefined;
+
       const created = imfexStore.createSalesInvoiceFromOfferOrProject({
         invoiceType: sType,
         projectId: sSelectedProjectId || undefined,
         offerId: sSelectedOfferId || undefined,
         customerId: sCustomerId || undefined,
+        advanceAmountOverride,
         externalAccountingNumber: sExternalAccNum.trim() || undefined,
-        notes: sNotes.trim() || undefined,
+        notes:
+          sNotes.trim() ||
+          (sType === 'ADVANCE' ? `Авансна фактура (${pctNum}% од вкупната сума €${baseOfferTotal.toFixed(2)})` : undefined),
       });
       refreshAll();
       setShowSalesInvoiceModal(false);
@@ -374,6 +429,8 @@ function FinancePageContent() {
         `Креирана е ${created.invoiceNumber}!`,
         created.advanceDeductedAmount > 0
           ? `Автоматски е одбиен платен аванс од €${created.advanceDeductedAmount.toFixed(2)}.`
+          : sType === 'ADVANCE'
+          ? `Аванс ${pctNum}% (€${created.totalAmount.toFixed(2)}) — подготвено за PDF печатење.`
           : 'Документот е подготвен за PDF печатење.'
       );
       setPdfInvoice(created);
@@ -387,7 +444,9 @@ function FinancePageContent() {
     }
     const cust = imfexStore.getCustomerById(sCustomerId);
     const validItems = sManualItems.filter((i) => i.title.trim() !== '');
-    const subtotal = validItems.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
+    const rawSubtotal = validItems.reduce((s, i) => s + Number(i.totalPrice || 0), 0);
+    const factor = sType === 'ADVANCE' ? pctNum / 100 : 1;
+    const subtotal = Math.round(rawSubtotal * factor * 100) / 100;
     const taxAmount = Math.round(((subtotal * sTaxRate) / 100) * 100) / 100;
     const grossTotalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
@@ -404,6 +463,19 @@ function FinancePageContent() {
     }
 
     const totalAmount = Math.max(0, Math.round((grossTotalAmount - advanceDeductedAmount) * 100) / 100);
+    const finalItems =
+      sType === 'ADVANCE' && pctNum < 100
+        ? [
+            {
+              id: `si-adv-${Date.now()}`,
+              title: `Авансна уплата (${pctNum}% од вкупна вредност €${Math.round(rawSubtotal * (1 + sTaxRate / 100) * 100) / 100})`,
+              quantity: 1,
+              unitPrice: subtotal,
+              totalPrice: subtotal,
+            },
+          ]
+        : validItems;
+
     const created = imfexStore.saveSalesInvoice({
       id: `sinv-${Date.now()}`,
       invoiceNumber: imfexStore.generateSalesInvoiceNumber(sType),
@@ -425,8 +497,8 @@ function FinancePageContent() {
       advanceDeductedAmount,
       totalAmount,
       paidAmount: 0,
-      notes: sNotes.trim() || undefined,
-      items: validItems,
+      notes: sNotes.trim() || (sType === 'ADVANCE' ? `Авансна фактура (${pctNum}%)` : undefined),
+      items: finalItems,
       createdAt: new Date().toISOString(),
     });
 
@@ -490,34 +562,48 @@ function FinancePageContent() {
       return;
     }
 
-    const note = imfexStore.saveDispatchNote({
-      id: `disp-${Date.now()}`,
-      dispatchNumber: imfexStore.generateDispatchNumber(),
-      status: 'DRAFT',
-      customerId: dCustomerId,
-      customer: cust,
-      projectId: dProjectId || undefined,
-      issueDate: new Date().toISOString().split('T')[0],
-      deliveryAddress: dAddress,
-      receivedBy: dReceivedBy || cust?.companyName || cust?.name,
-      issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
-      notes: dNotes,
-      items: validItems,
-      stockDeducted: false,
-      createdAt: new Date().toISOString(),
+    setConfirmState({
+      isOpen: true,
+      title: dIssueImmediately ? 'Потврда за Издавање Испратница и Магацински Излез' : 'Креирај Нацрт Испратница',
+      message: `Дали сте сигурни дека сакате да ${
+        dIssueImmediately
+          ? 'ја издадете испратницата и веднаш да ја намалите магацинската залиха'
+          : 'ја зачувате испратницата како нацрт'
+      } за клиентот „${cust?.companyName || cust?.name || ''}“?`,
+      variant: dIssueImmediately ? 'warning' : 'primary',
+      confirmLabel: dIssueImmediately ? 'Да, издај испратница' : 'Зачувај нацрт',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        const note = imfexStore.saveDispatchNote({
+          id: `disp-${Date.now()}`,
+          dispatchNumber: imfexStore.generateDispatchNumber(),
+          status: 'DRAFT',
+          customerId: dCustomerId,
+          customer: cust,
+          projectId: dProjectId || undefined,
+          issueDate: new Date().toISOString().split('T')[0],
+          deliveryAddress: dAddress,
+          receivedBy: dReceivedBy || cust?.companyName || cust?.name,
+          issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
+          notes: dNotes,
+          items: validItems,
+          stockDeducted: false,
+          createdAt: new Date().toISOString(),
+        });
+
+        const finalNote = dIssueImmediately
+          ? imfexStore.confirmAndIssueDispatchNote(note.id) || note
+          : note;
+
+        refreshAll();
+        setShowDispatchModal(false);
+        toast.success(
+          `Испратница ${finalNote.dispatchNumber} е креирана!`,
+          dIssueImmediately ? 'Залихата во магацинот е автоматски намалена.' : 'Зачувана како нацрт.'
+        );
+        setPdfDispatch(finalNote);
+      },
     });
-
-    const finalNote = dIssueImmediately
-      ? imfexStore.confirmAndIssueDispatchNote(note.id) || note
-      : note;
-
-    refreshAll();
-    setShowDispatchModal(false);
-    toast.success(
-      `Испратница ${finalNote.dispatchNumber} е креирана!`,
-      dIssueImmediately ? 'Залихата во магацинот е автоматски намалена.' : 'Зачувана како нацрт.'
-    );
-    setPdfDispatch(finalNote);
   };
 
   // --- Record Payment Handler ---
@@ -527,22 +613,36 @@ function FinancePageContent() {
       toast.error('Внесете валиден износ.');
       return;
     }
-    imfexStore.recordPayment({
-      direction: payDirection,
-      amount: Number(payAmount),
-      date: payDate,
-      method: payMethod,
-      partnerName: payPartnerName || (payDirection === 'IN' ? 'Клиент' : 'Добавувач'),
-      salesInvoiceId: paySalesInvoiceId || undefined,
-      purchaseInvoiceId: payPurchaseInvoiceId || undefined,
-      projectId: payProjectId || undefined,
-      notes: payNotes,
+    const partnerLabel = payPartnerName || (payDirection === 'IN' ? 'Клиент' : 'Добавувач');
+    setConfirmState({
+      isOpen: true,
+      title: payDirection === 'IN' ? 'Потврда за Прилив (Уплата)' : 'Потврда за Одлив (Исплата)',
+      message: `Дали сте сигурни дека сакате да ја потврдите ${
+        payDirection === 'IN' ? 'уплатата од' : 'исплатата кон'
+      } „${partnerLabel}“ во износ од €${Number(payAmount).toFixed(2)}?`,
+      variant: payDirection === 'IN' ? 'success' : 'warning',
+      confirmLabel: 'Потврди Трансакција',
+      onConfirm: () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        imfexStore.recordPayment({
+          direction: payDirection,
+          amount: Number(payAmount),
+          date: payDate,
+          method: payMethod,
+          customerId: payCustomerId || undefined,
+          partnerName: partnerLabel,
+          salesInvoiceId: paySalesInvoiceId || undefined,
+          purchaseInvoiceId: payPurchaseInvoiceId || undefined,
+          projectId: payProjectId || undefined,
+          notes: payNotes,
+        });
+        refreshAll();
+        setShowPaymentModal(false);
+        setPayAmount(0);
+        setPayNotes('');
+        toast.success('Уплатата / трансакцијата е евидентирана!');
+      },
     });
-    refreshAll();
-    setShowPaymentModal(false);
-    setPayAmount(0);
-    setPayNotes('');
-    toast.success('Уплатата / трансакцијата е евидентирана!');
   };
 
   // Filtered Lists
@@ -914,12 +1014,22 @@ function FinancePageContent() {
                               {hasUnreceivedStock && (
                                 <button
                                   onClick={() => {
-                                    imfexStore.receivePurchaseInvoiceToWarehouse(pinv.id);
-                                    refreshAll();
-                                    toast.success(
-                                      'Примено во магацин!',
-                                      `Стоката од ${pinv.internalNumber} е додадена во залиха.`
-                                    );
+                                    setConfirmState({
+                                      isOpen: true,
+                                      title: 'Потврда за Прием во Магацинска Залиха',
+                                      message: `Дали сте сигурни дека сакате да го потврдите приемот во магацин за влезната фактура „${pinv.internalNumber}“ (${pinv.supplierName}) и да ја зголемите залихата?`,
+                                      variant: 'success',
+                                      confirmLabel: 'Прими во Залиха',
+                                      onConfirm: () => {
+                                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                        imfexStore.receivePurchaseInvoiceToWarehouse(pinv.id);
+                                        refreshAll();
+                                        toast.success(
+                                          'Примено во магацин!',
+                                          `Стоката од ${pinv.internalNumber} е додадена во залиха.`
+                                        );
+                                      },
+                                    });
                                   }}
                                   className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 cursor-pointer flex items-center gap-1"
                                   title="Потврди прием и внеси во залиха"
@@ -958,8 +1068,18 @@ function FinancePageContent() {
 
                               <button
                                 onClick={() => {
-                                  imfexStore.deletePurchaseInvoice(pinv.id);
-                                  refreshAll();
+                                  setConfirmState({
+                                    isOpen: true,
+                                    title: 'Избриши Влезна Фактура / Трошок',
+                                    message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
+                                    variant: 'danger',
+                                    confirmLabel: 'Избриши',
+                                    onConfirm: () => {
+                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                      imfexStore.deletePurchaseInvoice(pinv.id);
+                                      refreshAll();
+                                    },
+                                  });
                                 }}
                                 className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                               >
@@ -1132,8 +1252,18 @@ function FinancePageContent() {
 
                             <button
                               onClick={() => {
-                                imfexStore.deleteSalesInvoice(sinv.id);
-                                refreshAll();
+                                setConfirmState({
+                                  isOpen: true,
+                                  title: 'Избриши Излезна Фактура',
+                                  message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${sinv.customer?.companyName || sinv.customer?.name || 'Клиент'}“?`,
+                                  variant: 'danger',
+                                  confirmLabel: 'Избриши',
+                                  onConfirm: () => {
+                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                    imfexStore.deleteSalesInvoice(sinv.id);
+                                    refreshAll();
+                                  },
+                                });
                               }}
                               className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                             >
@@ -1227,9 +1357,19 @@ function FinancePageContent() {
                             {!d.stockDeducted && (
                               <button
                                 onClick={() => {
-                                  imfexStore.confirmAndIssueDispatchNote(d.id);
-                                  refreshAll();
-                                  toast.success('Испратницата е потврдена!', 'Залихата во магацинот е намалена.');
+                                  setConfirmState({
+                                    isOpen: true,
+                                    title: 'Потврда за Излез на Стока од Магацин',
+                                    message: `Дали сте сигурни дека сакате да го потврдите излезот за испратницата „${d.dispatchNumber}“ и да ја намалите залихата во магацин?`,
+                                    variant: 'warning',
+                                    confirmLabel: 'Потврди Излез',
+                                    onConfirm: () => {
+                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                      imfexStore.confirmAndIssueDispatchNote(d.id);
+                                      refreshAll();
+                                      toast.success('Испратницата е потврдена!', 'Залихата во магацинот е намалена.');
+                                    },
+                                  });
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 cursor-pointer"
                               >
@@ -1244,8 +1384,18 @@ function FinancePageContent() {
                             </button>
                             <button
                               onClick={() => {
-                                imfexStore.deleteDispatchNote(d.id);
-                                refreshAll();
+                                setConfirmState({
+                                  isOpen: true,
+                                  title: 'Избриши Испратница',
+                                  message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
+                                  variant: 'danger',
+                                  confirmLabel: 'Избриши',
+                                  onConfirm: () => {
+                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                    imfexStore.deleteDispatchNote(d.id);
+                                    refreshAll();
+                                  },
+                                });
                               }}
                               className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                             >
@@ -1353,8 +1503,18 @@ function FinancePageContent() {
                         <td className="p-4 text-center">
                           <button
                             onClick={() => {
-                              imfexStore.deletePayment(pay.id);
-                              refreshAll();
+                              setConfirmState({
+                                isOpen: true,
+                                title: 'Избриши Трансакција / Уплата',
+                                message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
+                                variant: 'danger',
+                                confirmLabel: 'Избриши',
+                                onConfirm: () => {
+                                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                  imfexStore.deletePayment(pay.id);
+                                  refreshAll();
+                                },
+                              });
                             }}
                             className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
                           >
@@ -1882,6 +2042,101 @@ function FinancePageContent() {
                 </div>
               </div>
 
+              {/* Manual Keyboard Percentage Input when creating Advance Invoice */}
+              {sType === 'ADVANCE' && (
+                <div className="p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 space-y-2.5">
+                  {(() => {
+                    const selProj = sSelectedProjectId ? projects.find((p) => p.id === sSelectedProjectId) : undefined;
+                    const selOff = sSelectedOfferId
+                      ? offers.find((o) => o.id === sSelectedOfferId)
+                      : selProj?.offerId
+                      ? offers.find((o) => o.id === selProj.offerId)
+                      : selProj?.offer;
+                    const fullBase =
+                      sSourceMode === 'PROJECT_OR_OFFER'
+                        ? Number(selOff?.totalAmount || 0)
+                        : sManualItems.reduce((acc, i) => acc + Number(i.totalPrice || 0), 0) * (1 + sTaxRate / 100);
+                    const pctVal = parseFloat(sAdvancePercent) || 0;
+                    const calcAdv = Math.round(((fullBase * pctVal) / 100) * 100) / 100;
+                    return (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <label className="font-extrabold text-amber-500 flex items-center gap-1.5 text-xs">
+                              <Percent className="w-4 h-4" />
+                              <span>Процент и Износ на Авансна Фактура од целосната сума (%) *</span>
+                            </label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Внесете рачно процент со тастатура, износ во € или изберете од брзите копчиња:
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="relative w-28">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max="100"
+                                required
+                                value={sAdvancePercent}
+                                onChange={(e) => setSAdvancePercent(e.target.value)}
+                                placeholder="пр. 70"
+                                className="w-full pr-7 pl-3 py-2 rounded-lg border border-amber-500/50 bg-background font-black text-amber-500 outline-none focus:ring-2 focus:ring-amber-500"
+                              />
+                              <span className="absolute right-2.5 top-2 font-black text-muted-foreground">%</span>
+                            </div>
+                            {fullBase > 0 && (
+                              <div className="relative w-32">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0.01"
+                                  value={calcAdv}
+                                  onChange={(e) => {
+                                    const newAmt = parseFloat(e.target.value) || 0;
+                                    if (fullBase > 0) {
+                                      const newPct = Math.round(((newAmt / fullBase) * 100) * 100) / 100;
+                                      setSAdvancePercent(String(newPct));
+                                    }
+                                  }}
+                                  placeholder="Износ (€)"
+                                  className="w-full pr-7 pl-3 py-2 rounded-lg border border-emerald-500/50 bg-background font-black text-emerald-500 outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                                <span className="absolute right-2.5 top-2 font-black text-muted-foreground">€</span>
+                              </div>
+                            )}
+                            <div className="flex gap-1">
+                              {[30, 50, 70, 100].map((pct) => (
+                                <button
+                                  key={pct}
+                                  type="button"
+                                  onClick={() => setSAdvancePercent(String(pct))}
+                                  className={`px-2.5 py-1.5 rounded-lg font-extrabold text-[11px] cursor-pointer transition-colors ${
+                                    Number(sAdvancePercent) === pct
+                                      ? 'bg-amber-500 text-slate-950'
+                                      : 'bg-card border border-border text-foreground hover:bg-muted'
+                                  }`}
+                                >
+                                  {pct}%
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        {fullBase > 0 && (
+                          <div className="text-[11px] font-bold text-foreground pt-1 border-t border-amber-500/20 flex items-center justify-between">
+                            <span>Целосна сума со ДДВ: €{fullBase.toFixed(2)}</span>
+                            <span className="text-amber-500 font-black">
+                              Износ на Авансна Фактура ({pctVal}%): €{calcAdv.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               {sSourceMode === 'PROJECT_OR_OFFER' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border border-border bg-background">
                   <div>
@@ -2279,14 +2534,79 @@ function FinancePageContent() {
                 </button>
               </div>
 
-              <div>
-                <label className="block font-bold mb-1">Клиент / Партнер</label>
+              <div className="space-y-2">
+                <label className="block font-bold mb-1">
+                  Избери Клиент / Партнер (со пребарување) *
+                </label>
+                <SearchableSelect
+                  options={[
+                    ...customers.map((c) => {
+                      const display = c.companyName || c.name;
+                      return {
+                        value: `CUST:${c.id}`,
+                        label: `${display} (${c.customerType})`,
+                        sublabel: [c.taxId ? `ЕДБ: ${c.taxId}` : '', c.phone || '', c.email || '']
+                          .filter(Boolean)
+                          .join(' • '),
+                      };
+                    }),
+                    { value: 'SUPPLIER:Doors Impex', label: 'Doors Impex (Добавувач)', sublabel: 'Стандарден партнер' },
+                    { value: 'SUPPLIER:Макпетрол (Гориво)', label: 'Макпетрол (Гориво)', sublabel: 'Добавувач за гориво' },
+                    { value: 'SUPPLIER:ЕВН Македонија', label: 'ЕВН Македонија', sublabel: 'Режиски трошоци' },
+                  ]}
+                  value={
+                    payCustomerId
+                      ? `CUST:${payCustomerId}`
+                      : payPartnerName
+                      ? customers.find((c) => (c.companyName || c.name) === payPartnerName)
+                        ? `CUST:${customers.find((c) => (c.companyName || c.name) === payPartnerName)!.id}`
+                        : `SUPPLIER:${payPartnerName}`
+                      : ''
+                  }
+                  onChange={(val) => {
+                    if (val.startsWith('CUST:')) {
+                      const cId = val.replace('CUST:', '');
+                      const cObj = customers.find((c) => c.id === cId);
+                      setPayCustomerId(cId);
+                      setPayPartnerName(cObj ? cObj.companyName || cObj.name : '');
+                    } else if (val.startsWith('SUPPLIER:')) {
+                      setPayCustomerId('');
+                      setPayPartnerName(val.replace('SUPPLIER:', ''));
+                    } else {
+                      setPayCustomerId('');
+                      setPayPartnerName('');
+                    }
+                  }}
+                  placeholder="Пребарај и избери клиент или партнер..."
+                  searchPlaceholder="Пребарај по име, компанија, ЕДБ, телефон..."
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
+                />
                 <input
                   type="text"
                   value={payPartnerName}
-                  onChange={(e) => setPayPartnerName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold"
+                  onChange={(e) => {
+                    setPayPartnerName(e.target.value);
+                    const matched = customers.find(
+                      (c) => (c.companyName || c.name).toLowerCase() === e.target.value.trim().toLowerCase()
+                    );
+                    setPayCustomerId(matched?.id || '');
+                  }}
+                  placeholder="Или внесете / коригирајте назив на клиент или партнер..."
+                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background/70 font-semibold outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Начин на плаќање</label>
+                <select
+                  value={payMethod}
+                  onChange={(e) => setPayMethod(e.target.value as PaymentMethod)}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
+                >
+                  <option value="BANK">Банкарска сметка (Извод)</option>
+                  <option value="CASH">Готовина / Благајна</option>
+                  <option value="CARD">Картичка</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -2373,6 +2693,16 @@ function FinancePageContent() {
         isOpen={showPartnerModal}
         onClose={() => setShowPartnerModal(false)}
         onSaveSuccess={refreshAll}
+      />
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

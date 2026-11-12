@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   Customer,
   Offer,
+  OfferItemSpecSelection,
   Product,
+  SpecificationKey,
   UserProfile,
   UserRole,
   Project,
@@ -48,6 +50,8 @@ class ImfexStore {
   private dispatchNotes: DispatchNote[] = [];
   private payments: PaymentRecord[] = [];
   private stockOverlay: Record<string, { stockType?: ProductStockType; stockQuantity: number; reservedQuantity: number; purchasePrice?: number }> = {};
+  private specDefaultsOverlay: Record<string, Record<string, { defaultValue?: string; defaultOptionId?: string }>> = {};
+  private offerSpecsOverlay: Record<string, OfferItemSpecSelection[][]> = {};
   private projectFlowOverlay: Record<string, Partial<Project>> = {};
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
@@ -88,6 +92,20 @@ class ImfexStore {
       if (storedStock) {
         try {
           this.stockOverlay = JSON.parse(storedStock);
+        } catch (e) {}
+      }
+
+      const storedSpecDefaults = localStorage.getItem('imfex_spec_defaults_overlay');
+      if (storedSpecDefaults) {
+        try {
+          this.specDefaultsOverlay = JSON.parse(storedSpecDefaults);
+        } catch (e) {}
+      }
+
+      const storedOfferSpecs = localStorage.getItem('imfex_offer_specs_overlay');
+      if (storedOfferSpecs) {
+        try {
+          this.offerSpecsOverlay = JSON.parse(storedOfferSpecs);
         } catch (e) {}
       }
 
@@ -135,6 +153,8 @@ class ImfexStore {
     if (typeof window !== 'undefined') {
       localStorage.setItem('imfex_inventory_movements', JSON.stringify(this.movements));
       localStorage.setItem('imfex_stock_overlay', JSON.stringify(this.stockOverlay));
+      localStorage.setItem('imfex_spec_defaults_overlay', JSON.stringify(this.specDefaultsOverlay));
+      localStorage.setItem('imfex_offer_specs_overlay', JSON.stringify(this.offerSpecsOverlay));
       localStorage.setItem('imfex_project_flow_overlay', JSON.stringify(this.projectFlowOverlay));
       localStorage.setItem('imfex_purchase_invoices', JSON.stringify(this.purchaseInvoices));
       localStorage.setItem('imfex_sales_invoices', JSON.stringify(this.salesInvoices));
@@ -144,9 +164,10 @@ class ImfexStore {
   }
 
   public ensureWarehouseCatalog() {
-    // Ensure any products from backend have stockType and stockQuantity initialized
+    // Ensure any products from backend have stockType and stockQuantity initialized, plus specification defaults
     this.products = this.products.map((p) => {
       const overlay = this.stockOverlay[p.code];
+      const specOverlay = this.specDefaultsOverlay[p.code] || this.specDefaultsOverlay[p.id] || {};
       const catObj = p.category || this.categories.find((c) => c.id === p.categoryId);
       const isDoorCustom =
         p.stockType === 'CUSTOM' ||
@@ -154,6 +175,19 @@ class ImfexStore {
         p.code.startsWith('GV-') ||
         p.code.startsWith('PROD-GAR');
       const inferredType: ProductStockType = overlay?.stockType || p.stockType || (isDoorCustom ? 'CUSTOM' : 'STOCK');
+      const mergedKeys = (p.specificationKeys || []).map((k) => {
+        const kOverlay = specOverlay[k.id] || specOverlay[k.name];
+        const defaultOptId = kOverlay?.defaultOptionId;
+        const options = (k.options || []).map((opt) => ({
+          ...opt,
+          isDefault: opt.isDefault ?? (defaultOptId ? opt.id === defaultOptId || opt.label === defaultOptId : false),
+        }));
+        return {
+          ...k,
+          defaultValue: k.defaultValue ?? kOverlay?.defaultValue,
+          options,
+        };
+      });
       return {
         ...p,
         category: catObj,
@@ -161,6 +195,7 @@ class ImfexStore {
         stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? 0),
         reservedQuantity: overlay ? overlay.reservedQuantity : (p.reservedQuantity ?? 0),
         purchasePrice: overlay?.purchasePrice ?? p.purchasePrice,
+        specificationKeys: mergedKeys,
       };
     });
   }
@@ -199,24 +234,32 @@ class ImfexStore {
       if (resOff && resOff.ok) {
         const dbOffers = await resOff.json();
         if (Array.isArray(dbOffers)) {
-          this.offers = dbOffers.map((o: any) => ({
-            ...o,
-            taxRate: Number(o.taxRate || 0),
-            discountRate: Number(o.discountRate || 0),
-            discountAmount: Number(o.discountAmount || 0),
-            subtotal: Number(o.subtotal || 0),
-            taxAmount: Number(o.taxAmount || 0),
-            totalAmount: Number(o.totalAmount || 0),
-            items: (o.items || []).map((it: any) => ({
-              ...it,
-              quantity: Number(it.quantity || 1),
-              unitPrice: Number(it.unitPrice || 0),
-              totalPrice: Number(it.totalPrice || 0),
-              specifications: (it.specifications && it.specifications.length > 0)
-                ? it.specifications
-                : (it.offerItemSpecifications || []),
-            })),
-          }));
+          this.offers = dbOffers.map((o: any) => {
+            const ov = this.offerSpecsOverlay[o.offerNumber] || this.offerSpecsOverlay[o.id];
+            return {
+              ...o,
+              taxRate: Number(o.taxRate || 0),
+              discountRate: Number(o.discountRate || 0),
+              discountAmount: Number(o.discountAmount || 0),
+              subtotal: Number(o.subtotal || 0),
+              taxAmount: Number(o.taxAmount || 0),
+              totalAmount: Number(o.totalAmount || 0),
+              items: (o.items || []).map((it: any, itemIdx: number) => {
+                const dbSpecs =
+                  it.specifications && it.specifications.length > 0
+                    ? it.specifications
+                    : it.offerItemSpecifications || [];
+                const overlaySpecs = ov && Array.isArray(ov[itemIdx]) ? ov[itemIdx] : null;
+                return {
+                  ...it,
+                  quantity: Number(it.quantity || 1),
+                  unitPrice: Number(it.unitPrice || 0),
+                  totalPrice: Number(it.totalPrice || 0),
+                  specifications: overlaySpecs !== null ? overlaySpecs : dbSpecs,
+                };
+              }),
+            };
+          });
         }
       }
       if (resProj && resProj.ok) {
@@ -627,6 +670,18 @@ class ImfexStore {
       reservedQuantity: product.reservedQuantity ?? 0,
       purchasePrice: product.purchasePrice,
     };
+    const specMap: Record<string, { defaultValue?: string; defaultOptionId?: string }> = {};
+    (product.specificationKeys || []).forEach((k) => {
+      const defOpt = (k.options || []).find((o) => o.isDefault);
+      const entry = {
+        defaultValue: k.defaultValue,
+        defaultOptionId: defOpt ? defOpt.label || defOpt.id : undefined,
+      };
+      specMap[k.id] = entry;
+      specMap[k.name] = entry;
+    });
+    this.specDefaultsOverlay[product.code] = specMap;
+    this.specDefaultsOverlay[product.id] = specMap;
     this.persistWarehouseState();
     this.notifyListeners();
 
@@ -640,12 +695,26 @@ class ImfexStore {
       .then((savedProd) => {
         if (savedProd && savedProd.id) {
           const overlay = this.stockOverlay[savedProd.code] || this.stockOverlay[product.code];
+          const sOverlay = this.specDefaultsOverlay[savedProd.code] || this.specDefaultsOverlay[product.code] || {};
+          const mergedKeys = (savedProd.specificationKeys || product.specificationKeys || []).map((k: SpecificationKey) => {
+            const kOv = sOverlay[k.id] || sOverlay[k.name];
+            const defOptId = kOv?.defaultOptionId;
+            return {
+              ...k,
+              defaultValue: k.defaultValue ?? kOv?.defaultValue,
+              options: (k.options || []).map((opt) => ({
+                ...opt,
+                isDefault: opt.isDefault ?? (defOptId ? opt.id === defOptId || opt.label === defOptId : false),
+              })),
+            };
+          });
           const merged: Product = {
             ...product,
             ...savedProd,
             stockType: overlay?.stockType || product.stockType || 'STOCK',
             stockQuantity: overlay ? overlay.stockQuantity : (product.stockQuantity ?? 0),
             reservedQuantity: overlay ? overlay.reservedQuantity : (product.reservedQuantity ?? 0),
+            specificationKeys: mergedKeys,
           };
           const freshIdx = this.products.findIndex((p) => p.id === product.id || p.code === product.code || p.id === savedProd.id);
           if (freshIdx >= 0) {
@@ -755,6 +824,10 @@ class ImfexStore {
     } else {
       this.offers.push(offer);
     }
+    const specsByItem = (offer.items || []).map((it) => it.specifications || []);
+    if (offer.offerNumber) this.offerSpecsOverlay[offer.offerNumber] = specsByItem;
+    if (offer.id) this.offerSpecsOverlay[offer.id] = specsByItem;
+    this.persistWarehouseState();
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
@@ -766,6 +839,9 @@ class ImfexStore {
       .then((res) => (res.ok ? res.json() : null))
       .then((savedOffer) => {
         if (savedOffer && savedOffer.id) {
+          this.offerSpecsOverlay[savedOffer.id] = specsByItem;
+          if (savedOffer.offerNumber) this.offerSpecsOverlay[savedOffer.offerNumber] = specsByItem;
+          this.persistWarehouseState();
           const formatted = {
             ...savedOffer,
             taxRate: Number(savedOffer.taxRate || 0),
@@ -774,14 +850,17 @@ class ImfexStore {
             subtotal: Number(savedOffer.subtotal || 0),
             taxAmount: Number(savedOffer.taxAmount || 0),
             totalAmount: Number(savedOffer.totalAmount || 0),
-            items: (savedOffer.items || []).map((it: any) => ({
+            items: (savedOffer.items || []).map((it: any, itemIdx: number) => ({
               ...it,
               quantity: Number(it.quantity || 1),
               unitPrice: Number(it.unitPrice || 0),
               totalPrice: Number(it.totalPrice || 0),
-              specifications: (it.specifications && it.specifications.length > 0)
-                ? it.specifications
-                : (it.offerItemSpecifications || []),
+              specifications:
+                specsByItem[itemIdx] !== undefined
+                  ? specsByItem[itemIdx]
+                  : it.specifications && it.specifications.length > 0
+                  ? it.specifications
+                  : it.offerItemSpecifications || [],
             })),
           };
           const freshIdx = this.offers.findIndex((o) => o.id === offer.id || o.id === savedOffer.id);

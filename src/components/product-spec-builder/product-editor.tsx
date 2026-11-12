@@ -5,7 +5,8 @@ import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductModel, SpecificationKey, SpecificationOption, SpecInputType } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2, Edit2, Save, CheckCircle2, XCircle } from 'lucide-react';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { Plus, Trash2, ShieldAlert, Layers, Settings2, Loader2, Edit2, Save, CheckCircle2, XCircle, Star } from 'lucide-react';
 
 interface ProductEditorProps {
   product: Product;
@@ -27,6 +28,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   // Spec state
   const [newSpecName, setNewSpecName] = useState('');
   const [newSpecType, setNewSpecType] = useState<SpecInputType>('SELECT');
+  const [newSpecDefaultValue, setNewSpecDefaultValue] = useState('');
 
   // Option state
   const [selectedSpecId, setSelectedSpecId] = useState<string | null>(
@@ -34,6 +36,22 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   );
   const [newOptionLabel, setNewOptionLabel] = useState('');
   const [newOptionPrice, setNewOptionPrice] = useState(0);
+  const [newOptionIsDefault, setNewOptionIsDefault] = useState(false);
+
+  // Confirm modal state
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant?: 'danger' | 'warning' | 'primary' | 'success';
+    confirmLabel?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Edit product states
   const [isEditing, setIsEditing] = useState(false);
@@ -126,16 +144,26 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     onUpdate();
   };
 
-  const handleDeleteModel = async (modelId: string) => {
+  const handleDeleteModel = async (modelId: string, modelName: string) => {
     if (!isSuperAdmin) return;
-    setIsSaving(true);
-    const updatedProduct = {
-      ...product,
-      models: models.filter((m) => m.id !== modelId),
-    };
-    await imfexStore.saveProduct(updatedProduct);
-    setIsSaving(false);
-    onUpdate();
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Модел',
+      message: `Дали сте сигурни дека сакате да го избришете моделот „${modelName}“?`,
+      variant: 'danger',
+      confirmLabel: 'Избриши',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setIsSaving(true);
+        const updatedProduct = {
+          ...product,
+          models: models.filter((m) => m.id !== modelId),
+        };
+        await imfexStore.saveProduct(updatedProduct);
+        setIsSaving(false);
+        onUpdate();
+      },
+    });
   };
 
   // Spec actions
@@ -149,6 +177,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       productId: product.id,
       name: newSpecName.trim(),
       inputType: newSpecType,
+      defaultValue: newSpecDefaultValue.trim() || undefined,
       options: [],
     };
 
@@ -159,22 +188,59 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
 
     await imfexStore.saveProduct(updatedProduct);
     setNewSpecName('');
+    setNewSpecDefaultValue('');
     setSelectedSpecId(newKey.id);
     setIsSaving(false);
     onUpdate();
   };
 
-  const handleDeleteSpecKey = async (keyId: string) => {
+  const handleUpdateSpecKeyDefaultValue = async (keyId: string, defaultValue: string) => {
     if (!isSuperAdmin) return;
     setIsSaving(true);
-    const updatedProduct = {
+    const trimmed = defaultValue.trim();
+    const updatedKeys = specificationKeys.map((k) => {
+      if (k.id !== keyId) return k;
+      const matchedOpt = trimmed
+        ? (k.options || []).find((o) => o.label.toLowerCase() === trimmed.toLowerCase())
+        : undefined;
+      return {
+        ...k,
+        defaultValue: trimmed || undefined,
+        options:
+          matchedOpt && k.inputType === 'SELECT'
+            ? (k.options || []).map((o) => ({ ...o, isDefault: o.id === matchedOpt.id }))
+            : k.options,
+      };
+    });
+    await imfexStore.saveProduct({
       ...product,
-      specificationKeys: specificationKeys.filter((k) => k.id !== keyId),
-    };
-    await imfexStore.saveProduct(updatedProduct);
-    if (selectedSpecId === keyId) setSelectedSpecId(null);
+      specificationKeys: updatedKeys,
+    });
     setIsSaving(false);
     onUpdate();
+  };
+
+  const handleDeleteSpecKey = async (keyId: string, keyName: string) => {
+    if (!isSuperAdmin) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Спецификација',
+      message: `Дали сте сигурни дека сакате да го избришете клучот на спецификација „${keyName}“ и сите негови опции?`,
+      variant: 'danger',
+      confirmLabel: 'Избриши',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setIsSaving(true);
+        const updatedProduct = {
+          ...product,
+          specificationKeys: specificationKeys.filter((k) => k.id !== keyId),
+        };
+        await imfexStore.saveProduct(updatedProduct);
+        if (selectedSpecId === keyId) setSelectedSpecId(null);
+        setIsSaving(false);
+        onUpdate();
+      },
+    });
   };
 
   // Option actions
@@ -188,13 +254,18 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       specificationKeyId: selectedSpecId,
       label: newOptionLabel.trim(),
       priceModifier: Number(newOptionPrice) || 0,
+      isDefault: newOptionIsDefault,
     };
 
     const updatedKeys = specificationKeys.map((key) => {
       if (key.id === selectedSpecId) {
+        const existingOptions = (key.options || []).map((o) =>
+          newOptionIsDefault && key.inputType === 'SELECT' ? { ...o, isDefault: false } : o
+        );
         return {
           ...key,
-          options: [...(key.options || []), newOpt],
+          defaultValue: newOptionIsDefault ? newOpt.label : key.defaultValue,
+          options: [...existingOptions, newOpt],
         };
       }
       return key;
@@ -208,31 +279,77 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     await imfexStore.saveProduct(updatedProduct);
     setNewOptionLabel('');
     setNewOptionPrice(0);
+    setNewOptionIsDefault(false);
     setIsSaving(false);
     onUpdate();
   };
 
-  const handleDeleteOption = async (specKeyId: string, optId: string) => {
+  const handleToggleDefaultOption = async (specKeyId: string, optId: string) => {
     if (!isSuperAdmin) return;
     setIsSaving(true);
     const updatedKeys = specificationKeys.map((key) => {
       if (key.id === specKeyId) {
+        const targetOpt = (key.options || []).find((o) => o.id === optId);
+        const willBeDefault = !targetOpt?.isDefault;
+        const nextOptions = (key.options || []).map((o) => {
+          if (o.id === optId) return { ...o, isDefault: willBeDefault };
+          if (willBeDefault && key.inputType === 'SELECT') return { ...o, isDefault: false };
+          return o;
+        });
+        const firstDefault = nextOptions.find((o) => o.isDefault);
+        const prevWasTargetLabel = targetOpt && key.defaultValue === targetOpt.label;
         return {
           ...key,
-          options: (key.options || []).filter((o) => o.id !== optId),
+          defaultValue: firstDefault
+            ? firstDefault.label
+            : prevWasTargetLabel
+            ? undefined
+            : key.defaultValue,
+          options: nextOptions,
         };
       }
       return key;
     });
 
-    const updatedProduct = {
+    await imfexStore.saveProduct({
       ...product,
       specificationKeys: updatedKeys,
-    };
-
-    await imfexStore.saveProduct(updatedProduct);
+    });
     setIsSaving(false);
     onUpdate();
+  };
+
+  const handleDeleteOption = async (specKeyId: string, optId: string, optLabel: string) => {
+    if (!isSuperAdmin) return;
+    setConfirmState({
+      isOpen: true,
+      title: 'Избриши Опција',
+      message: `Дали сте сигурни дека сакате да ја избришете опцијата „${optLabel}“?`,
+      variant: 'danger',
+      confirmLabel: 'Избриши',
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setIsSaving(true);
+        const updatedKeys = specificationKeys.map((key) => {
+          if (key.id === specKeyId) {
+            return {
+              ...key,
+              options: (key.options || []).filter((o) => o.id !== optId),
+            };
+          }
+          return key;
+        });
+
+        const updatedProduct = {
+          ...product,
+          specificationKeys: updatedKeys,
+        };
+
+        await imfexStore.saveProduct(updatedProduct);
+        setIsSaving(false);
+        onUpdate();
+      },
+    });
   };
 
   const selectedKeyObj = specificationKeys.find((k) => k.id === selectedSpecId);
@@ -510,7 +627,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       {isSuperAdmin && (
                         <td className="p-3 text-center">
                           <button
-                            onClick={() => handleDeleteModel(model.id)}
+                            onClick={() => handleDeleteModel(model.id, model.name)}
                             className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                             title="Delete Model"
                           >
@@ -532,16 +649,16 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
         <div className="space-y-6">
           {/* Add Specification Key Form */}
           {isSuperAdmin && (
-            <form onSubmit={handleAddSpecKey} className="flex gap-2 items-center bg-muted/30 p-3 rounded-xl border border-border">
+            <form onSubmit={handleAddSpecKey} className="flex flex-wrap gap-2 items-center bg-muted/30 p-3 rounded-xl border border-border">
               <input
                 type="text"
                 required
                 placeholder={t('products.new_spec_placeholder')}
                 value={newSpecName}
                 onChange={(e) => setNewSpecName(e.target.value)}
-                className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
+                className="flex-1 min-w-[180px] px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
               />
-              <div className="w-48">
+              <div className="w-52">
                 <SearchableSelect
                   options={[
                     { value: 'SELECT', label: 'SELECT (Единечен Избор)' },
@@ -554,6 +671,13 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   className="px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-bold"
                 />
               </div>
+              <input
+                type={newSpecType === 'NUMBER' ? 'number' : 'text'}
+                placeholder="Default вредност (опционално)"
+                value={newSpecDefaultValue}
+                onChange={(e) => setNewSpecDefaultValue(e.target.value)}
+                className="w-48 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
+              />
               <button
                 type="submit"
                 disabled={isSaving}
@@ -572,64 +696,100 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
                 {t('products.attributes')}
               </p>
-              {specificationKeys.map((key) => (
-                <div
-                  key={key.id}
-                  onClick={() => setSelectedSpecId(key.id)}
-                  className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
-                    selectedSpecId === key.id
-                      ? 'border-primary bg-primary/10 font-bold text-primary shadow-xs'
-                      : 'border-border bg-card hover:bg-muted text-foreground'
-                  }`}
-                >
-                  <div>
-                    <p className="leading-tight font-extrabold">{key.name}</p>
-                    <span className="text-[9px] font-extrabold text-muted-foreground uppercase">
-                      {key.inputType} • {(key.options || []).length} опции
-                    </span>
+              {specificationKeys.map((key) => {
+                const defaultOpt = (key.options || []).find((o) => o.isDefault);
+                const effectiveDefault = defaultOpt?.label || key.defaultValue;
+                return (
+                  <div
+                    key={key.id}
+                    onClick={() => setSelectedSpecId(key.id)}
+                    className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
+                      selectedSpecId === key.id
+                        ? 'border-primary bg-primary/10 font-bold text-primary shadow-xs'
+                        : 'border-border bg-card hover:bg-muted text-foreground'
+                    }`}
+                  >
+                    <div>
+                      <p className="leading-tight font-extrabold">{key.name}</p>
+                      <span className="text-[9px] font-extrabold text-muted-foreground uppercase block">
+                        {key.inputType} • {(key.options || []).length} опции
+                      </span>
+                      {effectiveDefault && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[9px] font-bold">
+                          <Star className="w-2.5 h-2.5 fill-current" />
+                          Default: {effectiveDefault}
+                        </span>
+                      )}
+                    </div>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSpecKey(key.id, key.name);
+                        }}
+                        className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                  {isSuperAdmin && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteSpecKey(key.id);
-                      }}
-                      className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Selected Key Options Editor */}
             <div className="md:col-span-2 border border-border rounded-xl p-4 bg-card space-y-4">
               {selectedKeyObj ? (
                 <>
-                  <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
                     <div>
                       <h4 className="font-bold text-sm text-foreground">
-                        Опции за "{selectedKeyObj.name}"
+                        Опции и Default вредност за "{selectedKeyObj.name}"
                       </h4>
                       <p className="text-[11px] text-muted-foreground">
                         {t('products.input_type')}: <span className="font-semibold text-primary">{selectedKeyObj.inputType}</span>
                       </p>
                     </div>
+                    {/* Default Value Editor for any key type */}
+                    {isSuperAdmin && (
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase">
+                          Стандардна (Default) вредност:
+                        </label>
+                        <input
+                          type={selectedKeyObj.inputType === 'NUMBER' ? 'number' : 'text'}
+                          placeholder="Пр. Бела / 90x200..."
+                          defaultValue={selectedKeyObj.defaultValue || ''}
+                          key={`${selectedKeyObj.id}-${selectedKeyObj.defaultValue || ''}`}
+                          onBlur={(e) => {
+                            if (e.target.value !== (selectedKeyObj.defaultValue || '')) {
+                              handleUpdateSpecKeyDefaultValue(selectedKeyObj.id, e.target.value);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleUpdateSpecKeyDefaultValue(selectedKeyObj.id, (e.target as HTMLInputElement).value);
+                            }
+                          }}
+                          className="w-44 px-2.5 py-1.5 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-semibold"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Add Option Form (Super Admin) */}
                   {isSuperAdmin && selectedKeyObj.inputType !== 'TEXT' && selectedKeyObj.inputType !== 'NUMBER' && (
-                    <form onSubmit={handleAddOption} className="flex gap-2 items-center">
+                    <form onSubmit={handleAddOption} className="flex flex-wrap gap-2 items-center">
                       <input
                         type="text"
                         required
                         placeholder={t('products.option_label')}
                         value={newOptionLabel}
                         onChange={(e) => setNewOptionLabel(e.target.value)}
-                        className="flex-1 px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
+                        className="flex-1 min-w-[160px] px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                       />
-                      <div className="relative w-36">
+                      <div className="relative w-32">
                         <input
                           type="number"
                           step="0.01"
@@ -640,6 +800,16 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                         />
                         <span className="absolute left-2.5 top-2.5 text-xs font-bold text-muted-foreground">€</span>
                       </div>
+                      <label className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border bg-muted/30 cursor-pointer text-[11px] font-bold text-foreground select-none">
+                        <input
+                          type="checkbox"
+                          checked={newOptionIsDefault}
+                          onChange={(e) => setNewOptionIsDefault(e.target.checked)}
+                          className="rounded border-border text-primary focus:ring-primary"
+                        />
+                        <Star className={`w-3.5 h-3.5 ${newOptionIsDefault ? 'text-amber-500 fill-amber-500' : 'text-muted-foreground'}`} />
+                        <span>Default</span>
+                      </label>
                       <button
                         type="submit"
                         disabled={isSaving}
@@ -653,17 +823,49 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
 
                   {/* Options List */}
                   {selectedKeyObj.inputType === 'TEXT' || selectedKeyObj.inputType === 'NUMBER' ? (
-                    <div className="p-4 bg-muted/30 rounded-xl text-xs text-muted-foreground italic">
-                      Овој атрибут користи тип на внес {selectedKeyObj.inputType}. Продажните агенти ќе внесат сопствен текст/број за време на креирање понуда.
+                    <div className="p-4 bg-muted/30 rounded-xl text-xs text-muted-foreground space-y-1">
+                      <p className="italic">
+                        Овој атрибут користи тип на внес {selectedKeyObj.inputType}. Продажните агенти можат да внесат или променат текст/број за време на креирање понуда.
+                      </p>
+                      {selectedKeyObj.defaultValue && (
+                        <p className="font-bold text-foreground not-italic pt-1">
+                          Тековна Default вредност во понуда: <span className="text-primary">{selectedKeyObj.defaultValue}</span>
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {(selectedKeyObj.options || []).map((opt) => (
                         <div
                           key={opt.id}
-                          className="flex items-center justify-between p-2.5 bg-muted/20 border border-border rounded-xl text-xs"
+                          className={`flex items-center justify-between p-2.5 border rounded-xl text-xs transition-all ${
+                            opt.isDefault
+                              ? 'bg-amber-500/10 border-amber-500/30'
+                              : 'bg-muted/20 border-border'
+                          }`}
                         >
-                          <span className="font-semibold text-foreground">{opt.label}</span>
+                          <div className="flex items-center gap-2">
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDefaultOption(selectedKeyObj.id, opt.id)}
+                                title={opt.isDefault ? 'Отстрани како Default' : 'Постави како Default вредност во понуди'}
+                                className={`p-1 rounded-lg transition-colors cursor-pointer ${
+                                  opt.isDefault
+                                    ? 'text-amber-500 hover:bg-amber-500/20'
+                                    : 'text-muted-foreground hover:text-amber-500 hover:bg-muted'
+                                }`}
+                              >
+                                <Star className={`w-3.5 h-3.5 ${opt.isDefault ? 'fill-amber-500' : ''}`} />
+                              </button>
+                            )}
+                            <span className="font-semibold text-foreground">{opt.label}</span>
+                            {opt.isDefault && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold uppercase">
+                                Default
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-3">
                             <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20">
                               {Number(opt.priceModifier || 0) >= 0
@@ -672,7 +874,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                             </span>
                             {isSuperAdmin && (
                               <button
-                                onClick={() => handleDeleteOption(selectedKeyObj.id, opt.id)}
+                                onClick={() => handleDeleteOption(selectedKeyObj.id, opt.id, opt.label)}
                                 className="p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -693,6 +895,16 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        variant={confirmState.variant}
+        confirmLabel={confirmState.confirmLabel}
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

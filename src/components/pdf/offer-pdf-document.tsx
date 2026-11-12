@@ -270,11 +270,18 @@ export const OfferPdfDocument: React.FC<OfferPdfDocumentProps> = ({ offer, produ
               : ((item as any).offerItemSpecifications || []);
 
             // Spec text formatting
-            const specSummary = specs.map((s: any) => {
-              const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
-              const opt = key?.options.find((o) => o.id === s.specificationOptionId);
-              return `${key?.name || 'Spec'}: ${opt?.label || s.customValue || 'Selected'}`;
-            }).join(' | ');
+            const specSummary = specs
+              .filter((s: any) => s.specificationOptionId || s.customValue)
+              .map((s: any) => {
+                const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
+                const opt = key?.options.find((o) => o.id === s.specificationOptionId);
+                const valLabel =
+                  opt?.label && s.customValue && s.customValue !== opt.label
+                    ? `${opt.label} (${s.customValue})`
+                    : opt?.label || s.customValue || 'Selected';
+                return `${key?.name || s.customKeyName || 'Spec'}: ${valLabel}`;
+              })
+              .join(' | ');
 
             return (
               <View key={item.id || idx} style={styles.tableRow}>
