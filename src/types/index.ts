@@ -281,7 +281,20 @@ export interface CalendarEvent {
   serviceTicketId?: string;
   location?: string;
   color?: string;
+  isSystemEvent?: boolean;
   createdAt: string;
+}
+
+export interface CompanySettings {
+  id: string;
+  companyName: string;
+  address: string;
+  taxId: string;
+  phone: string;
+  email: string;
+  bankAccount?: string | null;
+  defaultAdvancePercent: number;
+  updatedAt?: string;
 }
 
 // ============================================================================

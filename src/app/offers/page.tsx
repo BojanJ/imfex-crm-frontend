@@ -26,7 +26,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function OffersPage() {
   const { t } = useI18n();
-  useImfexStore(); // Auto-subscribe to live store updates from Supabase REST API
+  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates from Supabase REST API
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [search, setSearch] = useState('');
@@ -55,14 +55,10 @@ export default function OffersPage() {
     setOffers(imfexStore.getOffers());
   };
 
+  // Sync state whenever store receives updates
   useEffect(() => {
     refreshList();
-  }, []);
-
-  // Sync state whenever store receives data from Supabase REST API
-  useEffect(() => {
-    refreshList();
-  }, [imfexStore.getOffers().length]);
+  }, [storeVersion]);
 
   const handleDelete = (id: string) => {
     const offer = offers.find((o) => o.id === id);

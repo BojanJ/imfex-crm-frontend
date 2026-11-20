@@ -17,43 +17,20 @@ export async function generateMultiPagePdf(
   // Query child page sections if available (e.g. #printable-offer-document > div)
   const pageElements = Array.from(containerElement.children) as HTMLElement[];
 
-  if (pageElements.length > 1) {
-    for (let i = 0; i < pageElements.length; i++) {
-      const pageEl = pageElements[i];
-      const canvas = await html2canvas(pageEl, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-
-      if (i > 0) {
-        pdf.addPage('a4', 'portrait');
-      }
-
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-    }
-  } else {
-    // Fallback if there is a single long container: render entire element and slice canvas vertically
-    const canvas = await html2canvas(containerElement, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-    });
-
-    const imgWidth = pdfWidth;
+  const appendCanvasSlices = (canvas: HTMLCanvasElement, isFirstPage: boolean) => {
     const pageHeightPx = Math.floor((canvas.width * pdfHeight) / pdfWidth);
     let position = 0;
-    let pageIndex = 0;
+    let sliceIndex = 0;
 
     while (position < canvas.height) {
-      // Create a temporary canvas for this page slice
+      const remaining = canvas.height - position;
+      // Avoid creating a nearly-empty trailing page for 1-3px rounding overflow
+      if (sliceIndex > 0 && remaining < 8) break;
+
+      const sliceHeightPx = Math.min(pageHeightPx, remaining);
       const pageCanvas = document.createElement('canvas');
       pageCanvas.width = canvas.width;
-      pageCanvas.height = Math.min(pageHeightPx, canvas.height - position);
+      pageCanvas.height = sliceHeightPx;
 
       const ctx = pageCanvas.getContext('2d');
       if (ctx) {
@@ -64,25 +41,56 @@ export async function generateMultiPagePdf(
           0,
           position,
           canvas.width,
-          pageCanvas.height,
+          sliceHeightPx,
           0,
           0,
           canvas.width,
-          pageCanvas.height
+          sliceHeightPx
         );
       }
 
       const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
-      const sliceHeightMm = (pageCanvas.height * pdfWidth) / canvas.width;
+      const sliceHeightMm = (sliceHeightPx * pdfWidth) / canvas.width;
 
-      if (pageIndex > 0) {
+      if (!isFirstPage || sliceIndex > 0) {
         pdf.addPage('a4', 'portrait');
       }
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, sliceHeightMm);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, sliceHeightMm);
       position += pageHeightPx;
-      pageIndex++;
+      sliceIndex++;
     }
+  };
+
+  if (pageElements.length > 1) {
+    for (let i = 0; i < pageElements.length; i++) {
+      const pageEl = pageElements[i];
+      const canvas = await html2canvas(pageEl, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      });
+
+      const renderedHeightMm = (canvas.height * pdfWidth) / canvas.width;
+      if (renderedHeightMm <= pdfHeight + 2) {
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if (i > 0) {
+          pdf.addPage('a4', 'portrait');
+        }
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, Math.min(renderedHeightMm, pdfHeight));
+      } else {
+        appendCanvasSlices(canvas, i === 0);
+      }
+    }
+  } else {
+    const canvas = await html2canvas(containerElement, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+    });
+    appendCanvasSlices(canvas, true);
   }
 
   const dataUri = pdf.output('datauristring');

@@ -2,8 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
+import { imfexStore } from '@/lib/store';
 import {
   LayoutDashboard,
   Package,
@@ -12,6 +13,7 @@ import {
   Settings,
   Briefcase,
   Landmark,
+  Wrench,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -32,7 +34,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMobileClose,
 }) => {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
+
+  const handleSignOut = () => {
+    imfexStore.logout();
+    onMobileClose?.();
+    router.replace('/login');
+  };
 
   const navItems = [
     {
@@ -64,6 +73,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t('nav.finance') || 'Финансии и Набавки',
       href: '/finance',
       icon: Landmark,
+    },
+    {
+      label: t('nav.service') || 'Сервис и Тикети',
+      href: '/service',
+      icon: Wrench,
     },
     {
       label: t('nav.calendar'),
@@ -141,9 +155,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-medium">IMFEX Enterprise v1.0</span>
             </div>
-            <Link href="/login" className="text-muted-foreground hover:text-red-500 p-1" title={t('nav.sign_out')}>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="text-muted-foreground hover:text-red-500 p-1 cursor-pointer"
+              title={t('nav.sign_out')}
+              aria-label={t('nav.sign_out')}
+            >
               <LogOut className="w-4 h-4" />
-            </Link>
+            </button>
           </>
         ) : (
           <span className="w-2.5 h-2.5 mx-auto rounded-full bg-emerald-500 animate-pulse block" />

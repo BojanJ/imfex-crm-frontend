@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfile } from '@/types';
-import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
@@ -50,7 +50,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setStatus(t.status);
     setPriority(t.priority);
     setAssignedTechnicianId(t.assignedTechnicianId || '');
-    setScheduledDate(t.scheduledDate || '');
+    setScheduledDate(t.scheduledDate ? String(t.scheduledDate).slice(0, 16) : '');
     setLaborHours(Number(t.laborHours || 0));
     setSolution(t.solution || '');
     setPartsConsumed(t.partsConsumed || []);
@@ -70,7 +70,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
 
     // 2. Fetch directly from backend API
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/service-tickets/${ticketId}`)
+    authFetch(`${baseUrl}/api/service-tickets/${ticketId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.id) {

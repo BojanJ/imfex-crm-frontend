@@ -7,11 +7,13 @@ import { formatDate } from '@/lib/date-format';
 interface PrintableOfferDocumentProps {
   offer: Offer;
   products?: Product[];
+  containerId?: string;
 }
 
 export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
   offer,
   products = [],
+  containerId = 'printable-offer-document',
 }) => {
   const customerName = offer.customer?.companyName || offer.customer?.name || 'Почитуван Клиент';
   const customerCity = offer.customer?.city || 'Скопје';
@@ -30,7 +32,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
   const firstModel = firstProduct?.models.find((m) => m.id === firstItem?.productModelId);
 
   return (
-    <div id="printable-offer-document" className="w-full max-w-[800px] mx-auto bg-white text-slate-800 font-sans leading-relaxed">
+    <div id={containerId} className="w-full max-w-[800px] mx-auto bg-white text-slate-800 font-sans leading-relaxed">
       
       {/* ========================================================================= */}
       {/* PAGE 1: EXECUTIVE COVER PAGE */}
@@ -277,7 +279,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                   const specSummary = specs.map((s: any) => {
                     const key = product?.specificationKeys.find((k) => k.id === s.specificationKeyId);
                     const opt = key?.options.find((o) => o.id === s.specificationOptionId);
-                    return `${key?.name || 'Спецификација'}: ${opt?.label || s.customValue || 'Избрано'}`;
+                    return `${key?.name || s.customKeyName || 'Спецификација'}: ${opt?.label || s.customValue || 'Избрано'}`;
                   }).join(' | ');
 
                   return (
@@ -321,8 +323,14 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               <span>Меѓузбир:</span>
               <span>€{Number(offer.subtotal || 0).toFixed(2)}</span>
             </div>
+            {Number(offer.discountAmount || 0) > 0 && (
+              <div className="flex justify-between w-64 text-rose-600 font-bold">
+                <span>Попуст ({Number(offer.discountRate || 0)}%):</span>
+                <span>−€{Number(offer.discountAmount || 0).toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between w-64 text-slate-600 font-bold">
-              <span>ДДВ ({offer.taxRate || 18}%):</span>
+              <span>ДДВ ({offer.taxRate ?? 18}%):</span>
               <span>€{Number(offer.taxAmount || 0).toFixed(2)}</span>
             </div>
           </div>

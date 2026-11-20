@@ -89,12 +89,18 @@ export default function CalendarPage() {
     setCurrentDate(new Date());
   };
 
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  const isSystemAutoEvent = (event: CalendarEvent) =>
+    Boolean(event.isSystemEvent || event.id.startsWith('proj-') || event.id.startsWith('serv-event-'));
+
   // Open modal to add event for specific date
   const handleOpenAddEventModal = (dateStr?: string) => {
     setEditingEventId(null);
     setEventTitle('');
     setEventType('MEETING');
-    const targetDate = dateStr || new Date().toISOString().split('T')[0];
+    const targetDate = dateStr || toLocalDateStr(new Date());
     setEventStartDate(targetDate);
     setEventEndDate(targetDate);
     setEventStartTime('09:00');
@@ -109,11 +115,11 @@ export default function CalendarPage() {
 
   // Edit existing custom event
   const handleOpenEditEventModal = (event: CalendarEvent) => {
-    if (event.projectId || event.serviceTicketId) return; // Project & Service events auto-managed
+    if (isSystemAutoEvent(event)) return; // Auto-generated project & service events are read-only
     setEditingEventId(event.id);
     setEventTitle(event.title);
     setEventType(event.eventType);
-    
+
     const parts = event.startDate.split('T');
     setEventStartDate(parts[0]);
     if (parts[1]) setEventStartTime(parts[1].slice(0, 5));
@@ -141,8 +147,9 @@ export default function CalendarPage() {
     e.preventDefault();
     if (!eventTitle || !eventStartDate) return;
 
+    const safeEndDate = eventEndDate && eventEndDate >= eventStartDate ? eventEndDate : eventStartDate;
     const startIso = eventAllDay ? eventStartDate : `${eventStartDate}T${eventStartTime}`;
-    const endIso = eventAllDay ? eventEndDate : `${eventEndDate}T${eventEndTime}`;
+    const endIso = eventAllDay ? safeEndDate : `${safeEndDate}T${eventEndTime}`;
 
     const newEv: CalendarEvent = {
       id: editingEventId || `event-${Date.now()}`,
@@ -157,6 +164,7 @@ export default function CalendarPage() {
       projectId: eventProjectId || undefined,
       location: eventLocation,
       color: eventType === 'MEETING' ? 'purple' : eventType === 'INSTALLATION' ? 'amber' : 'blue',
+      isSystemEvent: false,
       createdAt: new Date().toISOString(),
     };
 
@@ -168,7 +176,7 @@ export default function CalendarPage() {
     setEventIdToDelete(id);
   };
 
-  // Helpers for Month Grid
+  // Helpers for Month Grid (using local dates to avoid UTC timezone off-by-one shifts)
   const monthDays = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -187,26 +195,36 @@ export default function CalendarPage() {
     // Prev month padding
     for (let i = startDayIdx - 1; i >= 0; i--) {
       const prevDate = new Date(year, month - 1, daysInPrevMonth - i);
-      const dateStr = prevDate.toISOString().split('T')[0];
-      days.push({ date: prevDate, isCurrentMonth: false, dateStr });
+      days.push({ date: prevDate, isCurrentMonth: false, dateStr: toLocalDateStr(prevDate) });
     }
 
     // Current month days
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const curDate = new Date(year, month, d);
-      const dateStr = curDate.toISOString().split('T')[0];
-      days.push({ date: curDate, isCurrentMonth: true, dateStr });
+      days.push({ date: curDate, isCurrentMonth: true, dateStr: toLocalDateStr(curDate) });
     }
 
     // Next month padding to fill 35 or 42 grid cells
     const remaining = 35 - days.length > 0 ? 35 - days.length : 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
       const nextDate = new Date(year, month + 1, i);
-      const dateStr = nextDate.toISOString().split('T')[0];
-      days.push({ date: nextDate, isCurrentMonth: false, dateStr });
+      days.push({ date: nextDate, isCurrentMonth: false, dateStr: toLocalDateStr(nextDate) });
     }
 
     return days;
+  }, [currentDate]);
+
+  // Helpers for 7-day Week Grid (Monday - Sunday)
+  const weekDays = useMemo(() => {
+    const start = new Date(currentDate);
+    const offset = start.getDay() === 0 ? 6 : start.getDay() - 1;
+    start.setDate(start.getDate() - offset);
+    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return { date: d, label: labels[i], dateStr: toLocalDateStr(d) };
+    });
   }, [currentDate]);
 
   // Format Header Title
@@ -249,7 +267,7 @@ export default function CalendarPage() {
     return <CalendarIcon className="w-3 h-3 shrink-0" />;
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = toLocalDateStr(new Date());
 
   return (
     <div className="space-y-6">
@@ -447,7 +465,7 @@ export default function CalendarPage() {
             </p>
           ) : (
             <div className="space-y-3 divide-y divide-border">
-              {filteredEvents
+              {[...filteredEvents]
                 .sort((a, b) => a.startDate.localeCompare(b.startDate))
                 .map((ev) => (
                   <div
@@ -522,8 +540,95 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* WEEK & DAY VIEWS */}
-      {(viewMode === 'week' || viewMode === 'day') && (
+      {/* WEEK VIEW (7-Day Monday-Sunday Grid) */}
+      {viewMode === 'week' && (
+        <div className="bg-card border border-border rounded-xl shadow-sm overflow-x-auto">
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-7 border-b border-border bg-muted/40">
+              {weekDays.map(({ date, label, dateStr }) => {
+                const isToday = dateStr === todayStr;
+                return (
+                  <div
+                    key={dateStr}
+                    className={`p-3 text-center border-r last:border-r-0 border-border ${
+                      isToday ? 'bg-primary/10' : ''
+                    }`}
+                  >
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+                    <p
+                      className={`text-sm font-extrabold mt-0.5 ${
+                        isToday ? 'text-primary' : 'text-foreground'
+                      }`}
+                    >
+                      {formatDate(date)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-7 divide-x divide-border min-h-[420px]">
+              {weekDays.map(({ dateStr }) => {
+                const dayEvents = [...filteredEvents]
+                  .filter((e) => e.startDate.startsWith(dateStr))
+                  .sort((a, b) => a.startDate.localeCompare(b.startDate));
+                return (
+                  <div
+                    key={dateStr}
+                    onClick={() => handleOpenAddEventModal(dateStr)}
+                    className="p-2.5 flex flex-col gap-2 hover:bg-muted/20 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAddEventModal(dateStr);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-all"
+                        title="Add Event"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {dayEvents.length === 0 ? (
+                      <p className="text-[10px] text-muted-foreground/50 italic text-center py-6">—</p>
+                    ) : (
+                      dayEvents.map((ev) => (
+                        <div
+                          key={ev.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEvent(ev);
+                          }}
+                          className={`p-2 rounded-lg text-[11px] font-semibold border space-y-1 cursor-pointer hover:scale-[1.01] transition-all ${getEventBadgeClass(
+                            ev
+                          )}`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {getEventIcon(ev)}
+                            <span className="truncate font-bold">{ev.title}</span>
+                          </div>
+                          <p className="text-[10px] opacity-80">
+                            {ev.allDay
+                              ? 'All Day'
+                              : ev.startDate.includes('T')
+                              ? ev.startDate.split('T')[1].slice(0, 5)
+                              : 'All Day'}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAY VIEW */}
+      {viewMode === 'day' && (
         <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
@@ -535,7 +640,7 @@ export default function CalendarPage() {
           <div className="overflow-x-auto">
             <div className="min-w-[600px] space-y-2">
               {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map((time) => {
-                const curDateStr = currentDate.toISOString().split('T')[0];
+                const curDateStr = toLocalDateStr(currentDate);
                 const matchingEvents = filteredEvents.filter(
                   (e) => e.startDate.startsWith(curDateStr) && (e.startDate.includes(time) || e.allDay)
                 );
@@ -646,7 +751,7 @@ export default function CalendarPage() {
                 </Link>
               )}
 
-              {!selectedEvent.projectId && !selectedEvent.serviceTicketId && (
+              {!isSystemAutoEvent(selectedEvent) && (
                 <>
                   <button
                     onClick={() => handleOpenEditEventModal(selectedEvent)}
@@ -762,21 +867,49 @@ export default function CalendarPage() {
                       type="date"
                       required
                       value={eventStartDate}
-                      onChange={(e) => setEventStartDate(e.target.value)}
+                      onChange={(e) => {
+                        const nextStart = e.target.value;
+                        setEventStartDate(nextStart);
+                        if (!eventEndDate || eventEndDate < nextStart) {
+                          setEventEndDate(nextStart);
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-muted-foreground">End Date</label>
+                    <input
+                      type="date"
+                      min={eventStartDate}
+                      value={eventEndDate}
+                      onChange={(e) => setEventEndDate(e.target.value)}
                       className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
                     />
                   </div>
 
                   {!eventAllDay && (
-                    <div>
-                      <label className="block font-semibold mb-1 text-muted-foreground">Start Time</label>
-                      <input
-                        type="time"
-                        value={eventStartTime}
-                        onChange={(e) => setEventStartTime(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="block font-semibold mb-1 text-muted-foreground">Start Time</label>
+                        <input
+                          type="time"
+                          value={eventStartTime}
+                          onChange={(e) => setEventStartTime(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1 text-muted-foreground">End Time</label>
+                        <input
+                          type="time"
+                          value={eventEndTime}
+                          onChange={(e) => setEventEndTime(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
+                        />
+                      </div>
+                    </>
                   )}
                 </div>
               </div>

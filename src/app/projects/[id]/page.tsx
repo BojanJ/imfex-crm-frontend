@@ -12,7 +12,7 @@ import {
   SalesInvoice,
   DispatchNote,
 } from '@/types';
-import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -134,6 +134,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const hydratedProjectIdRef = useRef<string | null>(null);
+
+  const toDateInputVal = (val?: string | null) => {
+    if (!val) return '';
+    return String(val).split('T')[0];
+  };
 
   const applyProjectData = (prj: Project) => {
     const resolvedAtts =
@@ -143,13 +149,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setProject({ ...prj, attachments: resolvedAtts });
     setStatus(prj.status);
     setResponsibleUserId(prj.responsibleUserId || '');
-    setStartDate(prj.startDate || '');
-    setTargetDeliveryDate(prj.targetDeliveryDate || '');
-    setActualDeliveryDate(prj.actualDeliveryDate || '');
+    setStartDate(toDateInputVal(prj.startDate));
+    setTargetDeliveryDate(toDateInputVal(prj.targetDeliveryDate));
+    setActualDeliveryDate(toDateInputVal(prj.actualDeliveryDate));
     setProcurementStatus(prj.procurementStatus || 'NOT_STARTED');
     setProcurementNotes(prj.procurementNotes || '');
     setInstallationTeam(prj.installationTeam || '');
-    setInstallationDate(prj.installationDate || '');
+    setInstallationDate(toDateInputVal(prj.installationDate));
     setInstallationAddress(prj.installationAddress || '');
     setInstallationContact(prj.installationContact || '');
     setInstallationMinutes(prj.installationMinutes || '');
@@ -157,13 +163,29 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setSignatureData(prj.signatureUrl || '');
   };
 
+  // Re-draw saved signature onto canvas whenever signatureData changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !signatureData) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+    img.src = signatureData;
+  }, [signatureData, project?.id]);
+
   useEffect(() => {
     setProfiles(imfexStore.getProfiles());
     if (!projectId) return;
+    if (hydratedProjectIdRef.current === projectId) return;
 
     // 1. Check local store
     const local = imfexStore.getProjectById(projectId);
     if (local) {
+      hydratedProjectIdRef.current = projectId;
       applyProjectData(local);
       setIsLoading(false);
       return;
@@ -171,14 +193,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
     // 2. Fetch directly from backend API
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/projects/${projectId}`)
+    authFetch(`${baseUrl}/api/projects/${projectId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.id) {
+          hydratedProjectIdRef.current = projectId;
           applyProjectData(data);
         } else {
           const storeFound = imfexStore.getProjectById(projectId);
-          if (storeFound) applyProjectData(storeFound);
+          if (storeFound) {
+            hydratedProjectIdRef.current = projectId;
+            applyProjectData(storeFound);
+          }
         }
       })
       .catch((err) => console.warn('Fetch project notice:', err))
@@ -213,6 +239,36 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setStatus(nextStatus);
 
     if (nextStatus === 'CLOSED') {
+      // Register project equipment into Installed Equipment history if not already registered
+      const existingInstalled = imfexStore
+        .getAllInstalledItems()
+        .filter((i) => i.projectId === saved.id);
+      if (existingInstalled.length === 0 && saved.customerId) {
+        const offer = saved.offerId ? imfexStore.getOfferById(saved.offerId) : saved.offer;
+        const itemsToRegister = offer?.items && offer.items.length > 0 ? offer.items : [];
+        if (itemsToRegister.length > 0) {
+          itemsToRegister.forEach((it, idx) => {
+            imfexStore.saveInstalledItem({
+              id: `inst-${Date.now()}-${idx}`,
+              customerId: saved.customerId,
+              projectId: saved.id,
+              productId: it.productId,
+              title: it.customTitle || 'Монтирана опрема',
+              serialNumber: `${saved.projectNumber}-${idx + 1}`,
+              installationDate: installationDate || new Date().toISOString().split('T')[0],
+            });
+          });
+        } else {
+          imfexStore.saveInstalledItem({
+            id: `inst-${Date.now()}`,
+            customerId: saved.customerId,
+            projectId: saved.id,
+            title: `Опрема по проект ${saved.projectNumber}`,
+            serialNumber: saved.projectNumber,
+            installationDate: installationDate || new Date().toISOString().split('T')[0],
+          });
+        }
+      }
       toast.success(
         `Проектот ${saved.projectNumber} е ЗАТВОРЕН!`,
         'Опремата е регистрирана во историјата за сервис.'
@@ -256,14 +312,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     executeSaveProject(overridingStatus);
   };
 
+  const getCanvasPoint = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
+    const pt = getCanvasPoint(canvas, e.clientX, e.clientY);
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(pt.x, pt.y);
     setIsDrawing(true);
   };
 
@@ -272,11 +338,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
     if (!touch) return;
+    const pt = getCanvasPoint(canvas, touch.clientX, touch.clientY);
     ctx.beginPath();
-    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    ctx.moveTo(pt.x, pt.y);
     setIsDrawing(true);
   };
 
@@ -286,8 +352,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const pt = getCanvasPoint(canvas, e.clientX, e.clientY);
+    ctx.lineTo(pt.x, pt.y);
     ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 2.5;
     ctx.stroke();
@@ -299,10 +365,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0];
     if (!touch) return;
-    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+    const pt = getCanvasPoint(canvas, touch.clientX, touch.clientY);
+    ctx.lineTo(pt.x, pt.y);
     ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 2.5;
     ctx.stroke();
@@ -727,13 +793,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         confirmLabel: 'Издај Испратница',
                         onConfirm: () => {
                           setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                          const updated = imfexStore.projectStepIssueDispatch(project.id);
-                          if (updated) applyProjectData(updated);
                           const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
-                          const note = imfexStore.saveDispatchNote({
+                          const draftNote = imfexStore.saveDispatchNote({
                             id: `disp-${Date.now()}`,
                             dispatchNumber: imfexStore.generateDispatchNumber(),
-                            status: 'ISSUED',
+                            status: 'DRAFT',
                             customerId: project.customerId,
                             customer: project.customer,
                             projectId: project.id,
@@ -748,10 +812,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                               title: it.customTitle || 'Врата и опрема',
                               quantity: Number(it.quantity || 1),
                             })),
-                            stockDeducted: true,
+                            stockDeducted: false,
                             createdAt: new Date().toISOString(),
                           });
-                          setPreviewDispatch(note);
+                          const issuedNote = imfexStore.confirmAndIssueDispatchNote(draftNote.id) || draftNote;
+                          const freshProj = imfexStore.getProjectById(project.id);
+                          if (freshProj) applyProjectData(freshProj);
+                          setPreviewDispatch(issuedNote);
                         },
                       });
                     }}

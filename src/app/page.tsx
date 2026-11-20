@@ -26,7 +26,7 @@ import { PdfModal } from '@/components/pdf/pdf-modal';
 
 export default function DashboardPage() {
   const { t } = useI18n();
-  useImfexStore(); // Auto-subscribe to live store updates
+  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -43,11 +43,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     refreshDashboard();
-  }, []);
-
-  useEffect(() => {
-    refreshDashboard();
-  }, [imfexStore.getOffers().length, imfexStore.getProjects().length, imfexStore.getCustomers().length]);
+  }, [storeVersion]);
 
   const totalRevenue = offers
     .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')

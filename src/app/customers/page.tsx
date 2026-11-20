@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { Customer } from '@/types';
+import { Customer, Offer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
+import { PdfModal } from '@/components/pdf/pdf-modal';
 import {
   Users,
   Building2,
@@ -32,7 +33,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function CustomersPage() {
   const { t } = useI18n();
-  useImfexStore(); // Auto-subscribe to live store updates
+  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
@@ -40,6 +41,7 @@ export default function CustomersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [previewOffer, setPreviewOffer] = useState<Offer | null>(null);
 
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(null);
   const [detailTab, setDetailTab] = useState<'DETAILS' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>('DOCS');
@@ -50,11 +52,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     refreshList();
-  }, []);
-
-  useEffect(() => {
-    refreshList();
-  }, [imfexStore.getCustomers().length]);
+  }, [storeVersion]);
 
   const handleDelete = (id: string) => {
     const found = customers.find((c) => c.id === id);
@@ -315,14 +313,22 @@ export default function CustomersPage() {
                 ) : (
                   <div className="space-y-2">
                     {docsForActiveCust.map((doc) => {
+                      const isLegacyFakeOfferUrl = Boolean(doc.fileUrl && doc.fileUrl.startsWith('/docs/'));
+                      const linkedOffer = doc.offerId
+                        ? imfexStore.getOfferById(doc.offerId)
+                        : isLegacyFakeOfferUrl
+                        ? imfexStore
+                            .getOffers()
+                            .find((o) => doc.fileUrl.includes(o.offerNumber) || doc.title.includes(o.offerNumber))
+                        : undefined;
                       const hasRealUrl =
                         Boolean(doc.fileUrl) &&
                         doc.fileUrl !== '#' &&
+                        !isLegacyFakeOfferUrl &&
                         (doc.fileUrl.startsWith('data:') ||
                           doc.fileUrl.startsWith('http://') ||
                           doc.fileUrl.startsWith('https://') ||
-                          doc.fileUrl.startsWith('blob:') ||
-                          doc.fileUrl.startsWith('/'));
+                          doc.fileUrl.startsWith('blob:'));
                       const upperType = (doc.fileType || 'PDF').toUpperCase();
 
                       return (
@@ -365,7 +371,15 @@ export default function CustomersPage() {
                             </div>
                           </div>
 
-                          {hasRealUrl ? (
+                          {linkedOffer ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewOffer(linkedOffer)}
+                              className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 shrink-0 cursor-pointer"
+                            >
+                              <Download className="w-3.5 h-3.5" /> {t('customers.download_pdf')}
+                            </button>
+                          ) : hasRealUrl ? (
                             <a
                               href={doc.fileUrl}
                               download={doc.fileName || doc.title}
@@ -459,6 +473,16 @@ export default function CustomersPage() {
         customerToEdit={editingCustomer}
         onSaveSuccess={refreshList}
       />
+
+      {/* Offer PDF Preview Modal */}
+      {previewOffer && (
+        <PdfModal
+          isOpen={Boolean(previewOffer)}
+          onClose={() => setPreviewOffer(null)}
+          offer={previewOffer}
+          products={imfexStore.getProducts()}
+        />
+      )}
 
       {/* Delete Customer Confirm Modal */}
       <ConfirmModal

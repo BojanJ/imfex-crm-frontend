@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { UserProfile, UserRole } from '@/types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
@@ -26,6 +26,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 export default function SettingsPage() {
   const { t } = useI18n();
+  const storeVersion = useImfexStore();
   const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY'>('USERS');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
@@ -69,13 +70,15 @@ export default function SettingsPage() {
   const [newTempPassword, setNewTempPassword] = useState('IMFEX2026!');
   const [resetMessage, setResetMessage] = useState('');
 
-  // Company Info State
-  const [companyName, setCompanyName] = useState('IMFEX Solutions Ltd.');
-  const [companyAddress, setCompanyAddress] = useState('100 Commercial Boulevard, Suite 400');
-  const [companyTaxId, setCompanyTaxId] = useState('EX-99201928');
-  const [companyEmail, setCompanyEmail] = useState('info@imfex.com');
-  const [companyPhone, setCompanyPhone] = useState('+49 89 9988776');
+  // Company Info State (hydrated from PostgreSQL /api/company-settings)
+  const initialCompany = imfexStore.getCompanySettings();
+  const [companyName, setCompanyName] = useState(initialCompany.companyName);
+  const [companyAddress, setCompanyAddress] = useState(initialCompany.address);
+  const [companyTaxId, setCompanyTaxId] = useState(initialCompany.taxId);
+  const [companyEmail, setCompanyEmail] = useState(initialCompany.email);
+  const [companyPhone, setCompanyPhone] = useState(initialCompany.phone);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const companyHydratedRef = React.useRef(false);
 
   const refreshProfiles = () => {
     setProfiles(imfexStore.getProfiles());
@@ -83,7 +86,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     refreshProfiles();
-  }, []);
+    if (!companyHydratedRef.current && imfexStore.isLoadedFromBackend) {
+      companyHydratedRef.current = true;
+      const cs = imfexStore.getCompanySettings();
+      setCompanyName(cs.companyName);
+      setCompanyAddress(cs.address);
+      setCompanyTaxId(cs.taxId);
+      setCompanyEmail(cs.email);
+      setCompanyPhone(cs.phone);
+    }
+  }, [storeVersion]);
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,10 +144,20 @@ export default function SettingsPage() {
     });
   };
 
-  const handleSaveCompanySettings = (e: React.FormEvent) => {
+  const handleSaveCompanySettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    const saved = await imfexStore.saveCompanySettings({
+      companyName: companyName.trim(),
+      address: companyAddress.trim(),
+      taxId: companyTaxId.trim(),
+      email: companyEmail.trim(),
+      phone: companyPhone.trim(),
+    });
+    if (saved) {
+      setSavedSuccess(true);
+      toast.success('Податоците за компанијата се зачувани!');
+      setTimeout(() => setSavedSuccess(false), 3000);
+    }
   };
 
   return (
@@ -212,9 +234,9 @@ export default function SettingsPage() {
                     <tr key={usr.id} className="hover:bg-muted/20 transition-colors">
                       <td className="p-4 font-bold text-foreground flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-[11px]">
-                          {usr.fullName.slice(0, 2).toUpperCase()}
+                          {(usr.fullName || usr.email || '?').slice(0, 2).toUpperCase()}
                         </div>
-                        <span>{usr.fullName}</span>
+                        <span>{usr.fullName || usr.email}</span>
                       </td>
                       <td className="p-4 font-medium text-muted-foreground">{usr.email}</td>
                       <td className="p-4">

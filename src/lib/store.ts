@@ -29,11 +29,34 @@ import {
   DispatchNoteItem,
   PaymentRecord,
   PaymentMethod,
+  CompanySettings,
 } from '@/types';
 import { formatDate } from './date-format';
+import { toast } from '@/components/ui/toastr';
 
 export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
+};
+
+export const getAuthToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem('imfex_auth_token');
+};
+
+export const authFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
+  const headers = new Headers(init.headers);
+  const token = getAuthToken();
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401 && typeof window !== 'undefined' && !input.includes('/api/auth/login')) {
+    imfexStore.logout();
+    if (window.location.pathname !== '/login') {
+      window.location.replace('/login');
+    }
+  }
+  return res;
 };
 
 class ImfexStore {
@@ -57,8 +80,19 @@ class ImfexStore {
   private offerSpecsOverlay: Record<string, OfferItemSpecSelection[][]> = {};
   private projectFlowOverlay: Record<string, Partial<Project>> = {};
   private projectAttachments: Record<string, ProjectAttachment[]> = {};
+  private companySettings: CompanySettings = {
+    id: 'default',
+    companyName: 'ИМФЕКС ЕКСПОРТ-ИМПОРТ ДООЕЛ',
+    address: 'Ул. Качанички Пат бб, Скопје',
+    taxId: 'MK4030012345678',
+    phone: '+389 2 3123 456',
+    email: 'info@imfex.com',
+    bankAccount: '',
+    defaultAdvancePercent: 50,
+  };
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
+  private version: number = 0;
   private listeners: Array<() => void> = [];
 
   constructor() {
@@ -72,10 +106,13 @@ class ImfexStore {
       }
 
       const storedUser = sessionStorage.getItem('imfex_current_user');
-      if (storedUser) {
+      const storedToken = sessionStorage.getItem('imfex_auth_token');
+      if (storedUser && storedToken) {
         try {
           this.currentUser = JSON.parse(storedUser);
         } catch (e) {}
+      } else if (storedUser && !storedToken) {
+        sessionStorage.removeItem('imfex_current_user');
       }
 
       const storedEvents = localStorage.getItem('imfex_calendar_events');
@@ -163,7 +200,9 @@ class ImfexStore {
       }
 
       this.ensureWarehouseCatalog();
-      this.fetchInitialDataFromBackend();
+      if (this.currentUser && getAuthToken()) {
+        this.fetchInitialDataFromBackend();
+      }
     }
   }
 
@@ -335,29 +374,86 @@ class ImfexStore {
     };
   }
 
+  getVersion(): number {
+    return this.version;
+  }
+
+  private nextSequentialNumber(prefix: string, existingNumbers: Array<string | undefined>): string {
+    const year = new Date().getFullYear();
+    const pattern = new RegExp(`^${prefix}-${year}-(\\d+)$`);
+    let maxSeq = 0;
+    for (const num of existingNumbers) {
+      if (!num) continue;
+      const m = num.match(pattern);
+      if (m) {
+        const val = parseInt(m[1], 10);
+        if (val > maxSeq) maxSeq = val;
+      }
+    }
+    return `${prefix}-${year}-${String(maxSeq + 1).padStart(4, '0')}`;
+  }
+
   notifyListeners() {
+    this.version += 1;
     this.listeners.forEach((l) => l());
   }
 
   // Live Sync with Supabase REST Backend API
   async fetchInitialDataFromBackend() {
+    if (!getAuthToken()) {
+      return;
+    }
     const baseUrl = getApiUrl();
     try {
-      const [resCat, resProd, resCust, resOff, resProj, resServ, resProf, resCal, resInst, resDocs] = await Promise.all([
-        fetch(`${baseUrl}/api/categories`).catch(() => null),
-        fetch(`${baseUrl}/api/products`).catch(() => null),
-        fetch(`${baseUrl}/api/customers`).catch(() => null),
-        fetch(`${baseUrl}/api/offers`).catch(() => null),
-        fetch(`${baseUrl}/api/projects`).catch(() => null),
-        fetch(`${baseUrl}/api/service-tickets`).catch(() => null),
-        fetch(`${baseUrl}/api/profiles`).catch(() => null),
-        fetch(`${baseUrl}/api/calendar-events`).catch(() => null),
-        fetch(`${baseUrl}/api/installed-items`).catch(() => null),
-        fetch(`${baseUrl}/api/client-documents`).catch(() => null),
+      const [
+        resCat,
+        resProd,
+        resCust,
+        resOff,
+        resProj,
+        resServ,
+        resProf,
+        resCal,
+        resInst,
+        resDocs,
+        resPurchases,
+        resSales,
+        resDispatches,
+        resPayments,
+        resMoves,
+        resCompany,
+      ] = await Promise.all([
+        authFetch(`${baseUrl}/api/categories`).catch(() => null),
+        authFetch(`${baseUrl}/api/products`).catch(() => null),
+        authFetch(`${baseUrl}/api/customers`).catch(() => null),
+        authFetch(`${baseUrl}/api/offers`).catch(() => null),
+        authFetch(`${baseUrl}/api/projects`).catch(() => null),
+        authFetch(`${baseUrl}/api/service-tickets`).catch(() => null),
+        authFetch(`${baseUrl}/api/profiles`).catch(() => null),
+        authFetch(`${baseUrl}/api/calendar-events`).catch(() => null),
+        authFetch(`${baseUrl}/api/installed-items`).catch(() => null),
+        authFetch(`${baseUrl}/api/client-documents`).catch(() => null),
+        authFetch(`${baseUrl}/api/purchase-invoices`).catch(() => null),
+        authFetch(`${baseUrl}/api/sales-invoices`).catch(() => null),
+        authFetch(`${baseUrl}/api/dispatch-notes`).catch(() => null),
+        authFetch(`${baseUrl}/api/payments`).catch(() => null),
+        authFetch(`${baseUrl}/api/inventory-movements`).catch(() => null),
+        authFetch(`${baseUrl}/api/company-settings`).catch(() => null),
       ]);
 
       if (resCat && resCat.ok) this.categories = await resCat.json();
-      if (resProd && resProd.ok) this.products = await resProd.json();
+      if (resProd && resProd.ok) {
+        const dbProds = await resProd.json();
+        if (Array.isArray(dbProds)) {
+          this.products = dbProds.map((p: any) => ({
+            ...p,
+            stockType: p.stockType || 'STOCK',
+            stockQuantity: Number(p.stockQuantity ?? 0),
+            reservedQuantity: Number(p.reservedQuantity ?? 0),
+            purchasePrice: Number(p.purchasePrice ?? 0),
+          }));
+        }
+      }
       if (resCust && resCust.ok) this.customers = await resCust.json();
       if (resOff && resOff.ok) {
         const dbOffers = await resOff.json();
@@ -457,7 +553,100 @@ class ImfexStore {
         }
       }
 
+      if (resPurchases && resPurchases.ok) {
+        const dbPurchases = await resPurchases.json();
+        if (Array.isArray(dbPurchases)) {
+          if (dbPurchases.length > 0) {
+            this.purchaseInvoices = dbPurchases;
+          } else if (this.purchaseInvoices.length > 0) {
+            this.purchaseInvoices.forEach((p) => {
+              authFetch(`${baseUrl}/api/purchase-invoices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(p),
+              }).catch(() => null);
+            });
+          }
+        }
+      }
+
+      if (resSales && resSales.ok) {
+        const dbSales = await resSales.json();
+        if (Array.isArray(dbSales)) {
+          if (dbSales.length > 0) {
+            this.salesInvoices = dbSales;
+          } else if (this.salesInvoices.length > 0) {
+            this.salesInvoices.forEach((s) => {
+              authFetch(`${baseUrl}/api/sales-invoices`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(s),
+              }).catch(() => null);
+            });
+          }
+        }
+      }
+
+      if (resDispatches && resDispatches.ok) {
+        const dbDispatches = await resDispatches.json();
+        if (Array.isArray(dbDispatches)) {
+          if (dbDispatches.length > 0) {
+            this.dispatchNotes = dbDispatches;
+          } else if (this.dispatchNotes.length > 0) {
+            this.dispatchNotes.forEach((d) => {
+              authFetch(`${baseUrl}/api/dispatch-notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(d),
+              }).catch(() => null);
+            });
+          }
+        }
+      }
+
+      if (resPayments && resPayments.ok) {
+        const dbPayments = await resPayments.json();
+        if (Array.isArray(dbPayments)) {
+          if (dbPayments.length > 0) {
+            this.payments = dbPayments;
+          } else if (this.payments.length > 0) {
+            this.payments.forEach((p) => {
+              authFetch(`${baseUrl}/api/payments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(p),
+              }).catch(() => null);
+            });
+          }
+        }
+      }
+
+      if (resMoves && resMoves.ok) {
+        const dbMoves = await resMoves.json();
+        if (Array.isArray(dbMoves)) {
+          if (dbMoves.length > 0) {
+            this.movements = dbMoves;
+          } else if (this.movements.length > 0) {
+            this.movements.forEach((m) => {
+              authFetch(`${baseUrl}/api/inventory-movements`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(m),
+              }).catch(() => null);
+            });
+          }
+        }
+      }
+
+      if (resCompany && resCompany.ok) {
+        const dbCompany = await resCompany.json();
+        if (dbCompany && dbCompany.companyName) {
+          this.companySettings = dbCompany;
+        }
+      }
+
       this.ensureWarehouseCatalog();
+      this.persistWarehouseState();
       this.isLoadedFromBackend = true;
       this.notifyListeners();
     } catch (e) {
@@ -470,7 +659,11 @@ class ImfexStore {
   async purgeCorruptedAndSyncBackend() {
     const baseUrl = getApiUrl();
     try {
-      await fetch(`${baseUrl}/api/admin/clean-database`, { method: 'POST' }).catch(() => null);
+      await authFetch(`${baseUrl}/api/admin/clean-database`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'CLEAN_DATABASE' }),
+      }).catch(() => null);
       await this.fetchInitialDataFromBackend();
     } catch (e) {
       console.warn('Purge & sync notice:', e);
@@ -480,7 +673,14 @@ class ImfexStore {
   async resetDatabaseToFreshState() {
     const baseUrl = getApiUrl();
     try {
-      await fetch(`${baseUrl}/api/admin/reset-database`, { method: 'POST' }).catch(() => null);
+      const res = await authFetch(`${baseUrl}/api/admin/reset-database`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET_DATABASE' }),
+      }).catch(() => null);
+      if (!res || !res.ok) {
+        return;
+      }
       this.categories = [];
       this.products = [];
       this.customers = [];
@@ -491,16 +691,28 @@ class ImfexStore {
       this.documents = [];
       this.calendarEvents = [];
       this.movements = [];
+      this.purchaseInvoices = [];
+      this.salesInvoices = [];
+      this.dispatchNotes = [];
+      this.payments = [];
       this.stockOverlay = {};
+      this.specDefaultsOverlay = {};
+      this.offerSpecsOverlay = {};
       this.projectFlowOverlay = {};
       this.projectAttachments = {};
       if (typeof window !== 'undefined') {
         localStorage.removeItem('imfex_calendar_events');
         localStorage.removeItem('imfex_inventory_movements');
         localStorage.removeItem('imfex_stock_overlay');
+        localStorage.removeItem('imfex_spec_defaults_overlay');
+        localStorage.removeItem('imfex_offer_specs_overlay');
         localStorage.removeItem('imfex_project_flow_overlay');
         localStorage.removeItem('imfex_project_attachments');
         localStorage.removeItem('imfex_client_documents');
+        localStorage.removeItem('imfex_purchase_invoices');
+        localStorage.removeItem('imfex_sales_invoices');
+        localStorage.removeItem('imfex_dispatch_notes');
+        localStorage.removeItem('imfex_payments');
       }
       await this.fetchInitialDataFromBackend();
       this.notifyListeners();
@@ -559,7 +771,7 @@ class ImfexStore {
   }
 
   isAuthenticated(): boolean {
-    return this.currentUser !== null;
+    return this.currentUser !== null && Boolean(getAuthToken());
   }
 
   getCurrentUser(): UserProfile | null {
@@ -570,18 +782,58 @@ class ImfexStore {
     return this.currentUser?.role || 'USER';
   }
 
+  // Company Settings
+  getCompanySettings(): CompanySettings {
+    return { ...this.companySettings };
+  }
+
+  async saveCompanySettings(settings: Partial<CompanySettings>): Promise<CompanySettings | null> {
+    const prev = { ...this.companySettings };
+    this.companySettings = { ...this.companySettings, ...settings };
+    this.notifyListeners();
+    try {
+      const res = await authFetch(`${getApiUrl()}/api/company-settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.companySettings),
+      });
+      if (!res.ok) {
+        this.companySettings = prev;
+        this.notifyListeners();
+        toast.error('Грешка при зачувување на податоците за компанијата');
+        return null;
+      }
+      const saved = await res.json();
+      this.companySettings = saved;
+      this.notifyListeners();
+      return saved;
+    } catch {
+      this.companySettings = prev;
+      this.notifyListeners();
+      toast.error('Мрежна грешка при зачувување на подесувањата');
+      return null;
+    }
+  }
+
+  private syncCurrentUserToSession() {
+    if (typeof window !== 'undefined' && this.currentUser) {
+      const { password: _omit, ...safeUser } = this.currentUser;
+      sessionStorage.setItem('imfex_current_user', JSON.stringify(safeUser));
+    }
+  }
+
   // User Management by Super Admin
   getProfiles(): UserProfile[] {
     return [...this.profiles];
   }
 
   createUserProfile(fullName: string, email: string, role: UserRole, tempPassword?: string): UserProfile {
+    const tempId = `usr-${Date.now()}`;
     const newUser: UserProfile = {
-      id: `usr-${Date.now()}`,
+      id: tempId,
       email: email.trim().toLowerCase(),
       fullName: fullName.trim(),
       role,
-      password: tempPassword || 'IMFEX123!',
       mustChangePassword: true,
       status: 'ACTIVE',
       createdAt: new Date().toISOString(),
@@ -590,29 +842,74 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/profiles`, {
+    authFetch(`${baseUrl}/api/profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newUser),
-    }).catch(console.warn);
+      body: JSON.stringify({ ...newUser, password: tempPassword || 'IMFEX123!' }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          this.profiles = this.profiles.filter((p) => p.id !== tempId);
+          this.notifyListeners();
+          toast.error('Грешка при креирање на корисник');
+          return;
+        }
+        const saved = await res.json();
+        if (saved && saved.id) {
+          const idx = this.profiles.findIndex((p) => p.id === tempId || p.id === saved.id);
+          if (idx >= 0) this.profiles[idx] = saved;
+          else this.profiles.push(saved);
+          this.notifyListeners();
+        }
+      })
+      .catch(() => {
+        this.profiles = this.profiles.filter((p) => p.id !== tempId);
+        this.notifyListeners();
+        toast.error('Мрежна грешка при креирање на корисник');
+      });
     return newUser;
   }
 
   updateUserProfile(profile: UserProfile): UserProfile {
     const idx = this.profiles.findIndex((p) => p.id === profile.id);
+    const prev = idx >= 0 ? { ...this.profiles[idx] } : null;
     if (idx >= 0) {
       this.profiles[idx] = profile;
       if (this.currentUser?.id === profile.id) {
         this.currentUser = profile;
+        this.syncCurrentUserToSession();
       }
       this.notifyListeners();
     }
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/profiles/${profile.id}`, {
+    authFetch(`${baseUrl}/api/profiles/${profile.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(profile),
-    }).catch(console.warn);
+    })
+      .then(async (res) => {
+        if (!res.ok && prev && idx >= 0) {
+          this.profiles[idx] = prev;
+          if (this.currentUser?.id === prev.id) {
+            this.currentUser = prev;
+            this.syncCurrentUserToSession();
+          }
+          this.notifyListeners();
+          toast.error('Грешка при ажурирање на профилот');
+          return;
+        }
+        if (res.ok) {
+          const saved = await res.json();
+          const freshIdx = this.profiles.findIndex((p) => p.id === saved.id);
+          if (freshIdx >= 0) this.profiles[freshIdx] = saved;
+          if (this.currentUser?.id === saved.id) {
+            this.currentUser = saved;
+            this.syncCurrentUserToSession();
+          }
+          this.notifyListeners();
+        }
+      })
+      .catch(() => toast.error('Мрежна грешка при ажурирање на профилот'));
     return profile;
   }
 
@@ -620,15 +917,27 @@ class ImfexStore {
     const tempPass = newTempPassword || 'TempPass2026!';
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
-      user.password = tempPass;
+      const prevMustChange = user.mustChangePassword;
       user.mustChangePassword = true;
       this.notifyListeners();
       const baseUrl = getApiUrl();
-      fetch(`${baseUrl}/api/profiles/${userId}`, {
+      authFetch(`${baseUrl}/api/profiles/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: tempPass }),
-      }).catch(console.warn);
+      })
+        .then((res) => {
+          if (!res.ok) {
+            user.mustChangePassword = prevMustChange;
+            this.notifyListeners();
+            toast.error('Грешка при ресетирање на лозинката');
+          }
+        })
+        .catch(() => {
+          user.mustChangePassword = prevMustChange;
+          this.notifyListeners();
+          toast.error('Мрежна грешка при ресетирање на лозинката');
+        });
     }
     return tempPass;
   }
@@ -636,18 +945,31 @@ class ImfexStore {
   changeUserPassword(userId: string, newPassword: string): boolean {
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
-      user.password = newPassword;
+      const prevMustChange = user.mustChangePassword;
       user.mustChangePassword = false;
       if (this.currentUser?.id === userId) {
-        this.currentUser.mustChangePassword = false;
+        this.currentUser = { ...this.currentUser, mustChangePassword: false };
+        this.syncCurrentUserToSession();
       }
       this.notifyListeners();
       const baseUrl = getApiUrl();
-      fetch(`${baseUrl}/api/profiles/${userId}`, {
+      authFetch(`${baseUrl}/api/profiles/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password: newPassword }),
-      }).catch(console.warn);
+      })
+        .then((res) => {
+          if (!res.ok) {
+            user.mustChangePassword = prevMustChange;
+            if (this.currentUser?.id === userId) {
+              this.currentUser = { ...this.currentUser, mustChangePassword: prevMustChange };
+              this.syncCurrentUserToSession();
+            }
+            this.notifyListeners();
+            toast.error('Грешка при промена на лозинката');
+          }
+        })
+        .catch(() => toast.error('Мрежна грешка при промена на лозинката'));
       return true;
     }
     return false;
@@ -656,23 +978,49 @@ class ImfexStore {
   toggleUserStatus(userId: string): UserProfile | undefined {
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
+      const prevStatus = user.status;
       user.status = user.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED';
       this.notifyListeners();
       const baseUrl = getApiUrl();
-      fetch(`${baseUrl}/api/profiles/${userId}`, {
+      authFetch(`${baseUrl}/api/profiles/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: user.status }),
-      }).catch(console.warn);
+      })
+        .then((res) => {
+          if (!res.ok) {
+            user.status = prevStatus;
+            this.notifyListeners();
+            toast.error('Грешка при промена на статусот');
+          }
+        })
+        .catch(() => {
+          user.status = prevStatus;
+          this.notifyListeners();
+          toast.error('Мрежна грешка при промена на статусот');
+        });
     }
     return user;
   }
 
   deleteUserProfile(id: string) {
+    const snapshot = [...this.profiles];
     this.profiles = this.profiles.filter((p) => p.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/profiles/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/profiles/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.profiles = snapshot;
+          this.notifyListeners();
+          toast.error('Грешка при бришење на корисникот');
+        }
+      })
+      .catch(() => {
+        this.profiles = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на корисникот');
+      });
   }
 
   // Categories
@@ -690,7 +1038,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/categories`, {
+    authFetch(`${baseUrl}/api/categories`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(category),
@@ -713,10 +1061,23 @@ class ImfexStore {
   }
 
   deleteCategory(id: string) {
+    const snapshot = [...this.categories];
     this.categories = this.categories.filter((c) => c.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.categories = snapshot;
+          this.notifyListeners();
+          toast.error('Грешка при бришење на категоријата');
+        }
+      })
+      .catch(() => {
+        this.categories = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на категоријата');
+      });
   }
 
   // Products & Warehouse Inventory
@@ -755,7 +1116,33 @@ class ImfexStore {
     this.movements.unshift(move);
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/inventory-movements`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(move),
+    }).catch((e) => console.warn('addInventoryMovement API notice:', e));
+
     return move;
+  }
+
+  private syncProductStockToBackend(p: Product) {
+    authFetch(`${getApiUrl()}/api/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        description: p.description,
+        isActive: p.isActive,
+        categoryId: p.categoryId,
+        stockType: p.stockType || 'STOCK',
+        stockQuantity: p.stockQuantity ?? 0,
+        reservedQuantity: p.reservedQuantity ?? 0,
+        purchasePrice: p.purchasePrice ?? 0,
+      }),
+    }).catch((e) => console.warn('syncProductStock API notice:', e));
   }
 
   receiveProductStock(productId: string, qty: number = 1, customNote?: string, purchasePrice?: number): Product | undefined {
@@ -767,11 +1154,13 @@ class ImfexStore {
       p.purchasePrice = purchasePrice;
     }
     this.stockOverlay[p.code] = {
+      ...this.stockOverlay[p.code],
       stockType: p.stockType || 'STOCK',
       stockQuantity: nextStock,
       reservedQuantity: p.reservedQuantity ?? 0,
       purchasePrice: p.purchasePrice,
     };
+    this.syncProductStockToBackend(p);
     this.addInventoryMovement('ПРИЕМ', customNote || `+${qty} ${p.name}`, { productId: p.id, quantity: qty });
     return p;
   }
@@ -785,10 +1174,13 @@ class ImfexStore {
     const nextStock = Math.max(0, currentStock - deduct);
     p.stockQuantity = nextStock;
     this.stockOverlay[p.code] = {
+      ...this.stockOverlay[p.code],
       stockType: p.stockType || 'STOCK',
       stockQuantity: nextStock,
       reservedQuantity: p.reservedQuantity ?? 0,
+      purchasePrice: p.purchasePrice ?? this.stockOverlay[p.code]?.purchasePrice,
     };
+    this.syncProductStockToBackend(p);
     this.addInventoryMovement('ИЗЛЕЗ', customNote || `−${deduct} ${p.name}`, { productId: p.id, quantity: deduct });
     return p;
   }
@@ -803,10 +1195,13 @@ class ImfexStore {
     const nextRes = currentRes + toReserve;
     p.reservedQuantity = nextRes;
     this.stockOverlay[p.code] = {
+      ...this.stockOverlay[p.code],
       stockType: p.stockType || 'STOCK',
       stockQuantity: currentStock,
       reservedQuantity: nextRes,
+      purchasePrice: p.purchasePrice ?? this.stockOverlay[p.code]?.purchasePrice,
     };
+    this.syncProductStockToBackend(p);
     this.persistWarehouseState();
     this.notifyListeners();
     return toReserve;
@@ -823,10 +1218,13 @@ class ImfexStore {
       p.stockQuantity = nextStock;
       p.reservedQuantity = nextRes;
       this.stockOverlay[p.code] = {
+        ...this.stockOverlay[p.code],
         stockType: p.stockType || 'STOCK',
         stockQuantity: nextStock,
         reservedQuantity: nextRes,
+        purchasePrice: p.purchasePrice ?? this.stockOverlay[p.code]?.purchasePrice,
       };
+      this.syncProductStockToBackend(p);
       this.persistWarehouseState();
       this.notifyListeners();
     }
@@ -861,7 +1259,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/products`, {
+    authFetch(`${baseUrl}/api/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product),
@@ -906,10 +1304,23 @@ class ImfexStore {
   }
 
   deleteProduct(id: string) {
+    const snapshot = [...this.products];
     this.products = this.products.filter((p) => p.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/products/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/products/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.products = snapshot;
+          this.notifyListeners();
+          toast.error('Грешка при бришење на производот');
+        }
+      })
+      .catch(() => {
+        this.products = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на производот');
+      });
   }
 
   // Customers
@@ -931,7 +1342,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/customers`, {
+    authFetch(`${baseUrl}/api/customers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(customer),
@@ -950,10 +1361,23 @@ class ImfexStore {
   }
 
   deleteCustomer(id: string) {
+    const snapshot = [...this.customers];
     this.customers = this.customers.filter((c) => c.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/customers/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/customers/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.customers = snapshot;
+          this.notifyListeners();
+          toast.error('Грешка при бришење на клиентот');
+        }
+      })
+      .catch(() => {
+        this.customers = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на клиентот');
+      });
   }
 
   // Offers & 4.1 Sales Workflow
@@ -986,10 +1410,7 @@ class ImfexStore {
   }
 
   generateOfferNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.offers.length + 1;
-    const numStr = String(count).padStart(4, '0');
-    return `OFF-${year}-${numStr}`;
+    return this.nextSequentialNumber('OFF', this.offers.map((o) => o.offerNumber));
   }
 
   saveOffer(offer: Offer): Offer {
@@ -1006,7 +1427,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/offers`, {
+    authFetch(`${baseUrl}/api/offers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(offer),
@@ -1064,10 +1485,23 @@ class ImfexStore {
   }
 
   deleteOffer(id: string) {
+    const snapshot = [...this.offers];
     this.offers = this.offers.filter((o) => o.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/offers/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/offers/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.offers = snapshot;
+          this.notifyListeners();
+          toast.error('Грешка при бришење на понудата');
+        }
+      })
+      .catch(() => {
+        this.offers = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на понудата');
+      });
   }
 
   // Documents & Client Documentation
@@ -1112,7 +1546,7 @@ class ImfexStore {
     this.notifyListeners();
     const baseUrl = getApiUrl();
     // Backend API sync (note: large data: URLs may be rejected by backend payload limits, handled via catch)
-    fetch(`${baseUrl}/api/client-documents`, {
+    authFetch(`${baseUrl}/api/client-documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(doc),
@@ -1160,7 +1594,7 @@ class ImfexStore {
     this.persistClientDocuments();
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/client-documents/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/client-documents/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Project Global File Attachments
@@ -1277,10 +1711,7 @@ class ImfexStore {
   }
 
   generateProjectNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.projects.length + 1;
-    const numStr = String(count).padStart(4, '0');
-    return `PRJ-${year}-${numStr}`;
+    return this.nextSequentialNumber('PRJ', this.projects.map((p) => p.projectNumber));
   }
 
   createProjectFromOffer(offer: Offer): Project {
@@ -1366,7 +1797,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/projects`, {
+    authFetch(`${baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newProject),
@@ -1506,7 +1937,7 @@ class ImfexStore {
     // Strip heavy base64 attachments from backend /api/projects payload
     const { attachments: _omitAttachments, ...apiProjectPayload } = projectWithAtts;
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/projects`, {
+    authFetch(`${baseUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(apiProjectPayload),
@@ -1529,7 +1960,7 @@ class ImfexStore {
     this.projects = this.projects.filter((p) => p.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/projects/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/projects/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Installed Equipment Registry
@@ -1551,7 +1982,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/installed-items`, {
+    authFetch(`${baseUrl}/api/installed-items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(item),
@@ -1573,7 +2004,7 @@ class ImfexStore {
     this.installedItems = this.installedItems.filter((i) => i.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/installed-items/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/installed-items/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Service Tickets & 4.3 Service Workflow
@@ -1598,10 +2029,7 @@ class ImfexStore {
   }
 
   generateTicketNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.serviceTickets.length + 1;
-    const numStr = String(count).padStart(4, '0');
-    return `SRV-${year}-${numStr}`;
+    return this.nextSequentialNumber('SRV', this.serviceTickets.map((t) => t.ticketNumber));
   }
 
   saveServiceTicket(ticket: ServiceTicket): ServiceTicket {
@@ -1614,7 +2042,7 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/service-tickets`, {
+    authFetch(`${baseUrl}/api/service-tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ticket),
@@ -1636,7 +2064,7 @@ class ImfexStore {
     this.serviceTickets = this.serviceTickets.filter((st) => st.id !== id);
     this.notifyListeners();
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/service-tickets/${id}`, { method: 'DELETE' }).catch(console.warn);
+    authFetch(`${baseUrl}/api/service-tickets/${id}`, { method: 'DELETE' }).catch(console.warn);
   }
 
   // Calendar Events Management
@@ -1664,6 +2092,7 @@ class ImfexStore {
           projectId: p.id,
           location: p.installationAddress,
           color: p.status === 'COMPLETED' ? 'emerald' : p.status === 'INSTALLATION' ? 'amber' : 'blue',
+          isSystemEvent: true,
           createdAt: p.createdAt,
         });
       }
@@ -1683,6 +2112,7 @@ class ImfexStore {
           projectId: p.id,
           location: p.installationAddress,
           color: 'amber',
+          isSystemEvent: true,
           createdAt: p.createdAt,
         });
       }
@@ -1702,6 +2132,7 @@ class ImfexStore {
           projectId: p.id,
           location: p.installationAddress,
           color: p.status === 'COMPLETED' ? 'emerald' : 'purple',
+          isSystemEvent: true,
           createdAt: p.createdAt,
         });
       }
@@ -1721,6 +2152,7 @@ class ImfexStore {
           projectId: p.id,
           location: p.installationAddress,
           color: 'blue',
+          isSystemEvent: true,
           createdAt: p.createdAt,
         });
       }
@@ -1742,6 +2174,7 @@ class ImfexStore {
           customer: cust,
           serviceTicketId: s.id,
           color: s.priority === 'URGENT' || s.priority === 'HIGH' ? 'red' : 'purple',
+          isSystemEvent: true,
           createdAt: s.createdAt,
         };
       });
@@ -1750,6 +2183,7 @@ class ImfexStore {
   }
 
   saveCalendarEvent(event: CalendarEvent): CalendarEvent {
+    const snapshot = [...this.calendarEvents];
     const idx = this.calendarEvents.findIndex((e) => e.id === event.id);
     if (idx >= 0) {
       this.calendarEvents[idx] = event;
@@ -1762,16 +2196,46 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/calendar-events`, {
+    authFetch(`${baseUrl}/api/calendar-events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(event),
-    }).catch(console.warn);
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          this.calendarEvents = snapshot;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+          }
+          this.notifyListeners();
+          toast.error('Грешка при зачувување на настанот');
+          return;
+        }
+        const savedEvent = await res.json();
+        if (savedEvent && savedEvent.id) {
+          const freshIdx = this.calendarEvents.findIndex((e) => e.id === event.id || e.id === savedEvent.id);
+          if (freshIdx >= 0) {
+            this.calendarEvents[freshIdx] = { ...event, ...savedEvent };
+          } else {
+            this.calendarEvents.push({ ...event, ...savedEvent });
+          }
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+          }
+          this.notifyListeners();
+        }
+      })
+      .catch(() => {
+        this.calendarEvents = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при зачувување на настанот');
+      });
 
     return event;
   }
 
   deleteCalendarEvent(id: string) {
+    const snapshot = [...this.calendarEvents];
     this.calendarEvents = this.calendarEvents.filter((e) => e.id !== id);
     if (typeof window !== 'undefined') {
       localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
@@ -1779,9 +2243,24 @@ class ImfexStore {
     this.notifyListeners();
 
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/calendar-events/${id}`, {
+    authFetch(`${baseUrl}/api/calendar-events/${id}`, {
       method: 'DELETE',
-    }).catch(console.warn);
+    })
+      .then((res) => {
+        if (!res.ok) {
+          this.calendarEvents = snapshot;
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('imfex_calendar_events', JSON.stringify(this.calendarEvents));
+          }
+          this.notifyListeners();
+          toast.error('Грешка при бришење на настанот');
+        }
+      })
+      .catch(() => {
+        this.calendarEvents = snapshot;
+        this.notifyListeners();
+        toast.error('Мрежна грешка при бришење на настанот');
+      });
   }
 
   // ==========================================================================
@@ -1798,12 +2277,11 @@ class ImfexStore {
   }
 
   generatePurchaseNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.purchaseInvoices.length + 1;
-    return `NAB-${year}-${String(count).padStart(4, '0')}`;
+    return this.nextSequentialNumber('NAB', this.purchaseInvoices.map((p) => p.internalNumber));
   }
 
   savePurchaseInvoice(inv: PurchaseInvoice): PurchaseInvoice {
+    const snapshot = [...this.purchaseInvoices];
     const idx = this.purchaseInvoices.findIndex((p) => p.id === inv.id);
     if (idx >= 0) {
       this.purchaseInvoices[idx] = inv;
@@ -1812,13 +2290,41 @@ class ImfexStore {
     }
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/purchase-invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(inv),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          this.purchaseInvoices = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при зачувување на влезната фактура');
+        }
+      })
+      .catch(() => console.warn('savePurchaseInvoice API notice'));
+
     return inv;
   }
 
   deletePurchaseInvoice(id: string) {
+    const snapshot = [...this.purchaseInvoices];
     this.purchaseInvoices = this.purchaseInvoices.filter((p) => p.id !== id);
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/purchase-invoices/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.purchaseInvoices = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при бришење на влезната фактура');
+        }
+      })
+      .catch(() => console.warn('deletePurchaseInvoice API notice'));
   }
 
   receivePurchaseInvoiceToWarehouse(invoiceId: string): PurchaseInvoice | undefined {
@@ -1920,13 +2426,15 @@ class ImfexStore {
   }
 
   generateSalesInvoiceNumber(type: SalesInvoiceType): string {
-    const year = new Date().getFullYear();
     const prefix = type === 'PROFORMA' ? 'PRO' : type === 'ADVANCE' ? 'AVN' : 'FAK';
-    const count = this.salesInvoices.filter((s) => s.invoiceType === type).length + 1;
-    return `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+    return this.nextSequentialNumber(
+      prefix,
+      this.salesInvoices.filter((s) => s.invoiceType === type).map((s) => s.invoiceNumber)
+    );
   }
 
   saveSalesInvoice(inv: SalesInvoice): SalesInvoice {
+    const snapshot = [...this.salesInvoices];
     const idx = this.salesInvoices.findIndex((s) => s.id === inv.id);
     if (idx >= 0) {
       this.salesInvoices[idx] = inv;
@@ -1935,13 +2443,42 @@ class ImfexStore {
     }
     this.persistWarehouseState();
     this.notifyListeners();
+
+    const { customer: _omitCust, ...payload } = inv;
+    authFetch(`${getApiUrl()}/api/sales-invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          this.salesInvoices = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при зачувување на излезната фактура');
+        }
+      })
+      .catch(() => console.warn('saveSalesInvoice API notice'));
+
     return inv;
   }
 
   deleteSalesInvoice(id: string) {
+    const snapshot = [...this.salesInvoices];
     this.salesInvoices = this.salesInvoices.filter((s) => s.id !== id);
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/sales-invoices/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.salesInvoices = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при бришење на излезната фактура');
+        }
+      })
+      .catch(() => console.warn('deleteSalesInvoice API notice'));
   }
 
   createSalesInvoiceFromOfferOrProject(params: {
@@ -2042,7 +2579,7 @@ class ImfexStore {
       invoiceNumber,
       externalAccountingNumber: params.externalAccountingNumber,
       invoiceType: params.invoiceType,
-      status: params.invoiceType === 'ADVANCE' ? 'PAID' : 'ISSUED',
+      status: 'ISSUED',
       customerId,
       customer,
       offerId: offer?.id,
@@ -2059,7 +2596,7 @@ class ImfexStore {
       linkedAdvanceInvoiceNumber,
       advanceDeductedAmount,
       totalAmount,
-      paidAmount: params.invoiceType === 'ADVANCE' ? totalAmount : 0,
+      paidAmount: 0,
       notes: params.notes,
       items,
       createdAt: new Date().toISOString(),
@@ -2088,12 +2625,11 @@ class ImfexStore {
   }
 
   generateDispatchNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.dispatchNotes.length + 1;
-    return `ISP-${year}-${String(count).padStart(4, '0')}`;
+    return this.nextSequentialNumber('ISP', this.dispatchNotes.map((d) => d.dispatchNumber));
   }
 
   saveDispatchNote(note: DispatchNote): DispatchNote {
+    const snapshot = [...this.dispatchNotes];
     const idx = this.dispatchNotes.findIndex((n) => n.id === note.id);
     if (idx >= 0) {
       this.dispatchNotes[idx] = note;
@@ -2102,13 +2638,42 @@ class ImfexStore {
     }
     this.persistWarehouseState();
     this.notifyListeners();
+
+    const { customer: _omitCust, ...payload } = note;
+    authFetch(`${getApiUrl()}/api/dispatch-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) {
+          this.dispatchNotes = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при зачувување на испратницата');
+        }
+      })
+      .catch(() => console.warn('saveDispatchNote API notice'));
+
     return note;
   }
 
   deleteDispatchNote(id: string) {
+    const snapshot = [...this.dispatchNotes];
     this.dispatchNotes = this.dispatchNotes.filter((n) => n.id !== id);
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/dispatch-notes/${id}`, { method: 'DELETE' })
+      .then((res) => {
+        if (!res.ok) {
+          this.dispatchNotes = snapshot;
+          this.persistWarehouseState();
+          this.notifyListeners();
+          toast.error('Грешка при бришење на испратницата');
+        }
+      })
+      .catch(() => console.warn('deleteDispatchNote API notice'));
   }
 
   confirmAndIssueDispatchNote(dispatchId: string): DispatchNote | undefined {
@@ -2196,9 +2761,7 @@ class ImfexStore {
   }
 
   generatePaymentNumber(): string {
-    const year = new Date().getFullYear();
-    const count = this.payments.length + 1;
-    return `UPL-${year}-${String(count).padStart(4, '0')}`;
+    return this.nextSequentialNumber('UPL', this.payments.map((p) => p.paymentNumber));
   }
 
   recordPayment(payment: Omit<PaymentRecord, 'id' | 'paymentNumber' | 'createdAt'>): PaymentRecord {
@@ -2213,9 +2776,9 @@ class ImfexStore {
     if (record.salesInvoiceId) {
       const sinv = this.getSalesInvoiceById(record.salesInvoiceId);
       if (sinv) {
-        const nextPaid = Number(sinv.paidAmount || 0) + Number(record.amount || 0);
+        const nextPaid = Math.round((Number(sinv.paidAmount || 0) + Number(record.amount || 0)) * 100) / 100;
         sinv.paidAmount = nextPaid;
-        sinv.status = nextPaid >= Number(sinv.totalAmount || 0) ? 'PAID' : 'PARTIAL_PAID';
+        sinv.status = nextPaid >= Number(sinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'ISSUED';
         this.saveSalesInvoice(sinv);
       }
     }
@@ -2223,22 +2786,55 @@ class ImfexStore {
     if (record.purchaseInvoiceId) {
       const pinv = this.getPurchaseInvoiceById(record.purchaseInvoiceId);
       if (pinv) {
-        const nextPaid = Number(pinv.paidAmount || 0) + Number(record.amount || 0);
+        const nextPaid = Math.round((Number(pinv.paidAmount || 0) + Number(record.amount || 0)) * 100) / 100;
         pinv.paidAmount = nextPaid;
-        pinv.status = nextPaid >= Number(pinv.totalAmount || 0) ? 'PAID' : 'PARTIAL_PAID';
+        pinv.status = nextPaid >= Number(pinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'INVOICED';
         this.savePurchaseInvoice(pinv);
       }
     }
 
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/payments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    }).catch(() => console.warn('recordPayment API notice'));
+
     return record;
   }
 
   deletePayment(id: string) {
+    const existing = this.payments.find((p) => p.id === id);
     this.payments = this.payments.filter((p) => p.id !== id);
+
+    if (existing?.salesInvoiceId) {
+      const sinv = this.getSalesInvoiceById(existing.salesInvoiceId);
+      if (sinv) {
+        const nextPaid = Math.max(0, Math.round((Number(sinv.paidAmount || 0) - Number(existing.amount || 0)) * 100) / 100);
+        sinv.paidAmount = nextPaid;
+        sinv.status = nextPaid >= Number(sinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'ISSUED';
+        this.saveSalesInvoice(sinv);
+      }
+    }
+
+    if (existing?.purchaseInvoiceId) {
+      const pinv = this.getPurchaseInvoiceById(existing.purchaseInvoiceId);
+      if (pinv) {
+        const nextPaid = Math.max(0, Math.round((Number(pinv.paidAmount || 0) - Number(existing.amount || 0)) * 100) / 100);
+        pinv.paidAmount = nextPaid;
+        pinv.status = nextPaid >= Number(pinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'INVOICED';
+        this.savePurchaseInvoice(pinv);
+      }
+    }
+
     this.persistWarehouseState();
     this.notifyListeners();
+
+    authFetch(`${getApiUrl()}/api/payments/${id}`, { method: 'DELETE' }).catch(() =>
+      console.warn('deletePayment API notice')
+    );
   }
 
   // 5. Interactive Advance Payment Flow ("Евидентирај уплата на аванс" со избор)
@@ -2497,11 +3093,17 @@ class ImfexStore {
 
     const effectiveStockCost = stockPurchaseCost > 0 ? stockPurchaseCost : estimatedStockCost;
     const totalCosts = Math.round((effectiveStockCost + directExpensesCost) * 100) / 100;
-    const netProfit = Math.round((agreedRevenue - totalCosts) * 100) / 100;
-    const marginPercent = agreedRevenue > 0 ? Math.round((netProfit / agreedRevenue) * 1000) / 10 : 0;
+    const taxRate = Number(offer?.taxRate ?? 18);
+    const agreedNetRevenue = offer
+      ? Math.max(0, Math.round((Number(offer.subtotal || 0) - Number(offer.discountAmount || 0)) * 100) / 100)
+      : Math.round((agreedRevenue / (1 + taxRate / 100)) * 100) / 100;
+    const revenueBasis = agreedNetRevenue > 0 ? agreedNetRevenue : agreedRevenue;
+    const netProfit = Math.round((revenueBasis - totalCosts) * 100) / 100;
+    const marginPercent = revenueBasis > 0 ? Math.round((netProfit / revenueBasis) * 1000) / 10 : 0;
 
     return {
       agreedRevenue,
+      agreedNetRevenue: revenueBasis,
       paidByCustomer,
       remainingToPay,
       stockPurchaseCost: Math.round(effectiveStockCost * 100) / 100,
@@ -2519,9 +3121,11 @@ class ImfexStore {
 
 export const imfexStore = new ImfexStore();
 
-export function useImfexStore() {
-  const [_, setTick] = useState(0);
+export function useImfexStore(): number {
+  const [tick, setTick] = useState(() => imfexStore.getVersion());
   useEffect(() => {
-    return imfexStore.subscribe(() => setTick((t) => t + 1));
+    setTick(imfexStore.getVersion());
+    return imfexStore.subscribe(() => setTick(imfexStore.getVersion()));
   }, []);
+  return tick;
 }

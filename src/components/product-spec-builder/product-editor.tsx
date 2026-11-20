@@ -66,7 +66,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
 
   const categories = imfexStore.getCategories();
 
-  // Sync edit state when product updates or changes
+  // Sync edit state & selected spec only when switching to a different product
   React.useEffect(() => {
     setEditName(product.name);
     setEditCode(product.code);
@@ -77,7 +77,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     setEditIsActive(product.isActive !== false);
     setIsEditing(false);
     setErrorMsg(null);
-  }, [product]);
+    setSelectedSpecId((product?.specificationKeys && product.specificationKeys[0]?.id) || null);
+  }, [product.id]);
 
   const handleSaveProductDetails = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -587,7 +588,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   step="0.01"
                   placeholder={t('products.base_price')}
                   value={newModelPrice || ''}
-                  onChange={(e) => setNewModelPrice(parseFloat(e.target.value))}
+                  onChange={(e) => setNewModelPrice(parseFloat(e.target.value) || 0)}
                   className="w-full pl-6 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                 />
                 <span className="absolute left-2.5 top-2.5 text-xs font-bold text-muted-foreground">€</span>
@@ -795,7 +796,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                           step="0.01"
                           placeholder={t('products.price_modifier')}
                           value={newOptionPrice || ''}
-                          onChange={(e) => setNewOptionPrice(parseFloat(e.target.value))}
+                          onChange={(e) => setNewOptionPrice(parseFloat(e.target.value) || 0)}
                           className="w-full pl-6 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
                         />
                         <span className="absolute left-2.5 top-2.5 text-xs font-bold text-muted-foreground">€</span>

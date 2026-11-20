@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { imfexStore, useImfexStore, getApiUrl } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { Offer } from '@/types';
 import { OfferBuilderForm } from '@/components/offer-builder/offer-builder-form';
 import { ArrowLeft, Loader2 } from 'lucide-react';
@@ -30,7 +30,7 @@ export default function EditOfferPage({ params }: { params: Promise<{ id: string
 
     // 2. Fetch directly from backend API
     const baseUrl = getApiUrl();
-    fetch(`${baseUrl}/api/offers/${id}`)
+    authFetch(`${baseUrl}/api/offers/${id}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.id) {

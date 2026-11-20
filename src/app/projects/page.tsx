@@ -19,7 +19,7 @@ import {
 
 export default function ProjectsPage() {
   const { t } = useI18n();
-  useImfexStore(); // Auto-subscribe to live store updates
+  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [search, setSearch] = useState('');
@@ -42,11 +42,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     refreshList();
-  }, []);
-
-  useEffect(() => {
-    refreshList();
-  }, [imfexStore.getProjects().length]);
+  }, [storeVersion]);
 
   const filtered = projects.filter((p) => {
     const term = search.toLowerCase().trim();

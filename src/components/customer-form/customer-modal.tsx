@@ -192,10 +192,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                   type="text"
                   required
                   value={companyName}
-                  onChange={(e) => {
-                    setCompanyName(e.target.value);
-                    setName(e.target.value);
-                  }}
+                  onChange={(e) => setCompanyName(e.target.value)}
                   placeholder="e.g. Logistics Hub Europe GmbH"
                   className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                 />

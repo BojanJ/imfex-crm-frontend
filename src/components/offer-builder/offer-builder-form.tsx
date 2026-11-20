@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Customer, Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
@@ -117,7 +117,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     });
   };
 
-  // Sync customers and products when store updates
+  const hydratedOfferIdRef = useRef<string | null>(null);
+  const initializedNewOfferRef = useRef<boolean>(false);
+  const storeVersion = useImfexStore();
+
+  // Sync customers and products when store updates without overwriting unsaved form edits
   useEffect(() => {
     const custs = imfexStore.getCustomers();
     const prods = imfexStore.getProducts();
@@ -127,30 +131,34 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     setCategories(cats);
 
     if (existingOffer) {
-      if (existingOffer.customerId) {
-        setSelectedCustomerId(existingOffer.customerId);
+      if (hydratedOfferIdRef.current !== existingOffer.id) {
+        hydratedOfferIdRef.current = existingOffer.id;
+        if (existingOffer.customerId) {
+          setSelectedCustomerId(existingOffer.customerId);
+        }
+        if (existingOffer.items && existingOffer.items.length > 0) {
+          setItems(
+            existingOffer.items.map((it) => {
+              const hasExplicitSpecs = Array.isArray(it.specifications);
+              const rawSpecs = hasExplicitSpecs
+                ? it.specifications
+                : (it as any).offerItemSpecifications || [];
+              return {
+                ...it,
+                specifications: rawSpecs,
+              };
+            })
+          );
+        }
       }
-      if (existingOffer.items && existingOffer.items.length > 0) {
-        setItems(
-          existingOffer.items.map((it) => {
-            const hasExplicitSpecs = Array.isArray(it.specifications);
-            const rawSpecs = hasExplicitSpecs
-              ? it.specifications
-              : (it as any).offerItemSpecifications || [];
-            return {
-              ...it,
-              specifications: rawSpecs,
-            };
-          })
-        );
-      }
-    } else {
+    } else if (!initializedNewOfferRef.current) {
       if (urlCustomerId) {
         setSelectedCustomerId(urlCustomerId);
       } else if (!selectedCustomerId && custs.length > 0) {
         setSelectedCustomerId(custs[0].id);
       }
       if (items.length === 0 && prods.length > 0) {
+        initializedNewOfferRef.current = true;
         const firstProd = (urlProductId && prods.find((p) => p.id === urlProductId)) || prods[0];
         const firstModel = firstProd?.models[0];
         const defaultSpecs = buildDefaultSpecificationsForProduct(firstProd);
@@ -183,7 +191,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         ]);
       }
     }
-  }, [imfexStore.getCustomers().length, imfexStore.getProducts().length, existingOffer?.id]);
+  }, [storeVersion, existingOffer?.id]);
 
   const refreshCustomers = () => {
     const list = imfexStore.getCustomers();
@@ -392,12 +400,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
   const handleSaveOffer = (forcedStatus?: OfferStatus): Offer => {
     const targetStatus = forcedStatus || status;
+    const currentUser = imfexStore.getCurrentUser();
     const offerPayload: Offer = {
       id: existingOffer?.id || `off-${Date.now()}`,
       offerNumber: existingOffer?.offerNumber || imfexStore.generateOfferNumber(),
       customerId: selectedCustomerId,
       customer: selectedCustomerObj,
-      createdByUserId: 'usr-admin-1',
+      createdByUserId: currentUser?.id,
       status: targetStatus,
       taxRate,
       discountRate,
@@ -411,20 +420,30 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     };
 
     const saved = imfexStore.saveOffer(offerPayload);
-    // Trigger status setter to fire auto-project creation if ACCEPTED
-    imfexStore.setOfferStatus(saved.id, targetStatus);
+    // Auto-create project when ACCEPTED without triggering a second POST /api/offers
+    if (targetStatus === 'ACCEPTED') {
+      const existingProj = imfexStore.getProjects().find((p) => p.offerId === saved.id);
+      if (!existingProj) {
+        imfexStore.createProjectFromOffer(saved);
+      }
+    }
     setSavedOfferForPdf(saved);
 
-    // Save PDF document record to Client Documentation
-    imfexStore.saveDocument({
-      id: `doc-${Date.now()}`,
-      customerId: selectedCustomerId,
-      offerId: saved.id,
-      title: `Quote ${saved.offerNumber}.pdf`,
-      fileType: 'PDF',
-      fileUrl: `/docs/${saved.offerNumber}.pdf`,
-      createdAt: new Date().toISOString(),
-    });
+    // Save PDF document reference linked to this offer (opens via PdfModal, not broken /docs/*.pdf)
+    const existingDoc = imfexStore
+      .getDocumentsByCustomer(selectedCustomerId)
+      .find((d) => d.offerId === saved.id && d.fileType === 'PDF');
+    if (!existingDoc) {
+      imfexStore.saveDocument({
+        id: `doc-${Date.now()}`,
+        customerId: selectedCustomerId,
+        offerId: saved.id,
+        title: `Quote ${saved.offerNumber}.pdf`,
+        fileType: 'PDF',
+        fileUrl: '#',
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     toast.success('Понудата е зачувана!', `Понудата ${saved.offerNumber} е снимена во базата.`);
     return saved;
@@ -459,9 +478,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const saved = handleSaveOffer('SENT');
     setStatus('SENT');
 
+    // Wait for React to commit savedOfferForPdf into the hidden email PDF container before capturing
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+
     let pdfBase64 = '';
     try {
-      const element = document.getElementById('printable-offer-document') || document.getElementById('email-printable-offer-container');
+      const element =
+        document.getElementById('email-printable-offer-document') ||
+        document.getElementById('printable-offer-document');
       if (element) {
         const result = await generateMultiPagePdf(element);
         pdfBase64 = result.pdfBase64;
@@ -470,10 +496,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       console.warn('PDF capture notice:', e);
     }
 
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
+    const API_BASE_URL = getApiUrl();
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/email/send-offer`, {
+      const res = await authFetch(`${API_BASE_URL}/api/email/send-offer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1415,7 +1441,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       {/* Hidden Offscreen PDF Render Container for Email Dispatch Attachment */}
       {savedOfferForPdf && (
         <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '800px' }} id="email-printable-offer-container">
-          <PrintableOfferDocument offer={savedOfferForPdf} products={products} />
+          <PrintableOfferDocument
+            offer={savedOfferForPdf}
+            products={products}
+            containerId="email-printable-offer-document"
+          />
         </div>
       )}
 

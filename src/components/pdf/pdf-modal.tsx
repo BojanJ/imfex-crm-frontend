@@ -6,6 +6,8 @@ import { Offer, Product } from '@/types';
 import { formatDate } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
+import { getApiUrl, authFetch } from '@/lib/store';
+import { toast } from '@/components/ui/toastr';
 
 interface PdfModalProps {
   isOpen: boolean;
@@ -53,26 +55,40 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
         pdfBase64 = result.pdfBase64;
       }
 
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
-      await fetch(`${API_BASE_URL}/api/email/send-offer`, {
+      const API_BASE_URL = getApiUrl();
+      const res = await authFetch(`${API_BASE_URL}/api/email/send-offer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: offer.customer?.email || 'client@imfex.com',
+          to: offer.customer?.email || '',
           customerName: offer.customer?.companyName || offer.customer?.name || 'Клиент',
           offerNumber: offer.offerNumber,
           totalAmount: offer.totalAmount,
           pdfBase64: pdfBase64,
         }),
-      }).catch(() => null);
+      });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        toast.error('Грешка при испраќање на е-пошта', errData.error || `HTTP ${res.status}`);
+        setEmailStatus('idle');
+        return;
+      }
+
+      toast.success('Е-пошта е испратена!', `Понудата ${offer.offerNumber} е испратена успешно.`);
       setEmailStatus('sent');
       setTimeout(() => setEmailStatus('idle'), 4000);
     } catch (err) {
       console.error('Send Email Error:', err);
+      toast.error('Мрежна грешка при испраќање на е-пошта');
       setEmailStatus('idle');
     }
   };
+
+  const resolvedValidUntil = formatDate(
+    offer.validUntil,
+    formatDate(new Date((offer.createdAt ? new Date(offer.createdAt).getTime() : Date.now()) + 14 * 24 * 60 * 60 * 1000))
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-in fade-in duration-200 print:p-0 print:static print:bg-white">
@@ -88,7 +104,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
                 IMFEX Document Export - {offer.offerNumber}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Customer: {offer.customer?.companyName || offer.customer?.name || 'Customer'} • Valid until: {formatDate(offer.validUntil, 'N/A')}
+                Customer: {offer.customer?.companyName || offer.customer?.name || 'Customer'} • Valid until: {resolvedValidUntil}
               </p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { SalesInvoice, DispatchNote } from '@/types';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { formatDate } from '@/lib/date-format';
+import { imfexStore } from '@/lib/store';
 import { Download, Printer, X, FileText, Loader2, Truck } from 'lucide-react';
 
 interface PrintableInvoiceProps {
@@ -86,7 +87,9 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
           <div className="bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg flex items-center justify-between text-xs">
             <span className="font-bold text-slate-700">{typeSubtitle}</span>
             <span className="font-mono font-bold text-slate-600">
-              {invoice.projectId ? `Проект: ${invoice.projectId}` : ''}
+              {invoice.projectId
+                ? `Проект: ${imfexStore.getProjectById(invoice.projectId)?.projectNumber || invoice.projectId}`
+                : ''}
             </span>
           </div>
 

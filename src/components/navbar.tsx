@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n, Locale } from '@/lib/i18n-context';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { UserProfile } from '@/types';
 import {
   Globe,
@@ -19,11 +19,12 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
   const { locale, setLocale, t } = useI18n();
+  const storeVersion = useImfexStore();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     setCurrentUser(imfexStore.getCurrentUser());
-  }, []);
+  }, [storeVersion]);
 
   const handleSignOut = () => {
     imfexStore.logout();

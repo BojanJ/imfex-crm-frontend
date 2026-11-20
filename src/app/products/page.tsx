@@ -32,13 +32,14 @@ type ActiveTab = 'catalog' | 'config' | 'moves' | 'projects';
 
 export default function ProductsPage() {
   const { t } = useI18n();
-  useImfexStore(); // Auto-subscribe to live store updates
+  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState(imfexStore.getCategories());
   const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const selectedProductCodeRef = React.useRef<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('Сите категории');
   const [isMounted, setIsMounted] = useState(false);
@@ -88,6 +89,10 @@ export default function ProductsPage() {
     if (list.length > 0) {
       setSelectedProductId((prev) => {
         if (prev && list.some((p) => p.id === prev)) return prev;
+        if (selectedProductCodeRef.current) {
+          const byCode = list.find((p) => p.code === selectedProductCodeRef.current);
+          if (byCode) return byCode.id;
+        }
         return list[0].id;
       });
 
@@ -117,12 +122,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     refreshProducts();
-  }, [
-    imfexStore.getProducts().length,
-    imfexStore.getCategories().length,
-    imfexStore.getInventoryMovements().length,
-    imfexStore.getProjects().length,
-  ]);
+  }, [storeVersion]);
 
   if (!isMounted) {
     return (
@@ -347,6 +347,7 @@ export default function ProductsPage() {
     };
 
     imfexStore.saveProduct(newProd);
+    selectedProductCodeRef.current = newProd.code;
     refreshProducts();
     setSelectedProductId(newProd.id);
     setNewProdName('');
@@ -665,23 +666,30 @@ export default function ProductsPage() {
               /* Custom-made Door Configuration View (matches HTML id===0 block) */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left Block: Door Specifications */}
+                  {/* Left Block: Real Product Specifications */}
                   <div className="p-4 sm:p-5 bg-background/60 border border-border rounded-xl space-y-3">
                     <b className="text-sm font-bold text-foreground block border-b border-border pb-2">
-                      Спецификации на врата
+                      Спецификации на производот
                     </b>
-                    <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-border/40">
-                      <span className="text-muted-foreground">Структура</span>
-                      <b className="text-foreground">M-Line</b>
-                    </div>
-                    <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-border/40">
-                      <span className="text-muted-foreground">Боја</span>
-                      <b className="text-foreground">RAL 7016</b>
-                    </div>
-                    <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-border/40">
-                      <span className="text-muted-foreground">Димензии</span>
-                      <b className="text-foreground">4000 × 3000 mm</b>
-                    </div>
+                    {selectedProduct.specificationKeys && selectedProduct.specificationKeys.length > 0 ? (
+                      selectedProduct.specificationKeys.map((spec) => {
+                        const defOpt = spec.options?.find((o) => o.isDefault) || spec.options?.[0];
+                        const displayVal = defOpt?.label || spec.defaultValue || 'По избор';
+                        return (
+                          <div
+                            key={spec.id}
+                            className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-border/40"
+                          >
+                            <span className="text-muted-foreground">{spec.name}</span>
+                            <b className="text-foreground">{displayVal}</b>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic py-1">
+                        Нема дефинирани спецификации — користете „Напредно уредување“ за да додадете.
+                      </p>
+                    )}
                     <div className="flex justify-between items-center text-xs sm:text-sm py-1">
                       <span className="text-muted-foreground">Изработка</span>
                       <b className="text-sky-400">По нарачка</b>

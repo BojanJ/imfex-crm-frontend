@@ -69,7 +69,7 @@ const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 function FinancePageContent() {
-  useImfexStore();
+  const storeVersion = useImfexStore();
   const searchParams = useSearchParams();
   const initialTab = (searchParams?.get('tab') as FinanceTab) || 'purchases';
 
@@ -199,19 +199,15 @@ function FinancePageContent() {
 
   useEffect(() => {
     refreshAll();
-  }, [
-    imfexStore.getPurchaseInvoices().length,
-    imfexStore.getSalesInvoices().length,
-    imfexStore.getDispatchNotes().length,
-    imfexStore.getPayments().length,
-    imfexStore.getProducts().length,
-    imfexStore.getCustomers().length,
-    imfexStore.getProjects().length,
-  ]);
+  }, [storeVersion]);
 
   // KPI calculations
   const totalPaymentsIn = payments
     .filter((p) => p.direction === 'IN')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const totalPaymentsOut = payments
+    .filter((p) => p.direction === 'OUT')
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   const totalOpenReceivables = salesInvoices
@@ -230,7 +226,7 @@ function FinancePageContent() {
     });
   });
 
-  const netCashBalance = totalPaymentsIn - (totalStockPurchases + totalOperationalExpenses);
+  const netCashBalance = Math.round((totalPaymentsIn - totalPaymentsOut) * 100) / 100;
 
   // --- Purchase Invoice Helpers ---
   const handleUpdatePItem = (index: number, patch: Partial<PurchaseInvoiceItem>) => {
@@ -308,13 +304,13 @@ function FinancePageContent() {
       supplierName: pSupplierName.trim() || 'Добавувач',
       projectId: pProjectId || undefined,
       issueDate: pIssueDate,
-      status: pPaidImmediately ? 'PAID' : 'INVOICED',
+      status: 'INVOICED',
       receiptStatus: hasStockItems ? 'PENDING' : 'RECEIVED',
       taxRate: pTaxRate,
       subtotal,
       taxAmount,
       totalAmount,
-      paidAmount: pPaidImmediately ? totalAmount : 0,
+      paidAmount: 0,
       notes: pNotes,
       items: validItems,
       createdAt: new Date().toISOString(),
@@ -1444,6 +1440,12 @@ function FinancePageContent() {
               <button
                 onClick={() => {
                   setPayDirection('IN');
+                  setPaySalesInvoiceId('');
+                  setPayPurchaseInvoiceId('');
+                  setPayPartnerName('');
+                  setPayAmount(0);
+                  setPayProjectId('');
+                  setPayNotes('');
                   setShowPaymentModal(true);
                 }}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
