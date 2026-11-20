@@ -9,6 +9,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -269,6 +270,9 @@ export default function CalendarPage() {
 
   const todayStr = toLocalDateStr(new Date());
 
+  useEscapeKey(Boolean(selectedEvent) && !eventIdToDelete, () => setSelectedEvent(null));
+  useEscapeKey(isNewEventModalOpen, () => setIsNewEventModalOpen(false));
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -292,34 +296,39 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar Controls & Toolbar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
         {/* Left: Navigation Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={handlePrev}
               className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Previous"
+              aria-label="Претходен период"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={handleNext}
               className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               title="Next"
+              aria-label="Следен период"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           <button
+            type="button"
             onClick={handleToday}
             className="px-3 py-1.5 text-xs font-bold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
           >
             Today
           </button>
 
-          <h2 className="font-extrabold text-base text-foreground tracking-tight ml-2">
+          <h2 className="font-extrabold text-base text-foreground tracking-tight">
             {formattedHeaderTitle}
           </h2>
         </div>
@@ -327,7 +336,7 @@ export default function CalendarPage() {
         {/* Right: View Mode Tabs & Category Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* Category Filter Pills */}
-          <div className="flex items-center gap-1 border-r border-border pr-3">
+          <div className="flex items-center gap-1 flex-wrap">
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
             {[
               { id: 'ALL', label: 'All' },
@@ -673,8 +682,17 @@ export default function CalendarPage() {
 
       {/* EVENT DETAILS MODAL */}
       {selectedEvent && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setSelectedEvent(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={selectedEvent.title}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className={`p-2 rounded-lg border ${getEventBadgeClass(selectedEvent)}`}>
@@ -774,16 +792,27 @@ export default function CalendarPage() {
 
       {/* NEW / EDIT EVENT MODAL */}
       {isNewEventModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setIsNewEventModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={editingEventId ? 'Уреди настан' : 'Нов настан'}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
                 {editingEventId ? 'Edit Calendar Appointment' : 'Create New Calendar Appointment'}
               </h3>
               <button
+                type="button"
                 onClick={() => setIsNewEventModalOpen(false)}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+                aria-label="Затвори"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>

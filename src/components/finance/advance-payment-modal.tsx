@@ -6,6 +6,7 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
   Euro,
   X,
@@ -97,6 +98,8 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
       setIsConfirmOpen(false);
     }
   }, [isOpen, offer?.id, project?.id]);
+
+  useEscapeKey(isOpen && !isConfirmOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -248,7 +251,12 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Евидентирај уплата на аванс"
+    >
       <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 text-xs max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2.5">
@@ -267,7 +275,9 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Затвори"
             className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
           >
             <X className="w-4 h-4" />

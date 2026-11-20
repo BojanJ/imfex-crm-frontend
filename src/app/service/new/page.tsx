@@ -8,6 +8,7 @@ import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
+import { toast } from '@/components/ui/toastr';
 import {
   Wrench,
   ArrowLeft,
@@ -57,7 +58,7 @@ export default function NewServiceTicketPage() {
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
-      alert('Please select a customer.');
+      toast.error('Изберете клиент', 'Ве молиме изберете клиент за сервисниот тикет.');
       return;
     }
 
@@ -80,7 +81,7 @@ export default function NewServiceTicketPage() {
     };
 
     const saved = imfexStore.saveServiceTicket(newTicket);
-    alert(`Service Request ${saved.ticketNumber} created successfully.`);
+    toast.success(`Сервисниот тикет ${saved.ticketNumber} е креиран!`);
     router.push(`/service/${saved.id}`);
   };
 

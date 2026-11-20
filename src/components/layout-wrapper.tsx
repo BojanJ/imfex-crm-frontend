@@ -66,7 +66,7 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
           isMobileOpen={isMobileMenuOpen}
           onMobileClose={() => setIsMobileMenuOpen(false)}
         />
-        <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 min-w-0 p-4 sm:p-6 overflow-x-hidden">{children}</main>
       </div>
     </div>
   );

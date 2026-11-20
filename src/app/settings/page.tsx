@@ -23,6 +23,7 @@ import {
 
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 export default function SettingsPage() {
   const { t } = useI18n();
@@ -31,7 +32,9 @@ export default function SettingsPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const isSuperAdmin = imfexStore.getCurrentRole() === 'SUPER_ADMIN';
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -101,13 +104,19 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!newFullName.trim() || !newEmail.trim()) return;
 
+    const createdName = newFullName;
+    const createdTempPass = newTempPassword;
     imfexStore.createUserProfile(newFullName, newEmail, newRole, newTempPassword);
     refreshProfiles();
     setNewFullName('');
     setNewEmail('');
     setNewTempPassword('IMFEX2026!');
     setShowAddUserModal(false);
-    alert(`Корисникот ${newFullName} е успешно креиран. Привремена лозинка: ${newTempPassword}`);
+    toast.success(
+      `Корисникот ${createdName} е креиран!`,
+      `Привремена лозинка: ${createdTempPass}`,
+      8000
+    );
   };
 
   const handleResetPassword = (userId: string, email: string) => {
@@ -160,13 +169,19 @@ export default function SettingsPage() {
     }
   };
 
+  useEscapeKey(showResetModal && !isResetting, () => {
+    setShowResetModal(false);
+    setResetConfirmText('');
+  });
+  useEscapeKey(showAddUserModal, () => setShowAddUserModal(false));
+
   return (
     <div className="space-y-6 max-w-5xl pb-16">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-xl border border-border">
-        <div>
+        <div className="min-w-0">
           <h1 className="font-extrabold text-xl tracking-tight flex items-center gap-2">
-            <Settings className="w-5 h-5 text-primary" />
+            <Settings className="w-5 h-5 text-primary shrink-0" />
             <span>{t('settings.title')}</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
@@ -175,22 +190,24 @@ export default function SettingsPage() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex items-center bg-muted p-1 rounded-xl border border-border text-xs font-bold">
+        <div className="flex items-center bg-muted p-1 rounded-xl border border-border text-xs font-bold shrink-0 self-start sm:self-auto">
           <button
+            type="button"
             onClick={() => setActiveTab('USERS')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'USERS' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
             }`}
           >
-            <Users className="w-4 h-4" /> {t('users.title')}
+            <Users className="w-4 h-4 shrink-0" /> {t('users.title')}
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('COMPANY')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'COMPANY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
             }`}
           >
-            <Building2 className="w-4 h-4" /> {t('settings.company_details')}
+            <Building2 className="w-4 h-4 shrink-0" /> {t('settings.company_details')}
           </button>
         </div>
       </div>
@@ -239,9 +256,9 @@ export default function SettingsPage() {
                         <span>{usr.fullName || usr.email}</span>
                       </td>
                       <td className="p-4 font-medium text-muted-foreground">{usr.email}</td>
-                      <td className="p-4">
+                      <td className="p-4 whitespace-nowrap">
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
                             usr.role === 'SUPER_ADMIN'
                               ? 'bg-primary/10 text-primary'
                               : 'bg-muted text-foreground'
@@ -250,9 +267,9 @@ export default function SettingsPage() {
                           {usr.role === 'SUPER_ADMIN' ? 'Супер Администратор' : 'Продажен Агент'}
                         </span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-4 whitespace-nowrap">
                         <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase whitespace-nowrap ${
                             usr.status === 'DISABLED'
                               ? 'bg-red-500/10 text-red-500'
                               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
@@ -367,87 +384,140 @@ export default function SettingsPage() {
               <Save className="w-4 h-4" /> {t('settings.save_settings')}
             </button>
           </div>
+        </form>
+      )}
 
-          <div className="border-t border-border pt-6 mt-6 space-y-3">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <Database className="w-4 h-4 text-primary" /> Live Database Synchronization & Maintenance
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Clean corrupted question-mark records and synchronize all customers, offers, and projects directly with the live PostgreSQL database.
-            </p>
-            {syncStatusMsg && (
-              <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-600 rounded-xl font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                {syncStatusMsg}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleSyncDatabase}
-                disabled={isSyncing}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Syncing with Database...' : 'Clean & Sync Database Records'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowResetModal(true)}
-                className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-all cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Reset System (0 Data, 1 User Only)
-              </button>
+      {/* Separated Super-Admin Danger Zone (outside Company Info form) */}
+      {activeTab === 'COMPANY' && isSuperAdmin && (
+        <div className="bg-card border-2 border-rose-500/30 rounded-xl p-6 shadow-sm space-y-4 text-xs">
+          <div className="flex items-center gap-2.5 text-rose-600 dark:text-rose-400 border-b border-rose-500/20 pb-3">
+            <div className="p-2 bg-rose-500/10 rounded-xl">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm uppercase tracking-wide">
+                Опасна Зона — Администрација на База (Само Супер Администратор)
+              </h3>
+              <p className="text-[11px] text-muted-foreground font-normal">
+                Овие акции директно ја менуваат или бришат базата на податоци и се оневозможени во продукција по дифолт.
+              </p>
             </div>
           </div>
-        </form>
+
+          {syncStatusMsg && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 text-blue-600 rounded-xl font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{syncStatusMsg}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <div className="space-y-0.5">
+              <p className="font-bold text-foreground flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-primary" /> Чистење и синхронизација на записи
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Ги отстранува оштетените записи со „?“ и повторно ги синхронизира податоците од PostgreSQL.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSyncDatabase}
+              disabled={isSyncing}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Се синхронизира...' : 'Исчисти и Синхронизирај'}
+            </button>
+          </div>
+
+          <div className="border-t border-rose-500/20 pt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="font-bold text-rose-600 dark:text-rose-400">Целосно ресетирање на системот</p>
+              <p className="text-[11px] text-muted-foreground">
+                Трајно ги брише сите деловни записи и ги остава само активниот Супер Администратор и 0 записи.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setResetConfirmText('');
+                setShowResetModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 transition-all cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Ресетирај Систем
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Reset Confirmation Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
-          <div className="bg-card border border-rose-500/30 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
+          onClick={() => {
+            if (!isResetting) {
+              setShowResetModal(false);
+              setResetConfirmText('');
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Потврда за целосно ресетирање на базата"
+        >
+          <div
+            className="bg-card border border-rose-500/30 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2 bg-rose-500/10 rounded-xl">
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base">Wipe All Test Data & Reset System?</h3>
-                <p className="text-[11px] text-muted-foreground">Danger Zone - Irreversible Database Action</p>
+                <h3 className="font-extrabold text-base">Целосно бришење и ресетирање?</h3>
+                <p className="text-[11px] text-muted-foreground">Опасна Зона — Неповратна акција врз базата</p>
               </div>
             </div>
 
             <p className="text-muted-foreground leading-relaxed">
-              This action will permanently delete <strong>all test Customers, Products, Categories, Offers, Projects, Service Tickets, Documents, and Calendar Events</strong>.
+              Оваа акција трајно ќе ги избрише <strong>сите Клиенти, Производи, Категории, Понуди, Проекти, Фактури, Уплати, Сервисни тикети, Документи и Настани</strong>.
             </p>
 
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-700 dark:text-rose-400 font-semibold space-y-1">
-              <p className="font-bold">What will remain:</p>
-              <ul className="list-disc list-inside text-[11px] space-y-0.5">
-                <li><code>admin@imfex.com</code> (Super Admin)</li>
-                <li>0 Business Records (Fresh Database State)</li>
-              </ul>
+            <div className="space-y-1.5">
+              <label className="block font-bold text-foreground">
+                Внесете <code className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-600 font-mono">RESET</code> за потврда:
+              </label>
+              <input
+                type="text"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="RESET"
+                className="w-full px-3 py-2 rounded-lg border border-rose-500/40 bg-background font-mono font-bold outline-none focus:ring-2 focus:ring-rose-500"
+              />
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowResetModal(false)}
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetConfirmText('');
+                }}
                 disabled={isResetting}
                 className="px-4 py-2 font-bold rounded-xl border border-border bg-card hover:bg-muted cursor-pointer"
               >
-                Cancel
+                Откажи
               </button>
               <button
                 type="button"
                 onClick={handleExecuteFullReset}
-                disabled={isResetting}
-                className="flex items-center gap-2 px-5 py-2 font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-lg cursor-pointer disabled:opacity-50"
+                disabled={isResetting || resetConfirmText.trim() !== 'RESET'}
+                className="flex items-center gap-2 px-5 py-2 font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-4 h-4" />
-                {isResetting ? 'Wiping Database...' : 'Yes, Reset Database Now'}
+                {isResetting ? 'Се ресетира...' : 'Да, Ресетирај База'}
               </button>
             </div>
           </div>
@@ -456,8 +526,17 @@ export default function SettingsPage() {
 
       {/* Create User Modal */}
       {showAddUserModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
+          onClick={() => setShowAddUserModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('users.create_user')}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="font-bold text-lg">{t('users.create_user')}</h3>
             <form onSubmit={handleCreateUser} className="space-y-3">
               <div>

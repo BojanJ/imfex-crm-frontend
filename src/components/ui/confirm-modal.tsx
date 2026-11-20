@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { AlertTriangle, CheckCircle2, Trash2, X } from 'lucide-react';
+import { useEscapeKey } from './use-escape-key';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useEscapeKey(isOpen, onCancel);
+
   if (!isOpen) return null;
 
   const isDanger = variant === 'danger';
@@ -48,11 +51,14 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
     >
       <div
-        className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs animate-in zoom-in-95 duration-150"
+        className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 text-xs"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -78,6 +84,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
+            aria-label="Затвори"
             className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
           >
             <X className="w-4 h-4" />

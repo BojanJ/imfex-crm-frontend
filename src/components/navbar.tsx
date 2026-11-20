@@ -39,11 +39,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
   return (
     <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center gap-3">
-        {/* Mobile Hamburger Toggle Button */}
+        {/* Mobile & Tablet Hamburger Toggle Button */}
         <button
+          type="button"
           onClick={onMobileMenuToggle}
-          className="p-2 border border-border rounded-xl md:hidden text-foreground hover:bg-muted transition-colors cursor-pointer"
-          title="Open Mobile Navigation"
+          className="p-2 border border-border rounded-xl lg:hidden text-foreground hover:bg-muted transition-colors cursor-pointer"
+          title="Open Navigation"
+          aria-label="Отвори навигација"
         >
           <Menu className="w-5 h-5" />
         </button>

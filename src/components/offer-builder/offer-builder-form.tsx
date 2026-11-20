@@ -15,6 +15,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect, CustomerSelect } from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
   Plus,
   Trash2,
@@ -464,6 +465,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [emailErrorMsg, setEmailErrorMsg] = useState('');
 
+  useEscapeKey(isEmailModalOpen, () => setIsEmailModalOpen(false));
+
   useEffect(() => {
     if (selectedCustomerObj?.email) {
       setRecipientEmail(selectedCustomerObj.email);
@@ -554,17 +557,19 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const saved = handleSaveOffer('ACCEPTED');
-              setSavedOfferForPdf(saved);
-              setIsAdvanceModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-sm cursor-pointer"
-          >
-            Евидентирај уплата на аванс
-          </button>
+          {(existingOffer || savedOfferForPdf) && (
+            <button
+              type="button"
+              onClick={() => {
+                const saved = handleSaveOffer('ACCEPTED');
+                setSavedOfferForPdf(saved);
+                setIsAdvanceModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-sm cursor-pointer"
+            >
+              Евидентирај уплата на аванс
+            </button>
+          )}
           <button
             onClick={() => setIsEmailModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm"
@@ -1260,8 +1265,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         </div>
       </div>
 
-      {/* Sticky Bottom Quote Summary Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 bg-card/95 backdrop-blur-md border-t border-border p-4 shadow-2xl">
+      {/* Sticky Bottom Quote Summary Bar (pinned inside main, never overlapping sidebar) */}
+      <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-4 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl rounded-t-xl">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-6 text-xs">
             <div>
@@ -1309,15 +1314,26 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
       {/* E-mail Dispatch Modal (Sales Workflow 4.1 Step 5) */}
       {isEmailModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setIsEmailModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Испрати Понуда по Е-пошта"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base flex items-center gap-2 text-foreground">
                 <Mail className="w-5 h-5 text-emerald-500" /> Испрати Понуда по Е-пошта (Resend API)
               </h3>
               <button
+                type="button"
                 onClick={() => setIsEmailModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground text-sm font-bold cursor-pointer"
+                aria-label="Затвори"
+                className="text-muted-foreground hover:text-foreground text-sm font-bold cursor-pointer p-1 rounded-lg hover:bg-muted"
               >
                 ✕
               </button>

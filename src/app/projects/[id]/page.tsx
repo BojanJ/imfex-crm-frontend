@@ -657,7 +657,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <Building2 className="w-4 h-4 text-primary" /> Податоци за Клиентот
             </h3>
             <p className="font-bold text-foreground">{project.customer?.companyName || project.customer?.name}</p>
-            <p className="text-muted-foreground">{project.customer?.email} • {project.customer?.phone}</p>
+            <p className="text-muted-foreground">
+              {[project.customer?.email, project.customer?.phone].filter(Boolean).join(' • ') || '—'}
+            </p>
           </div>
         </div>
 

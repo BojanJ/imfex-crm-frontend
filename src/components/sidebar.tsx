@@ -95,25 +95,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className="flex flex-col justify-between h-full p-4 space-y-6">
       <div className="space-y-4">
         {/* Header / Collapse Toggle on Desktop */}
-        <div className="hidden md:flex items-center justify-between px-2">
+        <div className="hidden lg:flex items-center justify-between px-2">
           {!isCollapsed && (
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               {t('nav.dashboard')}
             </p>
           )}
           <button
+            type="button"
             onClick={onToggleCollapse}
             className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all ml-auto cursor-pointer"
             title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
           >
             {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
 
-        {/* Mobile Header Title */}
-        <div className="md:hidden flex items-center justify-between pb-2 border-b border-border">
+        {/* Mobile / Tablet Header Title */}
+        <div className="lg:hidden flex items-center justify-between pb-2 border-b border-border">
           <span className="font-extrabold text-sm text-primary">IMFEX Navigation</span>
-          <button onClick={onMobileClose} className="text-muted-foreground hover:text-foreground font-bold text-sm">
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="text-muted-foreground hover:text-foreground font-bold text-sm p-1 rounded-lg hover:bg-muted cursor-pointer"
+            aria-label="Затвори мени"
+          >
             ✕
           </button>
         </div>
@@ -148,17 +155,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer Status */}
-      <div className={`pt-4 border-t border-border text-[11px] text-muted-foreground ${isCollapsed ? 'text-center' : 'flex items-center justify-between'}`}>
+      <div className={`pt-4 pb-6 lg:pb-2 border-t border-border text-[11px] text-muted-foreground ${isCollapsed ? 'text-center' : 'flex items-center justify-between gap-2'}`}>
         {!isCollapsed ? (
           <>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-medium">IMFEX Enterprise v1.0</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="font-medium truncate">IMFEX Enterprise v1.0</span>
             </div>
             <button
               type="button"
               onClick={handleSignOut}
-              className="text-muted-foreground hover:text-red-500 p-1 cursor-pointer"
+              className="text-muted-foreground hover:text-red-500 p-1 cursor-pointer shrink-0"
               title={t('nav.sign_out')}
               aria-label={t('nav.sign_out')}
             >
@@ -166,7 +173,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </>
         ) : (
-          <span className="w-2.5 h-2.5 mx-auto rounded-full bg-emerald-500 animate-pulse block" />
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="mx-auto text-muted-foreground hover:text-red-500 p-1.5 rounded-lg hover:bg-muted cursor-pointer block"
+            title={t('nav.sign_out')}
+            aria-label={t('nav.sign_out')}
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         )}
       </div>
     </div>
@@ -174,19 +189,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Collapsible Sidebar */}
+      {/* Desktop Collapsible Sticky Sidebar (auto-collapses into drawer below lg/1024px) */}
       <aside
-        className={`hidden md:flex flex-col border-r border-border bg-card transition-all duration-300 min-h-[calc(100vh-4rem)] ${
+        className={`hidden lg:flex flex-col border-r border-border bg-card transition-all duration-300 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto shrink-0 ${
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
         {content}
       </aside>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile & Tablet Drawer Overlay */}
       {isMobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex">
-          <div className="w-72 bg-card border-r border-border h-full shadow-2xl animate-in slide-in-from-left duration-200">
+        <div
+          className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Навигација"
+        >
+          <div className="w-72 bg-card border-r border-border h-full overflow-y-auto shadow-2xl">
             {content}
           </div>
           <div className="flex-1" onClick={onMobileClose} />

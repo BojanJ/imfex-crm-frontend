@@ -7,6 +7,7 @@ import { Project, ProjectStatus } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { toast } from '@/components/ui/toastr';
 import {
   Briefcase,
@@ -123,6 +124,10 @@ export default function ProjectsPage() {
     requestProjectStatusChange(prj, targetStatus);
   };
 
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={0} rows={6} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* Page Header */}
@@ -160,8 +165,8 @@ export default function ProjectsPage() {
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between bg-card p-4 rounded-xl border border-border">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
           <input
             type="text"
@@ -176,7 +181,7 @@ export default function ProjectsPage() {
           <span className="text-xs font-bold text-muted-foreground uppercase">{t('offers.filter_status')}</span>
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               statusFilter === 'ALL' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}
           >
@@ -186,7 +191,7 @@ export default function ProjectsPage() {
             <button
               key={st.key}
               onClick={() => setStatusFilter(st.key)}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 statusFilter === st.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
               }`}
             >
@@ -202,7 +207,7 @@ export default function ProjectsPage() {
           <p className="text-[11px] font-semibold text-muted-foreground px-1">
             Повлечете (Drag & Drop) картичка на проект во друга колона на процесот за да го промените неговиот статус.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 overflow-x-auto">
+          <div className="flex gap-4 overflow-x-auto pb-3">
             {statuses.map((col) => {
               const colProjects = filtered.filter((p) => p.status === col.key);
               const isDropTarget = dragOverStatus === col.key;
@@ -215,17 +220,17 @@ export default function ProjectsPage() {
                     if (dragOverStatus === col.key) setDragOverStatus(null);
                   }}
                   onDrop={(e) => handleDropOnStatus(e, col.key)}
-                  className={`border rounded-xl p-3 space-y-3 min-w-[220px] transition-all ${
+                  className={`border rounded-xl p-3 space-y-3 w-[250px] shrink-0 transition-all ${
                     isDropTarget
                       ? 'bg-primary/10 border-primary ring-2 ring-primary/40 shadow-md'
                       : 'bg-card/50 border-border'
                   }`}
                 >
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded border ${col.color}`}>
+                  <div className="flex items-center justify-between gap-2 border-b border-border pb-2">
+                    <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded border truncate ${col.color}`}>
                       {col.label}
                     </span>
-                    <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">
                       {colProjects.length}
                     </span>
                   </div>
@@ -233,13 +238,13 @@ export default function ProjectsPage() {
                   <div className="space-y-3 min-h-[300px]">
                     {colProjects.length === 0 ? (
                       <div
-                        className={`p-6 text-center border border-dashed rounded-lg text-[10px] transition-colors ${
+                        className={`p-6 text-center border border-dashed rounded-lg text-[11px] transition-colors ${
                           isDropTarget
                             ? 'border-primary text-primary font-bold bg-primary/5'
-                            : 'border-border text-muted-foreground'
+                            : 'border-border text-muted-foreground/70'
                         }`}
                       >
-                        {isDropTarget ? 'Пушти тука за промена на статус' : '/'}
+                        {isDropTarget ? 'Пушти тука за промена на статус' : 'Нема проекти'}
                       </div>
                     ) : (
                       colProjects.map((prj) => {
@@ -256,18 +261,18 @@ export default function ProjectsPage() {
                                 : 'border-border'
                             }`}
                           >
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-1">
+                            <div className="flex items-center justify-between gap-1 text-xs">
+                              <div className="flex items-center gap-1 min-w-0">
                                 <GripVertical className="w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-primary shrink-0" />
                                 <Link
                                   href={`/projects/${prj.id}`}
-                                  className="font-black text-primary hover:underline"
+                                  className="font-black text-primary hover:underline truncate"
                                 >
                                   {prj.projectNumber}
                                 </Link>
                               </div>
-                              <span className="text-[10px] text-muted-foreground">
-                                {t('offers.offer_number')} {prj.offer?.offerNumber}
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {prj.offer?.offerNumber || ''}
                               </span>
                             </div>
 
@@ -276,7 +281,7 @@ export default function ProjectsPage() {
                                 {prj.customer?.companyName || prj.customer?.name}
                               </p>
                               <p className="text-[10px] text-muted-foreground truncate">
-                                {prj.installationAddress || 'Адреса'}
+                                {prj.installationAddress || '—'}
                               </p>
                             </Link>
 

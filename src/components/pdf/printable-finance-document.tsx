@@ -5,6 +5,7 @@ import { SalesInvoice, DispatchNote } from '@/types';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { formatDate } from '@/lib/date-format';
 import { imfexStore } from '@/lib/store';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import { Download, Printer, X, FileText, Loader2, Truck } from 'lucide-react';
 
 interface PrintableInvoiceProps {
@@ -403,6 +404,8 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen || (!invoice && !dispatchNote)) return null;
 
   const docNumber = invoice ? invoice.invoiceNumber : dispatchNote!.dispatchNumber;
@@ -422,7 +425,12 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:p-0 print:static print:bg-white">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:p-0 print:static print:bg-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Официјален PDF Документ ${docNumber}`}
+    >
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden">
           <div className="flex items-center gap-3">
@@ -460,7 +468,9 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
               )}
             </button>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Затвори"
               className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
             >
               <X className="w-5 h-5" />

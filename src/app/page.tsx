@@ -23,6 +23,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { PdfModal } from '@/components/pdf/pdf-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 
 export default function DashboardPage() {
   const { t } = useI18n();
@@ -54,6 +55,10 @@ export default function DashboardPage() {
 
   const activeProjectsCount = projects.filter((p) => p.status !== 'CLOSED' && p.status !== 'COMPLETED').length;
   const urgentServiceTickets = serviceTickets.filter((t) => (t.priority === 'URGENT' || t.priority === 'HIGH') && t.status !== 'CLOSED');
+
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={4} rows={4} />;
+  }
 
   return (
     <div className="space-y-6 pb-12">
@@ -193,17 +198,17 @@ export default function DashboardPage() {
                 PROCUREMENT: 40,
                 PRODUCTION: 60,
                 INSTALLATION: 80,
-                COMPLETED: 95,
+                COMPLETED: 100,
                 CLOSED: 100,
               };
               const pct = progressMap[prj.status] || 10;
 
               return (
                 <div key={prj.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-2">
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-primary">{prj.projectNumber}</span>
-                    <span className="text-foreground">{prj.customer?.companyName || prj.customer?.name}</span>
-                    <span className="text-[10px] uppercase bg-primary/10 text-primary px-2 py-0.5 rounded font-black">
+                  <div className="flex items-center justify-between gap-2 font-bold">
+                    <span className="text-primary shrink-0">{prj.projectNumber}</span>
+                    <span className="text-foreground truncate">{prj.customer?.companyName || prj.customer?.name}</span>
+                    <span className="text-[10px] uppercase bg-primary/10 text-primary px-2 py-0.5 rounded font-black shrink-0">
                       {prj.status}
                     </span>
                   </div>
@@ -213,7 +218,10 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>{t('projects.installation_date')}: {formatDate(prj.installationDate, 'TBD')}</span>
+                    <span>
+                      {prj.installationDate ? t('projects.installation_date') : t('projects.target_deadline')}:{' '}
+                      {formatDate(prj.installationDate || prj.targetDeliveryDate, '—')}
+                    </span>
                     <span>{t('projects.responsible')}: {prj.responsibleUser?.fullName || 'IMFEX Agent'}</span>
                   </div>
                 </div>

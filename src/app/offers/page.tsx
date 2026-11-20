@@ -23,6 +23,7 @@ import {
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 
 export default function OffersPage() {
   const { t } = useI18n();
@@ -116,6 +117,10 @@ export default function OffersPage() {
     return matchesSearch && matchesStatus;
   });
 
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={0} rows={6} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -132,15 +137,15 @@ export default function OffersPage() {
 
         <Link
           href="/offers/new"
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md shrink-0"
         >
           <Plus className="w-4 h-4" /> {t('offers.create_offer')}
         </Link>
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between bg-card p-4 rounded-xl border border-border">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
           <input
             type="text"

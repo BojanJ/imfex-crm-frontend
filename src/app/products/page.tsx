@@ -13,6 +13,8 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDate } from '@/lib/date-format';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
   Package,
   Plus,
@@ -124,13 +126,10 @@ export default function ProductsPage() {
     refreshProducts();
   }, [storeVersion]);
 
-  if (!isMounted) {
-    return (
-      <div className="flex items-center justify-center p-12 text-xs text-muted-foreground gap-2">
-        <Loader2 className="w-4 h-4 animate-spin text-primary" />
-        <span>{t('products.loading')}</span>
-      </div>
-    );
+  useEscapeKey(showAddModal, () => setShowAddModal(false));
+
+  if (!isMounted || !imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={3} rows={6} />;
   }
 
   const isSuperAdmin = role === 'SUPER_ADMIN';
@@ -412,7 +411,7 @@ export default function ProductsPage() {
               </button>
             </>
           )}
-          <span className="border border-primary/50 bg-primary/10 rounded-full px-3 py-1 text-primary text-xs font-bold">
+          <span className="border border-dashed border-border bg-muted/40 rounded-md px-2.5 py-1 text-muted-foreground text-[10px] font-bold uppercase tracking-wider select-none">
             МАГАЦИН & CRM
           </span>
         </div>
@@ -1030,14 +1029,28 @@ export default function ProductsPage() {
 
       {/* Create Product Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
+          onClick={() => setShowAddModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Додај Нов Артикл"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="font-extrabold text-base flex items-center gap-2">
                 <Package className="w-5 h-5 text-primary" />
                 <span>Додај Нов Артикл во Магацин / Каталог</span>
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                aria-label="Затвори"
+                className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg hover:bg-muted"
+              >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
@@ -1194,6 +1207,8 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
   const [newCatName, setNewCatName] = useState('');
   const [confirmDeleteCat, setConfirmDeleteCat] = useState<{ id: string; name: string } | null>(null);
 
+  useEscapeKey(!confirmDeleteCat, onClose);
+
   useEffect(() => {
     const unsubscribe = imfexStore.subscribe(() => {
       setCategories(imfexStore.getCategories());
@@ -1212,14 +1227,28 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Менаџирање со Категории"
+    >
+      <div
+        className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-base flex items-center gap-2">
             <Layers className="w-5 h-5 text-primary" />
             <span>Менаџирање со Категории</span>
           </h3>
-          <button onClick={onClose} className="p-1 hover:bg-muted rounded-lg text-muted-foreground">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Затвори"
+            className="p-1 hover:bg-muted rounded-lg text-muted-foreground cursor-pointer"
+          >
             <XCircle className="w-5 h-5" />
           </button>
         </div>

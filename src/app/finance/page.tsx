@@ -34,6 +34,8 @@ import {
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
   Landmark,
   ShoppingCart,
@@ -695,6 +697,15 @@ function FinancePageContent() {
   });
 
   const partnersList = customers.filter((c) => c.customerType === 'PARTNER' || c.customerType === 'COMPANY');
+
+  useEscapeKey(showPurchaseModal && !confirmState.isOpen, () => setShowPurchaseModal(false));
+  useEscapeKey(showSalesInvoiceModal, () => setShowSalesInvoiceModal(false));
+  useEscapeKey(showDispatchModal && !confirmState.isOpen, () => setShowDispatchModal(false));
+  useEscapeKey(showPaymentModal, () => setShowPaymentModal(false));
+
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={4} rows={5} />;
+  }
 
   return (
     <div className="space-y-6 pb-20 text-xs">
@@ -1551,36 +1562,44 @@ function FinancePageContent() {
             <div>
               <h3 className="font-extrabold text-sm text-foreground">Партнери и Добавувачи (пр. Doors Impex)</h3>
               <p className="text-[11px] text-muted-foreground">
-                Преглед на сите деловни партнери и добавувачи од кои се набавува стока или услуги.
+                Преглед на деловни партнери и компании од CRM. Добавувачите со евидентирани набавки се означени со беџ „ДОБАВУВАЧ“.
               </p>
             </div>
             <button
               onClick={() => setShowPartnerModal(true)}
-              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4" /> Додај Партнер / Добавувач
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {partnersList.map((partner) => {
               const pName = partner.companyName || partner.name;
               const partnerPurchases = purchases.filter(
                 (p) => p.supplierName.toLowerCase() === pName.toLowerCase()
               );
               const totalBought = partnerPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+              const isSupplier = partnerPurchases.length > 0 || partner.customerType === 'PARTNER';
 
               return (
                 <div key={partner.id} className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-extrabold text-[10px] uppercase">
-                      {partner.customerType}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">ЕДБ: {partner.taxId || '—'}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-extrabold text-[10px] uppercase whitespace-nowrap">
+                        {partner.customerType === 'PARTNER' ? 'ПАРТНЕР' : 'КОМПАНИЈА'}
+                      </span>
+                      {isSupplier && (
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-extrabold text-[10px] uppercase whitespace-nowrap">
+                          ДОБАВУВАЧ
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground shrink-0">ЕДБ: {partner.taxId || '—'}</span>
                   </div>
                   <h4 className="font-extrabold text-base text-foreground">{pName}</h4>
                   <p className="text-muted-foreground text-[11px]">
-                    {partner.phone || ''} {partner.email ? `• ${partner.email}` : ''}
+                    {[partner.phone, partner.email].filter(Boolean).join(' • ') || '—'}
                   </p>
                   <div className="pt-2 border-t border-border flex items-center justify-between">
                     <span className="text-muted-foreground">Вкупно набавки:</span>
@@ -1606,7 +1625,7 @@ function FinancePageContent() {
       {/* MODAL 1: НОВА ВЛЕЗНА ФАКТУРА / НАБАВКА / ТРОШОК                       */}
       {/* ===================================================================== */}
       {showPurchaseModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-card border border-border rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -1781,7 +1800,7 @@ function FinancePageContent() {
                             }}
                             allowClear
                             clearLabel="-- Избери постоечки производ --"
-                            placeholder="-- Пребарај производ по код PRD- или назив --"
+                            placeholder="-- Пребарај производ по шифра од каталог или назив --"
                           />
                         </div>
                       ) : (
@@ -1984,7 +2003,7 @@ function FinancePageContent() {
       {/* MODAL 2: НОВА ИЗЛЕЗНА ФАКТУРА / ПРО-ФАКТУРА / АВАНСНА                  */}
       {/* ===================================================================== */}
       {showSalesInvoiceModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -2213,7 +2232,7 @@ function FinancePageContent() {
                           }}
                           allowClear
                           clearLabel="-- Избери од магацин --"
-                          placeholder="-- Пребарај производ по код PRD- или назив --"
+                          placeholder="-- Пребарај производ по шифра од каталог или назив --"
                         />
                       </div>
                       <div className="sm:col-span-4">
@@ -2313,7 +2332,7 @@ function FinancePageContent() {
       {/* MODAL 3: НОВА ИСПРАТНИЦА                                              */}
       {/* ===================================================================== */}
       {showDispatchModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
@@ -2448,7 +2467,7 @@ function FinancePageContent() {
       {/* MODAL 4: ЕВИДЕНТИРАЈ УПЛАТА / ИСПЛАТА                                 */}
       {/* ===================================================================== */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base text-foreground">Евидентирај Уплата / Исплата</h3>

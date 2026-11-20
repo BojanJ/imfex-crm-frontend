@@ -30,6 +30,8 @@ import {
 
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 export default function CustomersPage() {
   const { t } = useI18n();
@@ -45,6 +47,8 @@ export default function CustomersPage() {
 
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(null);
   const [detailTab, setDetailTab] = useState<'DETAILS' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>('DOCS');
+
+  useEscapeKey(Boolean(activeCustomerDetail) && !previewOffer, () => setActiveCustomerDetail(null));
 
   const refreshList = () => {
     setCustomers(imfexStore.getCustomers());
@@ -87,6 +91,10 @@ export default function CustomersPage() {
     ? imfexStore.getServiceTickets().filter((st) => st.customerId === activeCustomerDetail.id)
     : [];
 
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={0} rows={6} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -106,15 +114,15 @@ export default function CustomersPage() {
             setEditingCustomer(null);
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md shrink-0 cursor-pointer"
         >
           <Plus className="w-4 h-4" /> {t('customers.add_customer')}
         </button>
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between bg-card p-4 rounded-xl border border-border">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
           <input
             type="text"
@@ -131,7 +139,7 @@ export default function CustomersPage() {
             <button
               key={type}
               onClick={() => setFilterType(type)}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 filterType === type
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
@@ -143,10 +151,8 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Main Grid & Customer Detail Drawer Container */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Customer Cards List */}
-        <div className={`space-y-4 ${activeCustomerDetail ? 'lg:col-span-1' : 'lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 space-y-0'}`}>
+      {/* Customer Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((customer) => {
             const isSelected = activeCustomerDetail?.id === customer.id;
 
@@ -154,52 +160,57 @@ export default function CustomersPage() {
               <div
                 key={customer.id}
                 onClick={() => setActiveCustomerDetail(customer)}
-                className={`bg-card border rounded-xl p-5 shadow-sm space-y-4 cursor-pointer transition-all flex flex-col justify-between ${
+                className={`bg-card border rounded-xl p-5 shadow-sm space-y-4 cursor-pointer transition-all flex flex-col justify-between min-w-0 overflow-hidden ${
                   isSelected ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'border-border hover:border-primary/50'
                 }`}
               >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
+                <div className="space-y-3 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-primary/10 text-primary rounded-lg shrink-0">
                         {customer.customerType === 'INDIVIDUAL' ? (
                           <User className="w-5 h-5" />
                         ) : (
                           <Building2 className="w-5 h-5" />
                         )}
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[9px] font-extrabold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded">
                           {customer.customerType}
                         </span>
-                        <h3 className="font-bold text-sm leading-tight text-foreground mt-1">
+                        <h3 className="font-bold text-sm leading-tight text-foreground mt-1 truncate">
                           {customer.companyName || customer.name}
                         </h3>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                       <Link
                         href={`/offers/new?customerId=${customer.id}`}
                         className="p-1.5 text-emerald-600 hover:bg-emerald-500/10 rounded-lg"
                         title="Create Offer for Customer"
+                        aria-label="Креирај понуда за клиент"
                       >
                         <FileText className="w-4 h-4" />
                       </Link>
                       <button
+                        type="button"
                         onClick={() => {
                           setEditingCustomer(customer);
                           setIsModalOpen(true);
                         }}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
                         title="Edit Customer"
+                        aria-label="Уреди клиент"
                       >
                         <Edit3 className="w-4 h-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDelete(customer.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg"
+                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg cursor-pointer"
                         title="Delete Customer"
+                        aria-label="Избриши клиент"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -241,23 +252,39 @@ export default function CustomersPage() {
           })}
         </div>
 
-        {/* Client Documentation & History Detail Panel */}
+        {/* Client Documentation & History Slide-Over Drawer */}
         {activeCustomerDetail && (
-          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-md space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <div>
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end"
+            onClick={() => setActiveCustomerDetail(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Документација и историја за ${activeCustomerDetail.companyName || activeCustomerDetail.name}`}
+          >
+            <div
+              className="w-full max-w-2xl h-full bg-card border-l border-border p-6 shadow-2xl space-y-6 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+            <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
+              <div className="min-w-0">
                 <span className="text-[10px] font-extrabold uppercase text-primary bg-primary/10 px-2 py-0.5 rounded">
                   {t('customers.documentation')}
                 </span>
-                <h2 className="text-lg font-black text-foreground mt-1">
+                <h2 className="text-lg font-black text-foreground mt-1 truncate">
                   {activeCustomerDetail.companyName || activeCustomerDetail.name}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  {activeCustomerDetail.email} • {activeCustomerDetail.phone} • {activeCustomerDetail.address}, {activeCustomerDetail.city}
+                  {[
+                    activeCustomerDetail.email,
+                    activeCustomerDetail.phone,
+                    [activeCustomerDetail.address, activeCustomerDetail.city].filter(Boolean).join(', '),
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || '—'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Link
                   href={`/offers/new?customerId=${activeCustomerDetail.id}`}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
@@ -266,8 +293,10 @@ export default function CustomersPage() {
                 </Link>
 
                 <button
+                  type="button"
                   onClick={() => setActiveCustomerDetail(null)}
-                  className="text-xs text-muted-foreground hover:text-foreground font-bold border border-border px-2.5 py-1.5 rounded-xl hover:bg-muted"
+                  aria-label="Затвори"
+                  className="text-xs text-muted-foreground hover:text-foreground font-bold border border-border px-2.5 py-1.5 rounded-xl hover:bg-muted cursor-pointer"
                 >
                   ✕
                 </button>
@@ -462,9 +491,9 @@ export default function CustomersPage() {
                 )}
               </div>
             )}
+            </div>
           </div>
         )}
-      </div>
 
       {/* Customer Modal */}
       <CustomerModal

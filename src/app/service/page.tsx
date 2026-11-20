@@ -7,6 +7,7 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { ServiceTicket, ServiceStatus } from '@/types';
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { toast } from '@/components/ui/toastr';
 import {
   Wrench,
@@ -73,6 +74,10 @@ export default function ServiceDeskPage() {
         return 'bg-muted text-muted-foreground border-border';
     }
   };
+
+  if (!imfexStore.isLoadedFromBackend) {
+    return <PageLoadingSkeleton cards={0} rows={5} />;
+  }
 
   return (
     <div className="space-y-6">

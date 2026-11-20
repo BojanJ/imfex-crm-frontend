@@ -106,9 +106,9 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setStatus(nextStatus);
 
     if (nextStatus === 'CLOSED') {
-      alert(`Барањето за сервис ${saved.ticketNumber} е ЗАТВОРЕНО.`);
+      toast.success(`Барањето за сервис ${saved.ticketNumber} е ЗАТВОРЕНО.`);
     } else {
-      alert(`Барањето за сервис ${saved.ticketNumber} е ажурирано.`);
+      toast.success(`Барањето за сервис ${saved.ticketNumber} е ажурирано.`);
     }
   };
 

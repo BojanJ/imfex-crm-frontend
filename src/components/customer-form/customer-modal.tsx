@@ -5,6 +5,7 @@ import { Customer, CustomerType } from '@/types';
 import { imfexStore } from '@/lib/store';
 import { X, Building2, User, UserCheck, ShieldCheck } from 'lucide-react';
 import { toast } from '@/components/ui/toastr';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 interface CustomerModalProps {
   isOpen: boolean;
@@ -67,6 +68,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     setNotes('');
   };
 
+  useEscapeKey(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -99,7 +102,12 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label={customerToEdit ? 'Уреди клиент' : 'Нов клиент'}
+    >
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40">
@@ -121,8 +129,10 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+            aria-label="Затвори"
+            className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>

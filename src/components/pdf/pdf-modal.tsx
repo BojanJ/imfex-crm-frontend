@@ -8,6 +8,7 @@ import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'luc
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { getApiUrl, authFetch } from '@/lib/store';
 import { toast } from '@/components/ui/toastr';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 interface PdfModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen || !isClient) return null;
 
@@ -91,7 +94,12 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 animate-in fade-in duration-200 print:p-0 print:static print:bg-white">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:p-0 print:static print:bg-white"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`PDF преглед ${offer.offerNumber}`}
+    >
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none print:max-w-none">
         {/* Modal Header (Hidden on Print) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden gap-4">
@@ -149,7 +157,9 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
             </button>
 
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Затвори"
               className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
