@@ -183,6 +183,7 @@ export interface ClientDocument {
   fileUrl: string;
   fileName?: string;
   sizeBytes?: number;
+  hasFile?: boolean;
   createdAt: string;
 }
 

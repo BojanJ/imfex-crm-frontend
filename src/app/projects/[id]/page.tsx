@@ -509,52 +509,93 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   };
 
   useEffect(() => {
-    if (!previewAttachment || !previewAttachment.dataUrl) {
+    if (!previewAttachment) {
       setPreviewBlobUrl('');
       return;
     }
-    if (!previewAttachment.dataUrl.startsWith('data:')) {
-      setPreviewBlobUrl('');
-      return;
-    }
+    let cancelled = false;
     let objectUrl = '';
-    try {
-      const parts = previewAttachment.dataUrl.split(',');
-      const meta = parts[0] || '';
-      const base64Data = parts[1] || '';
-      const mimeMatch = meta.match(/^data:([^;]+);base64$/i);
-      const rawMime = (mimeMatch ? mimeMatch[1] : previewAttachment.mimeType || '').toLowerCase();
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Uint8Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
 
-      // Strictly enforce safe MIME types and PDF magic bytes to prevent stored XSS
-      if (previewAttachment.category === 'PDF') {
-        if (!isPdfHeader(byteNumbers)) {
-          setPreviewBlobUrl('');
-          return;
+    const buildSafePreview = (dataUrl: string) => {
+      if (!dataUrl || !dataUrl.startsWith('data:')) {
+        setPreviewBlobUrl('');
+        return;
+      }
+      try {
+        const parts = dataUrl.split(',');
+        const meta = parts[0] || '';
+        const base64Data = parts[1] || '';
+        const mimeMatch = meta.match(/^data:([^;]+);base64$/i);
+        const rawMime = (mimeMatch ? mimeMatch[1] : previewAttachment.mimeType || '').toLowerCase();
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
-        const blob = new Blob([byteNumbers], { type: 'application/pdf' });
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewBlobUrl(objectUrl);
-      } else if (previewAttachment.category === 'IMAGE' && SAFE_RASTER_IMAGE_MIMES.has(rawMime)) {
-        const blob = new Blob([byteNumbers], { type: rawMime });
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewBlobUrl(objectUrl);
-      } else {
+
+        // Strictly enforce safe MIME types and PDF magic bytes to prevent stored XSS
+        if (previewAttachment.category === 'PDF') {
+          if (!isPdfHeader(byteNumbers)) {
+            setPreviewBlobUrl('');
+            return;
+          }
+          const blob = new Blob([byteNumbers], { type: 'application/pdf' });
+          objectUrl = URL.createObjectURL(blob);
+          setPreviewBlobUrl(objectUrl);
+        } else if (previewAttachment.category === 'IMAGE' && SAFE_RASTER_IMAGE_MIMES.has(rawMime)) {
+          const blob = new Blob([byteNumbers], { type: rawMime });
+          objectUrl = URL.createObjectURL(blob);
+          setPreviewBlobUrl(objectUrl);
+        } else {
+          setPreviewBlobUrl('');
+        }
+      } catch {
         setPreviewBlobUrl('');
       }
-    } catch {
+    };
+
+    if (previewAttachment.dataUrl) {
+      buildSafePreview(previewAttachment.dataUrl);
+    } else if (previewAttachment.id) {
+      imfexStore.fetchDocumentFileUrl(previewAttachment.id).then((resolved) => {
+        if (cancelled) return;
+        if (resolved) {
+          setPreviewAttachment((prev) => (prev && prev.id === previewAttachment.id ? { ...prev, dataUrl: resolved } : prev));
+          buildSafePreview(resolved);
+        } else {
+          setPreviewBlobUrl('');
+        }
+      });
+    } else {
       setPreviewBlobUrl('');
     }
+
     return () => {
+      cancelled = true;
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
     };
   }, [previewAttachment]);
+
+  const handleDownloadAttachment = async (att: ProjectAttachment) => {
+    let url = att.dataUrl;
+    if (!url && att.id) {
+      const fetched = await imfexStore.fetchDocumentFileUrl(att.id);
+      if (fetched) url = fetched;
+    }
+    if (!url) {
+      toast.error('Содржината на фајлот не може да се вчита.');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = att.name;
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
 
   const handleDeleteAttachment = (att: ProjectAttachment) => {
     if (!project) return;
@@ -1338,7 +1379,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                         className="p-3 rounded-xl border border-border bg-background/70 hover:border-primary/40 transition-all flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          {att.category === 'IMAGE' ? (
+                          {att.category === 'IMAGE' && att.dataUrl ? (
                             <button
                               type="button"
                               onClick={() => setPreviewAttachment(att)}
@@ -1355,7 +1396,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             <div
                               className={`w-12 h-12 rounded-lg border flex items-center justify-center shrink-0 ${badgeStyle}`}
                             >
-                              {att.category === 'PDF' ? (
+                              {att.category === 'IMAGE' ? (
+                                <ImageIcon className="w-6 h-6" />
+                              ) : att.category === 'PDF' ? (
                                 <FileText className="w-6 h-6" />
                               ) : att.category === 'EXCEL' ? (
                                 <FileSpreadsheet className="w-6 h-6" />
@@ -1402,14 +1445,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             </button>
                           )}
 
-                          <a
-                            href={att.dataUrl}
-                            download={att.name}
-                            className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadAttachment(att)}
+                            className="p-2 rounded-lg text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer"
                             title={t('projects.file_download')}
                           >
                             <Download className="w-4 h-4" />
-                          </a>
+                          </button>
 
                           <button
                             type="button"

@@ -265,14 +265,15 @@ class ImfexStore {
   }
 
   private clientDocToProjectAttachment(doc: ClientDocument): ProjectAttachment | null {
-    if (!doc.projectId || !doc.fileUrl || doc.fileUrl === '#') return null;
-    if (!doc.fileUrl.startsWith('data:') && !doc.fileUrl.startsWith('http')) return null;
+    const hasInline = Boolean(doc.fileUrl && doc.fileUrl !== '#' && (doc.fileUrl.startsWith('data:') || doc.fileUrl.startsWith('http')));
+    const hasRemote = Boolean(doc.hasFile);
+    if (!doc.projectId || (!hasInline && !hasRemote)) return null;
     const upperType = (doc.fileType || '').toUpperCase();
     if (upperType === 'PROTOCOL' || upperType === 'SIGNATURE') return null;
 
     const cleanName = doc.fileName || doc.title.replace(/\s*\(PRJ-[^)]+\)\s*$/, '') || doc.title || 'Документ';
     let mimeType = 'application/octet-stream';
-    const dataMimeMatch = doc.fileUrl.match(/^data:([^;,]+)[;,]/i);
+    const dataMimeMatch = (doc.fileUrl || '').match(/^data:([^;,]+)[;,]/i);
     if (dataMimeMatch && dataMimeMatch[1]) {
       mimeType = dataMimeMatch[1];
     }
@@ -1420,11 +1421,19 @@ class ImfexStore {
     this.notifyListeners();
     const baseUrl = getApiUrl();
     authFetch(`${baseUrl}/api/customers/${id}`, { method: 'DELETE' })
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) {
           this.customers = snapshot;
           this.notifyListeners();
-          toast.error('Грешка при бришење на клиентот');
+          const errBody = await res.json().catch(() => ({}));
+          if (res.status === 409) {
+            toast.error(
+              'Клиентот не може да се избрише',
+              'Овој клиент има поврзани понуди, проекти, тикети или документи.'
+            );
+          } else {
+            toast.error('Грешка при бришење на клиентот', errBody?.error);
+          }
         }
       })
       .catch(() => {
@@ -1641,6 +1650,39 @@ class ImfexStore {
       })
       .catch((e) => console.warn('saveDocument API notice:', e));
     return doc;
+  }
+
+  async fetchDocumentFileUrl(docId: string): Promise<string | null> {
+    const existingDoc = this.documents.find((d) => d.id === docId);
+    if (existingDoc?.fileUrl && existingDoc.fileUrl.startsWith('data:')) {
+      return existingDoc.fileUrl;
+    }
+    const baseUrl = getApiUrl();
+    try {
+      const res = await authFetch(`${baseUrl}/api/client-documents/${encodeURIComponent(docId)}`);
+      if (!res.ok) return null;
+      const fullDoc = await res.json();
+      const resolvedUrl = typeof fullDoc?.fileUrl === 'string' ? fullDoc.fileUrl : '';
+      if (!resolvedUrl) return null;
+
+      const idx = this.documents.findIndex((d) => d.id === docId);
+      if (idx >= 0) {
+        this.documents[idx] = { ...this.documents[idx], fileUrl: resolvedUrl };
+      }
+      for (const projKey of Object.keys(this.projectAttachments)) {
+        const list = this.projectAttachments[projKey];
+        const aIdx = list?.findIndex((a) => a.id === docId) ?? -1;
+        if (aIdx >= 0) {
+          const updatedList = [...list];
+          updatedList[aIdx] = { ...updatedList[aIdx], dataUrl: resolvedUrl };
+          this.projectAttachments[projKey] = updatedList;
+        }
+      }
+      this.notifyListeners();
+      return resolvedUrl;
+    } catch {
+      return null;
+    }
   }
 
   deleteDocument(id: string) {
