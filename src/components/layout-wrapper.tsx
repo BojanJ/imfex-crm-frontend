@@ -4,18 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/navbar';
 import { Sidebar } from '@/components/sidebar';
-import { imfexStore } from '@/lib/store';
+import { ChangePasswordModal } from '@/components/auth/change-password-modal';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
   const router = useRouter();
+  useImfexStore();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const isLoginPage = pathname === '/login';
+  const currentUser = imfexStore.getCurrentUser();
 
   useEffect(() => {
     const isAuthed = imfexStore.isAuthenticated();
@@ -68,6 +71,10 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
         />
         <main className="flex-1 min-w-0 p-4 sm:p-6 overflow-x-hidden">{children}</main>
       </div>
+      <ChangePasswordModal
+        isOpen={Boolean(isAuthenticated && currentUser?.mustChangePassword)}
+        forced
+      />
     </div>
   );
 };

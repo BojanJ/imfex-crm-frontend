@@ -77,11 +77,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
         {/* User Profile & Sign-out */}
         <div className="flex items-center gap-3 pl-3 border-l border-border">
           <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xs text-primary uppercase">
-            {currentUser?.fullName ? currentUser.fullName.slice(0, 2) : 'SA'}
+            {currentUser?.fullName ? currentUser.fullName.slice(0, 2) : 'IM'}
           </div>
           <div className="hidden lg:block text-left text-xs">
-            <p className="font-semibold leading-none text-foreground">{currentUser?.fullName || 'Супер Администратор'}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{currentUser?.email || 'admin@imfex.com'}</p>
+            <p className="font-semibold leading-none text-foreground">{currentUser?.fullName || ''}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{currentUser?.email || ''}</p>
           </div>
           <button
             onClick={handleSignOut}

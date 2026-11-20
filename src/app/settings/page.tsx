@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore, generateTempPassword } from '@/lib/store';
 import { UserProfile, UserRole } from '@/types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
@@ -19,6 +19,11 @@ import {
   Database,
   AlertTriangle,
   Trash2,
+  ShieldCheck,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
 } from 'lucide-react';
 
 import { toast } from '@/components/ui/toastr';
@@ -28,13 +33,26 @@ import { useEscapeKey } from '@/components/ui/use-escape-key';
 export default function SettingsPage() {
   const { t } = useI18n();
   const storeVersion = useImfexStore();
-  const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY'>('USERS');
+  const isSuperAdmin = imfexStore.getCurrentRole() === 'SUPER_ADMIN';
+  const currentUser = imfexStore.getCurrentUser();
+  const [activeTab, setActiveTab] = useState<'USERS' | 'COMPANY' | 'SECURITY'>(() =>
+    imfexStore.getCurrentRole() === 'SUPER_ADMIN' ? 'USERS' : 'SECURITY'
+  );
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [isResetting, setIsResetting] = useState(false);
-  const isSuperAdmin = imfexStore.getCurrentRole() === 'SUPER_ADMIN';
+
+  // Voluntary Change Password state (available to all authenticated users)
+  const [currentPwd, setCurrentPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [confirmPwd, setConfirmPwd] = useState('');
+  const [showPwdFields, setShowPwdFields] = useState(false);
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+  const [isChangingPwd, setIsChangingPwd] = useState(false);
+
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     title: string;
@@ -43,6 +61,12 @@ export default function SettingsPage() {
     variant?: 'danger' | 'warning' | 'primary' | 'success';
     onConfirm: () => void;
   } | null>(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin && activeTab !== 'SECURITY') {
+      setActiveTab('SECURITY');
+    }
+  }, [isSuperAdmin, activeTab]);
 
   const handleSyncDatabase = async () => {
     setIsSyncing(true);
@@ -70,7 +94,8 @@ export default function SettingsPage() {
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('USER');
-  const [newTempPassword, setNewTempPassword] = useState('IMFEX2026!');
+  const [newTempPassword, setNewTempPassword] = useState('');
+  const [showTempPassword, setShowTempPassword] = useState(true);
   const [resetMessage, setResetMessage] = useState('');
 
   // Company Info State (hydrated from PostgreSQL /api/company-settings)
@@ -102,21 +127,63 @@ export default function SettingsPage() {
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFullName.trim() || !newEmail.trim()) return;
+    if (!isSuperAdmin || !newFullName.trim() || !newEmail.trim()) return;
+    if (newTempPassword.trim().length > 0 && newTempPassword.trim().length < 8) {
+      toast.error('Привремената лозинка мора да има најмалку 8 карактери.');
+      return;
+    }
 
-    const createdName = newFullName;
-    const createdTempPass = newTempPassword;
-    imfexStore.createUserProfile(newFullName, newEmail, newRole, newTempPassword);
+    const createdName = newFullName.trim();
+    const { tempPassword } = imfexStore.createUserProfile(newFullName, newEmail, newRole, newTempPassword);
     refreshProfiles();
     setNewFullName('');
     setNewEmail('');
-    setNewTempPassword('IMFEX2026!');
+    setNewTempPassword('');
     setShowAddUserModal(false);
     toast.success(
       `Корисникот ${createdName} е креиран!`,
-      `Привремена лозинка: ${createdTempPass}`,
-      8000
+      `Привремена лозинка (еднократен приказ): ${tempPassword}`,
+      10000
     );
+  };
+
+  const handleChangeOwnPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess(false);
+
+    if (!currentPwd.trim()) {
+      setPwdError('Внесете ја тековната лозинка.');
+      return;
+    }
+    if (newPwd.trim().length < 8) {
+      setPwdError('Новата лозинка мора да содржи најмалку 8 карактери.');
+      return;
+    }
+    if (newPwd.trim() === currentPwd.trim()) {
+      setPwdError('Новата лозинка мора да се разликува од тековната.');
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setPwdError('Новите лозинки не се совпаѓаат.');
+      return;
+    }
+
+    setIsChangingPwd(true);
+    const result = await imfexStore.changePasswordAsync(currentPwd.trim(), newPwd.trim());
+    setIsChangingPwd(false);
+
+    if (!result.ok) {
+      setPwdError(result.error || 'Грешка при промена на лозинката.');
+      return;
+    }
+
+    setCurrentPwd('');
+    setNewPwd('');
+    setConfirmPwd('');
+    setPwdSuccess(true);
+    toast.success('Лозинката е успешно променета!');
+    setTimeout(() => setPwdSuccess(false), 4000);
   };
 
   const handleResetPassword = (userId: string, email: string) => {
@@ -190,27 +257,49 @@ export default function SettingsPage() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="flex items-center bg-muted p-1 rounded-xl border border-border text-xs font-bold shrink-0 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center bg-muted p-1 rounded-xl border border-border text-xs font-bold shrink-0 self-start sm:self-auto gap-1">
+          {isSuperAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab('USERS')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'USERS' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0" /> {t('users.title')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('COMPANY')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'COMPANY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                }`}
+              >
+                <Building2 className="w-4 h-4 shrink-0" /> {t('settings.company_details')}
+              </button>
+            </>
+          )}
           <button
             type="button"
-            onClick={() => setActiveTab('USERS')}
+            onClick={() => setActiveTab('SECURITY')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'USERS' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+              activeTab === 'SECURITY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
             }`}
           >
-            <Users className="w-4 h-4 shrink-0" /> {t('users.title')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('COMPANY')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'COMPANY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
-            }`}
-          >
-            <Building2 className="w-4 h-4 shrink-0" /> {t('settings.company_details')}
+            <ShieldCheck className="w-4 h-4 shrink-0" /> Безбедност
           </button>
         </div>
       </div>
+
+      {!isSuperAdmin && (
+        <div className="p-3.5 bg-muted/60 border border-border text-muted-foreground rounded-xl text-xs flex items-center gap-2">
+          <Lock className="w-4 h-4 shrink-0 text-primary" />
+          <span>
+            Управувањето со корисници и системските подесувања на компанијата се достапни само за <strong>Супер Администратор</strong>. Овде можете да ја промените вашата лозинка.
+          </span>
+        </div>
+      )}
 
       {resetMessage && (
         <div className="p-3.5 bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold flex items-center gap-2">
@@ -219,15 +308,19 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tab 1: User Accounts & Password Resets */}
-      {activeTab === 'USERS' && (
+      {/* Tab 1: User Accounts & Password Resets (SUPER_ADMIN only) */}
+      {isSuperAdmin && activeTab === 'USERS' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
               {t('users.subtitle')}
             </h2>
             <button
-              onClick={() => setShowAddUserModal(true)}
+              onClick={() => {
+                setNewTempPassword(generateTempPassword(12));
+                setShowTempPassword(true);
+                setShowAddUserModal(true);
+              }}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
             >
               <Plus className="w-4 h-4" /> {t('users.create_user')}
@@ -309,8 +402,8 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tab 2: Company Details Form */}
-      {activeTab === 'COMPANY' && (
+      {/* Tab 2: Company Details Form (SUPER_ADMIN only) */}
+      {isSuperAdmin && activeTab === 'COMPANY' && (
         <form onSubmit={handleSaveCompanySettings} className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4 text-xs">
           {savedSuccess && (
             <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-semibold flex items-center gap-2">
@@ -453,8 +546,114 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Tab 3: Personal Security & Password Change (All Authenticated Users) */}
+      {activeTab === 'SECURITY' && (
+        <form
+          onSubmit={handleChangeOwnPassword}
+          className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4 text-xs max-w-xl"
+        >
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h2 className="font-bold text-sm flex items-center gap-2 text-foreground">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                Промена на сопствена лозинка
+              </h2>
+              {currentUser?.email && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Сметка: <span className="font-semibold text-foreground">{currentUser.email}</span>
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPwdFields((v) => !v)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] font-semibold cursor-pointer"
+            >
+              {showPwdFields ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {showPwdFields ? 'Сокриј' : 'Прикажи'}
+            </button>
+          </div>
+
+          {pwdSuccess && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>Лозинката е успешно променета!</span>
+            </div>
+          )}
+
+          {pwdError && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-semibold">
+              {pwdError}
+            </div>
+          )}
+
+          <div>
+            <label className="block font-semibold mb-1 text-foreground">Тековна лозинка *</label>
+            <input
+              type={showPwdFields ? 'text' : 'password'}
+              required
+              autoComplete="current-password"
+              value={currentPwd}
+              onChange={(e) => setCurrentPwd(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-semibold mb-1 text-foreground">
+                Нова лозинка (мин. 8 знаци) *
+              </label>
+              <input
+                type={showPwdFields ? 'text' : 'password'}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={newPwd}
+                onChange={(e) => setNewPwd(e.target.value)}
+                placeholder="Најмалку 8 карактери"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1 text-foreground">Потврди нова лозинка *</label>
+              <input
+                type={showPwdFields ? 'text' : 'password'}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+                placeholder="Повторете ја новата лозинка"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={isChangingPwd}
+              className="flex items-center gap-1.5 px-5 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer disabled:opacity-50"
+            >
+              {isChangingPwd ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Се зачувува...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" /> Промени лозинка
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* Reset Confirmation Modal */}
-      {showResetModal && (
+      {isSuperAdmin && showResetModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
           onClick={() => {
@@ -525,7 +724,7 @@ export default function SettingsPage() {
       )}
 
       {/* Create User Modal */}
-      {showAddUserModal && (
+      {isSuperAdmin && showAddUserModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4"
           onClick={() => setShowAddUserModal(false)}
@@ -577,13 +776,35 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">{t('users.temp_password')}</label>
-                <input
-                  type="text"
-                  value={newTempPassword}
-                  onChange={(e) => setNewTempPassword(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg border border-border bg-background outline-none font-mono font-bold"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold">{t('users.temp_password')} *</label>
+                  <button
+                    type="button"
+                    onClick={() => setNewTempPassword(generateTempPassword(12))}
+                    className="flex items-center gap-1 text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" /> Генерирај нова
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showTempPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    value={newTempPassword}
+                    onChange={(e) => setNewTempPassword(e.target.value)}
+                    placeholder="Најмалку 8 карактери"
+                    className="w-full pl-3 pr-9 py-1.5 rounded-lg border border-border bg-background outline-none font-mono font-bold focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTempPassword((v) => !v)}
+                    aria-label={showTempPassword ? 'Сокриј лозинка' : 'Прикажи лозинка'}
+                    className="absolute right-2.5 top-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    {showTempPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {t('users.first_time_login_notice')}
                 </p>

@@ -34,6 +34,43 @@ import {
 import { formatDate } from './date-format';
 import { toast } from '@/components/ui/toastr';
 
+export function generateTempPassword(length = 12): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%^&*';
+  const all = upper + lower + digits + symbols;
+
+  const getRandomBytes = (n: number): Uint8Array => {
+    const arr = new Uint8Array(n);
+    if (typeof globalThis !== 'undefined' && globalThis.crypto?.getRandomValues) {
+      globalThis.crypto.getRandomValues(arr);
+    } else {
+      for (let i = 0; i < n; i++) arr[i] = Math.floor(Math.random() * 256);
+    }
+    return arr;
+  };
+
+  const targetLen = Math.max(10, length);
+  const bytes = getRandomBytes(targetLen * 2);
+  const chars: string[] = [
+    upper[bytes[0] % upper.length],
+    lower[bytes[1] % lower.length],
+    digits[bytes[2] % digits.length],
+    symbols[bytes[3] % symbols.length],
+  ];
+  for (let i = 4; i < targetLen; i++) {
+    chars.push(all[bytes[i] % all.length]);
+  }
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = bytes[targetLen + (i % targetLen)] % (i + 1);
+    const tmp = chars[i];
+    chars[i] = chars[j];
+    chars[j] = tmp;
+  }
+  return chars.join('');
+}
+
 export const getApiUrl = () => {
   return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
 };
@@ -50,7 +87,12 @@ export const authFetch = async (input: string, init: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`);
   }
   const res = await fetch(input, { ...init, headers });
-  if (res.status === 401 && typeof window !== 'undefined' && !input.includes('/api/auth/login')) {
+  if (
+    res.status === 401 &&
+    typeof window !== 'undefined' &&
+    !input.includes('/api/auth/login') &&
+    !input.includes('/api/auth/change-password')
+  ) {
     imfexStore.logout();
     if (window.location.pathname !== '/login') {
       window.location.replace('/login');
@@ -817,8 +859,7 @@ class ImfexStore {
 
   private syncCurrentUserToSession() {
     if (typeof window !== 'undefined' && this.currentUser) {
-      const { password: _omit, ...safeUser } = this.currentUser;
-      sessionStorage.setItem('imfex_current_user', JSON.stringify(safeUser));
+      sessionStorage.setItem('imfex_current_user', JSON.stringify(this.currentUser));
     }
   }
 
@@ -827,8 +868,11 @@ class ImfexStore {
     return [...this.profiles];
   }
 
-  createUserProfile(fullName: string, email: string, role: UserRole, tempPassword?: string): UserProfile {
+  createUserProfile(fullName: string, email: string, role: UserRole, tempPassword?: string): { user: UserProfile; tempPassword: string } {
     const tempId = `usr-${Date.now()}`;
+    const resolvedTempPassword = tempPassword && tempPassword.trim().length >= 8
+      ? tempPassword.trim()
+      : generateTempPassword(12);
     const newUser: UserProfile = {
       id: tempId,
       email: email.trim().toLowerCase(),
@@ -845,7 +889,7 @@ class ImfexStore {
     authFetch(`${baseUrl}/api/profiles`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...newUser, password: tempPassword || 'IMFEX123!' }),
+      body: JSON.stringify({ ...newUser, password: resolvedTempPassword }),
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -867,7 +911,7 @@ class ImfexStore {
         this.notifyListeners();
         toast.error('Мрежна грешка при креирање на корисник');
       });
-    return newUser;
+    return { user: newUser, tempPassword: resolvedTempPassword };
   }
 
   updateUserProfile(profile: UserProfile): UserProfile {
@@ -914,7 +958,9 @@ class ImfexStore {
   }
 
   resetUserPassword(userId: string, newTempPassword?: string): string {
-    const tempPass = newTempPassword || 'TempPass2026!';
+    const tempPass = newTempPassword && newTempPassword.trim().length >= 8
+      ? newTempPassword.trim()
+      : generateTempPassword(12);
     const user = this.profiles.find((p) => p.id === userId);
     if (user) {
       const prevMustChange = user.mustChangePassword;
@@ -924,7 +970,7 @@ class ImfexStore {
       authFetch(`${baseUrl}/api/profiles/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: tempPass }),
+        body: JSON.stringify({ password: tempPass, mustChangePassword: true }),
       })
         .then((res) => {
           if (!res.ok) {
@@ -942,37 +988,45 @@ class ImfexStore {
     return tempPass;
   }
 
-  changeUserPassword(userId: string, newPassword: string): boolean {
-    const user = this.profiles.find((p) => p.id === userId);
-    if (user) {
-      const prevMustChange = user.mustChangePassword;
-      user.mustChangePassword = false;
-      if (this.currentUser?.id === userId) {
+  async changePasswordAsync(
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ ok: boolean; error?: string }> {
+    const baseUrl = getApiUrl();
+    try {
+      const res = await authFetch(`${baseUrl}/api/auth/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          error: typeof data?.error === 'string' ? data.error : 'Грешка при промена на лозинката',
+        };
+      }
+
+      const updatedUser: UserProfile | undefined = data?.user;
+      if (updatedUser && this.currentUser?.id === updatedUser.id) {
+        this.currentUser = { ...this.currentUser, ...updatedUser, mustChangePassword: false };
+        this.syncCurrentUserToSession();
+      } else if (this.currentUser) {
         this.currentUser = { ...this.currentUser, mustChangePassword: false };
         this.syncCurrentUserToSession();
       }
+      if (updatedUser) {
+        const idx = this.profiles.findIndex((p) => p.id === updatedUser.id);
+        if (idx >= 0) {
+          this.profiles[idx] = { ...this.profiles[idx], ...updatedUser, mustChangePassword: false };
+        }
+      }
       this.notifyListeners();
-      const baseUrl = getApiUrl();
-      authFetch(`${baseUrl}/api/profiles/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: newPassword }),
-      })
-        .then((res) => {
-          if (!res.ok) {
-            user.mustChangePassword = prevMustChange;
-            if (this.currentUser?.id === userId) {
-              this.currentUser = { ...this.currentUser, mustChangePassword: prevMustChange };
-              this.syncCurrentUserToSession();
-            }
-            this.notifyListeners();
-            toast.error('Грешка при промена на лозинката');
-          }
-        })
-        .catch(() => toast.error('Мрежна грешка при промена на лозинката'));
-      return true;
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Мрежна грешка при промена на лозинката' };
     }
-    return false;
   }
 
   toggleUserStatus(userId: string): UserProfile | undefined {

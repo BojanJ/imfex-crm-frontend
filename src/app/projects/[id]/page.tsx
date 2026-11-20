@@ -49,11 +49,39 @@ export const dynamic = 'force-dynamic';
 
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3 MB per file (safe for localStorage persistence)
 
+const ALLOWED_UPLOAD_EXTENSIONS = /\.(pdf|png|jpe?g|webp|gif|doc|docx|xls|xlsx|csv|txt)$/i;
+const FORBIDDEN_UPLOAD_EXTENSIONS = /\.(html?|svg|js|mjs|cjs|jsx|tsx|xml|xhtml|php|sh|bat|cmd|ps1|exe|dll|msi)$/i;
+const SAFE_RASTER_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/csv',
+  'text/plain',
+]);
+
+function isPdfHeader(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 5 &&
+    bytes[0] === 0x25 && // %
+    bytes[1] === 0x50 && // P
+    bytes[2] === 0x44 && // D
+    bytes[3] === 0x46 && // F
+    bytes[4] === 0x2d    // -
+  );
+}
+
 function detectFileCategory(fileName: string, mimeType: string): ProjectFileCategory {
   const lowerName = (fileName || '').toLowerCase();
   const lowerMime = (mimeType || '').toLowerCase();
 
-  if (lowerMime.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|bmp|svg|heic|avif)$/i.test(lowerName)) {
+  if (SAFE_RASTER_IMAGE_MIMES.has(lowerMime) || /\.(jpg|jpeg|png|gif|webp)$/i.test(lowerName)) {
     return 'IMAGE';
   }
   if (lowerMime === 'application/pdf' || /\.pdf$/i.test(lowerName)) {
@@ -63,7 +91,7 @@ function detectFileCategory(fileName: string, mimeType: string): ProjectFileCate
     lowerMime.includes('excel') ||
     lowerMime.includes('spreadsheet') ||
     lowerMime === 'text/csv' ||
-    /\.(xls|xlsx|csv|ods)$/i.test(lowerName)
+    /\.(xls|xlsx|csv)$/i.test(lowerName)
   ) {
     return 'EXCEL';
   }
@@ -71,7 +99,7 @@ function detectFileCategory(fileName: string, mimeType: string): ProjectFileCate
     lowerMime.includes('word') ||
     lowerMime.includes('msword') ||
     lowerMime.includes('wordprocessingml') ||
-    /\.(doc|docx|rtf|odt)$/i.test(lowerName)
+    /\.(doc|docx)$/i.test(lowerName)
   ) {
     return 'WORD';
   }
@@ -398,6 +426,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const filesArray = Array.from(fileList);
 
     filesArray.forEach((file) => {
+      const lowerMime = (file.type || '').toLowerCase();
+      if (
+        FORBIDDEN_UPLOAD_EXTENSIONS.test(file.name) ||
+        !ALLOWED_UPLOAD_EXTENSIONS.test(file.name) ||
+        (lowerMime && !ALLOWED_UPLOAD_MIMES.has(lowerMime))
+      ) {
+        toast.error(
+          `Недозволен тип на фајл „${file.name}“`,
+          'Дозволени се само PDF, слики (PNG/JPG/WEBP/GIF) и документи (DOC/DOCX/XLS/XLSX/CSV/TXT).'
+        );
+        return;
+      }
+
       if (file.size > MAX_FILE_SIZE_BYTES) {
         toast.error(
           `Фајлот „${file.name}“ е преголем (${formatFileSize(file.size)})`,
@@ -411,12 +452,33 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         const dataUrl = typeof reader.result === 'string' ? reader.result : '';
         if (!dataUrl) return;
         const category = detectFileCategory(file.name, file.type);
+
+        // Verify magic bytes for PDF before accepting
+        if (category === 'PDF') {
+          try {
+            const base64Part = dataUrl.split(',')[1] || '';
+            const headChars = atob(base64Part.slice(0, 16));
+            const headBytes = new Uint8Array(headChars.length);
+            for (let i = 0; i < headChars.length; i++) headBytes[i] = headChars.charCodeAt(i);
+            if (!isPdfHeader(headBytes)) {
+              toast.error(
+                `Невалиден PDF фајл „${file.name}“`,
+                'Содржината на фајлот не одговара на валиден PDF документ.'
+              );
+              return;
+            }
+          } catch {
+            toast.error(`Невалиден PDF фајл „${file.name}“`);
+            return;
+          }
+        }
+
         const newAtt: ProjectAttachment = {
           id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           projectId: project.id,
           customerId: project.customerId,
           name: file.name,
-          mimeType: file.type || 'application/octet-stream',
+          mimeType: lowerMime || (category === 'PDF' ? 'application/pdf' : 'application/octet-stream'),
           category,
           sizeBytes: file.size,
           dataUrl,
@@ -452,7 +514,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       return;
     }
     if (!previewAttachment.dataUrl.startsWith('data:')) {
-      setPreviewBlobUrl(previewAttachment.dataUrl);
+      setPreviewBlobUrl('');
       return;
     }
     let objectUrl = '';
@@ -460,18 +522,32 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       const parts = previewAttachment.dataUrl.split(',');
       const meta = parts[0] || '';
       const base64Data = parts[1] || '';
-      const mimeMatch = meta.match(/data:([^;]+);base64/);
-      const mime = mimeMatch ? mimeMatch[1] : previewAttachment.mimeType || 'application/octet-stream';
+      const mimeMatch = meta.match(/^data:([^;]+);base64$/i);
+      const rawMime = (mimeMatch ? mimeMatch[1] : previewAttachment.mimeType || '').toLowerCase();
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Uint8Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
-      const blob = new Blob([byteNumbers], { type: mime });
-      objectUrl = URL.createObjectURL(blob);
-      setPreviewBlobUrl(objectUrl);
-    } catch (e) {
-      setPreviewBlobUrl(previewAttachment.dataUrl);
+
+      // Strictly enforce safe MIME types and PDF magic bytes to prevent stored XSS
+      if (previewAttachment.category === 'PDF') {
+        if (!isPdfHeader(byteNumbers)) {
+          setPreviewBlobUrl('');
+          return;
+        }
+        const blob = new Blob([byteNumbers], { type: 'application/pdf' });
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewBlobUrl(objectUrl);
+      } else if (previewAttachment.category === 'IMAGE' && SAFE_RASTER_IMAGE_MIMES.has(rawMime)) {
+        const blob = new Blob([byteNumbers], { type: rawMime });
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewBlobUrl(objectUrl);
+      } else {
+        setPreviewBlobUrl('');
+      }
+    } catch {
+      setPreviewBlobUrl('');
     }
     return () => {
       if (objectUrl) {
@@ -1130,7 +1206,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,*/*"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.xls,.xlsx,.csv,.txt"
                 onChange={(e) => handleFilesUpload(e.target.files)}
                 className="hidden"
               />
@@ -1381,6 +1457,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         <div
           className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setPreviewAttachment(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={previewAttachment.name}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
@@ -1408,6 +1487,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <a
                   href={previewAttachment.dataUrl}
                   download={previewAttachment.name}
+                  rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" /> {t('projects.file_download')}
@@ -1415,6 +1495,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <button
                   type="button"
                   onClick={() => setPreviewAttachment(null)}
+                  aria-label="Затвори"
                   className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -1423,15 +1504,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
 
             <div className="p-4 overflow-auto flex-1 flex items-center justify-center bg-background/50">
-              {previewAttachment.category === 'IMAGE' ? (
+              {previewAttachment.category === 'IMAGE' && previewBlobUrl ? (
                 <img
-                  src={previewBlobUrl || previewAttachment.dataUrl}
+                  src={previewBlobUrl}
                   alt={previewAttachment.name}
                   className="max-h-[75vh] max-w-full object-contain rounded-lg"
                 />
-              ) : previewAttachment.category === 'PDF' ? (
+              ) : previewAttachment.category === 'PDF' && previewBlobUrl ? (
                 <iframe
-                  src={previewBlobUrl || previewAttachment.dataUrl}
+                  src={previewBlobUrl}
                   title={previewAttachment.name}
                   className="w-full h-[75vh] rounded-lg border border-border bg-white"
                 />
@@ -1443,6 +1524,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <a
                     href={previewAttachment.dataUrl}
                     download={previewAttachment.name}
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs"
                   >
                     <Download className="w-4 h-4" /> {t('projects.file_download')}

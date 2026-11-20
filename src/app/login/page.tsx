@@ -16,7 +16,7 @@ import {
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const [email, setEmail] = useState('admin@imfex.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -77,7 +77,8 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
-                  placeholder="admin@imfex.com"
+                  autoComplete="email"
+                  placeholder="name@imfex.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-border bg-background font-medium outline-none focus:ring-2 focus:ring-primary"
