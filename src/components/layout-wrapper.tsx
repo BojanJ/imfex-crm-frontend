@@ -17,21 +17,21 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const isLoginPage = pathname === '/login';
+  const isPublicAuthPage = pathname === '/login' || pathname === '/reset-password';
   const currentUser = imfexStore.getCurrentUser();
 
   useEffect(() => {
     const isAuthed = imfexStore.isAuthenticated();
     setIsAuthenticated(isAuthed);
 
-    if (!isAuthed && !isLoginPage) {
+    if (!isAuthed && !isPublicAuthPage) {
       router.replace('/login');
-    } else if (isAuthed && isLoginPage) {
+    } else if (isAuthed && pathname === '/login') {
       router.replace('/');
     }
 
     setIsAuthChecking(false);
-  }, [pathname, isLoginPage, router]);
+  }, [pathname, isPublicAuthPage, router]);
 
   if (isAuthChecking) {
     return (
@@ -47,11 +47,11 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   }
 
-  if (!isAuthenticated && !isLoginPage) {
+  if (!isAuthenticated && !isPublicAuthPage) {
     return null;
   }
 
-  if (isLoginPage) {
+  if (isPublicAuthPage) {
     return <main className="min-h-screen bg-background">{children}</main>;
   }
 

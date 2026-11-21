@@ -178,8 +178,8 @@ export const ProductSelect: React.FC<ProductSelectProps> = ({
       const freeStock = Math.max(0, stock - reserved);
       const isProdActive = p.isActive !== false;
 
-      let badge = isCustom ? 'ПО НАРАЧКА' : `ЗАЛИХА: ${stock}`;
-      let badgeColor = isCustom
+      const badge = isCustom ? 'ПО НАРАЧКА' : `ЗАЛИХА: ${stock}`;
+      const badgeColor = isCustom
         ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
         : stock > 0
         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'

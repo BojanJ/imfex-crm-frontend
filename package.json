@@ -6,14 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.469.0",
-    "next": "^15.1.0",
+    "next": "^15.5.21",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5"
@@ -23,13 +24,16 @@
     "@types/react": "^19.0.1",
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.5.4",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.21",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^5.1.1"
   },
   "optionalDependencies": {
-    "@next/swc-win32-x64-msvc": "^15.5.21",
     "@next/swc-linux-x64-gnu": "^15.5.21",
-    "@next/swc-linux-x64-musl": "^15.5.21"
+    "@next/swc-linux-x64-musl": "^15.5.21",
+    "@next/swc-win32-x64-msvc": "^15.5.21"
   }
 }

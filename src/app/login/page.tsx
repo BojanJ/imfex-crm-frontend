@@ -5,11 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useI18n, Locale } from '@/lib/i18n-context';
 import { useTheme } from '@/lib/theme-context';
 import { imfexStore } from '@/lib/store';
+import { getApiUrl } from '@/lib/api';
 import {
   Lock,
   Mail,
   ArrowRight,
   AlertCircle,
+  CheckCircle2,
+  KeyRound,
   Loader2,
   Sun,
   Moon,
@@ -24,6 +27,35 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Forgot Password flow (IMP-06)
+  const [showForgotMode, setShowForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [forgotError, setForgotError] = useState('');
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotStatus('sending');
+    try {
+      const res = await fetch(`${getApiUrl()}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setForgotError(data?.error || 'Грешка при испраќање на барањето.');
+        setForgotStatus('idle');
+        return;
+      }
+      setForgotStatus('sent');
+    } catch {
+      setForgotError('Мрежна грешка. Проверете ја интернет врската.');
+      setForgotStatus('idle');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,65 +123,155 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Clean Login Surface */}
+        {/* Clean Login / Forgot Password Surface */}
         <div className="surface-card rounded-2xl p-6 sm:p-7 space-y-5">
-          {errorMessage && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl text-xs font-medium flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4 text-xs">
-            <div className="space-y-1.5">
-              <label className="block font-medium text-foreground">{t('login.email')}</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="email"
-                  required
-                  autoComplete="email"
-                  placeholder="name@imfex.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                />
+          {showForgotMode ? (
+            <div className="space-y-4 text-xs">
+              <div className="flex items-center gap-2 font-semibold text-sm text-foreground">
+                <KeyRound className="w-4 h-4 text-primary" />
+                <span>{locale === 'mk' ? 'Ресетирање на лозинка' : 'Reset Password'}</span>
               </div>
-            </div>
+              <p className="text-muted-foreground leading-relaxed">
+                {locale === 'mk'
+                  ? 'Внесете ја вашата е-пошта. Доколку постои активна сметка, ќе добиете линк за ресетирање (важи 1 час).'
+                  : 'Enter your email address. If an active account exists, we will send a 1-hour reset link.'}
+              </p>
 
-            <div className="space-y-1.5">
-              <label className="block font-medium text-foreground">{t('login.password')}</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full h-10 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Се врши проверка...</span>
-                </>
-              ) : (
-                <>
-                  <span>{t('login.submit')}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
+              {forgotError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{forgotError}</span>
+                </div>
               )}
-            </button>
-          </form>
+
+              {forgotStatus === 'sent' ? (
+                <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl font-medium flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    {locale === 'mk'
+                      ? 'Доколку постои сметка со оваа е-пошта, упатството за ресетирање е испратено.'
+                      : 'If an account matches this email, reset instructions have been sent.'}
+                  </span>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-foreground">{t('login.email')}</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="email"
+                        required
+                        autoComplete="email"
+                        placeholder="name@imfex.com"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={forgotStatus === 'sending'}
+                    className="w-full h-10 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {forgotStatus === 'sending' ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{locale === 'mk' ? 'Се испраќа...' : 'Sending...'}</span>
+                      </>
+                    ) : (
+                      <span>{locale === 'mk' ? 'Испрати линк за ресетирање' : 'Send Reset Link'}</span>
+                    )}
+                  </button>
+                </form>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForgotMode(false);
+                  setForgotStatus('idle');
+                  setForgotError('');
+                }}
+                className="w-full text-center text-xs font-semibold text-primary hover:underline cursor-pointer pt-1"
+              >
+                ← {locale === 'mk' ? 'Назад кон најава' : 'Back to Sign In'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {errorMessage && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-xl text-xs font-medium flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="block font-medium text-foreground">{t('login.email')}</label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      placeholder="name@imfex.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-medium text-foreground">{t('login.password')}</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotEmail(email);
+                        setShowForgotMode(true);
+                      }}
+                      className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                    >
+                      {locale === 'mk' ? 'Заборавена лозинка?' : 'Forgot password?'}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full h-10 pl-9 pr-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full h-10 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Се врши проверка...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{t('login.submit')}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+            </>
+          )}
         </div>
 
         <p className="text-[11px] text-center text-muted-foreground">
