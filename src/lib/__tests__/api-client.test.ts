@@ -77,4 +77,35 @@ describe('Typed apiClient & TanStack Query Client (IMP-02)', () => {
     qc.clear();
     expect(qc.getQueryData(queryKeys.companySettings)).toBeUndefined();
   });
+
+  it('fetches single-entity detail endpoints and finance/calendar collections cleanly', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/api/offers/off-42')) {
+        return Promise.resolve(new Response(JSON.stringify({ id: 'off-42', offerNumber: 'OFF-2026-0042' }), { status: 200 }));
+      }
+      if (url.endsWith('/api/projects/prj-7')) {
+        return Promise.resolve(new Response(JSON.stringify({ id: 'prj-7', projectNumber: 'PRJ-2026-0007' }), { status: 200 }));
+      }
+      if (url.endsWith('/api/service-tickets/srv-3')) {
+        return Promise.resolve(new Response(JSON.stringify({ id: 'srv-3', ticketNumber: 'SRV-2026-0003' }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }));
+    });
+    globalThis.fetch = fetchMock;
+
+    const offer = await apiClient.offers.getById('off-42');
+    const project = await apiClient.projects.getById('prj-7');
+    const ticket = await apiClient.serviceTickets.getById('srv-3');
+    const purchases = await apiClient.finance.listPurchaseInvoices();
+    const events = await apiClient.calendarEvents.list();
+
+    expect(offer.offerNumber).toBe('OFF-2026-0042');
+    expect(project.projectNumber).toBe('PRJ-2026-0007');
+    expect(ticket.ticketNumber).toBe('SRV-2026-0003');
+    expect(purchases).toEqual([]);
+    expect(events).toEqual([]);
+    expect(queryKeys.offer('off-42')).toEqual(['offers', 'off-42']);
+    expect(queryKeys.project('prj-7')).toEqual(['projects', 'prj-7']);
+    expect(queryKeys.serviceTicket('srv-3')).toEqual(['service-tickets', 'srv-3']);
+  });
 });

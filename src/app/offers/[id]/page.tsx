@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { use } from 'react';
 import Link from 'next/link';
-import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
-import { Offer } from '@/types';
+import { useOfferQuery } from '@/lib/queries';
 import { OfferBuilderForm } from '@/components/offer-builder/offer-builder-form';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
@@ -12,56 +11,9 @@ export const dynamic = 'force-dynamic';
 export default function EditOfferPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const id = resolvedParams?.id;
-  useImfexStore(); // Auto-subscribe to store state changes
+  const { data: offer, isLoading } = useOfferQuery(id);
 
-  const [offer, setOffer] = useState<Offer | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!id) return;
-
-    // 1. Check local store
-    const local = imfexStore.getOfferById(id);
-    if (local) {
-      setOffer(local);
-      setIsLoading(false);
-      return;
-    }
-
-    // 2. Fetch directly from backend API
-    const baseUrl = getApiUrl();
-    authFetch(`${baseUrl}/api/offers/${id}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.id) {
-          setOffer({
-            ...data,
-            taxRate: Number(data.taxRate || 0),
-            discountRate: Number(data.discountRate || 0),
-            discountAmount: Number(data.discountAmount || 0),
-            subtotal: Number(data.subtotal || 0),
-            taxAmount: Number(data.taxAmount || 0),
-            totalAmount: Number(data.totalAmount || 0),
-            items: (data.items || []).map((it: any) => ({
-              ...it,
-              quantity: Number(it.quantity || 1),
-              unitPrice: Number(it.unitPrice || 0),
-              totalPrice: Number(it.totalPrice || 0),
-              specifications: (it.specifications && it.specifications.length > 0)
-                ? it.specifications
-                : (it.offerItemSpecifications || []),
-            })),
-          });
-        } else {
-          const storeFound = imfexStore.getOfferById(id);
-          if (storeFound) setOffer(storeFound);
-        }
-      })
-      .catch((err) => console.warn('Fetch offer notice:', err))
-      .finally(() => setIsLoading(false));
-  }, [id, imfexStore.isLoadedFromBackend, imfexStore.getOffers().length]);
-
-  if (isLoading && !offer && !imfexStore.isLoadedFromBackend) {
+  if (isLoading && !offer) {
     return (
       <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin text-primary" />

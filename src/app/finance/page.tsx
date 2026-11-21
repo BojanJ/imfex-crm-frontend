@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   PurchaseInvoice,
   PurchaseInvoiceItem,
@@ -12,15 +13,24 @@ import {
   SalesInvoiceItem,
   DispatchNote,
   DispatchNoteItem,
-  PaymentRecord,
   PaymentMethod,
   Product,
   ProductStockType,
-  Customer,
   Project,
   Offer,
 } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { queryKeys } from '@/lib/query-client';
+import {
+  usePurchaseInvoicesQuery,
+  useSalesInvoicesQuery,
+  useDispatchNotesQuery,
+  usePaymentsQuery,
+  useProductsQuery,
+  useCustomersQuery,
+  useProjectsQuery,
+  useOffersQuery,
+} from '@/lib/queries';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
@@ -88,23 +98,32 @@ const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 function FinancePageContent() {
-  const storeVersion = useImfexStore();
+  useImfexStore();
+  const qc = useQueryClient();
   const searchParams = useSearchParams();
   const initialTab = (searchParams?.get('tab') as FinanceTab) || 'purchases';
+
+  const purchasesQuery = usePurchaseInvoicesQuery();
+  const salesInvoicesQuery = useSalesInvoicesQuery();
+  const dispatchesQuery = useDispatchNotesQuery();
+  const paymentsQuery = usePaymentsQuery();
+  useProductsQuery();
+  const customersQuery = useCustomersQuery();
+  const projectsQuery = useProjectsQuery();
+  const offersQuery = useOffersQuery();
 
   const [activeTab, setActiveTab] = useState<FinanceTab>(initialTab);
   const [search, setSearch] = useState('');
   const [purchaseFilter, setPurchaseFilter] = useState<'ALL' | 'STOCK' | 'EXPENSE' | 'PENDING_RECEIPT'>('ALL');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'ALL' | SalesInvoiceType>('ALL');
 
-  const [purchases, setPurchases] = useState<PurchaseInvoice[]>([]);
-  const [salesInvoices, setSalesInvoices] = useState<SalesInvoice[]>([]);
-  const [dispatches, setDispatches] = useState<DispatchNote[]>([]);
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [offers, setOffers] = useState<Offer[]>([]);
+  const purchases = purchasesQuery.data ?? imfexStore.getPurchaseInvoices();
+  const salesInvoices = salesInvoicesQuery.data ?? imfexStore.getSalesInvoices();
+  const dispatches = dispatchesQuery.data ?? imfexStore.getDispatchNotes();
+  const payments = paymentsQuery.data ?? imfexStore.getPayments();
+  const customers = customersQuery.data ?? imfexStore.getCustomers();
+  const projects = projectsQuery.data ?? imfexStore.getProjects();
+  const offers = offersQuery.data ?? imfexStore.getOffers();
 
   // Modals state
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
@@ -206,19 +225,18 @@ function FinancePageContent() {
   });
 
   const refreshAll = () => {
-    setPurchases(imfexStore.getPurchaseInvoices());
-    setSalesInvoices(imfexStore.getSalesInvoices());
-    setDispatches(imfexStore.getDispatchNotes());
-    setPayments(imfexStore.getPayments());
-    setProducts(imfexStore.getProducts());
-    setCustomers(imfexStore.getCustomers());
-    setProjects(imfexStore.getProjects());
-    setOffers(imfexStore.getOffers());
+    imfexStore.seedQueryCache();
+    void Promise.all([
+      qc.invalidateQueries({ queryKey: queryKeys.purchaseInvoices }),
+      qc.invalidateQueries({ queryKey: queryKeys.salesInvoices }),
+      qc.invalidateQueries({ queryKey: queryKeys.dispatchNotes }),
+      qc.invalidateQueries({ queryKey: queryKeys.payments }),
+      qc.invalidateQueries({ queryKey: queryKeys.products }),
+      qc.invalidateQueries({ queryKey: queryKeys.customers }),
+      qc.invalidateQueries({ queryKey: queryKeys.projects }),
+      qc.invalidateQueries({ queryKey: queryKeys.offers }),
+    ]);
   };
-
-  useEffect(() => {
-    refreshAll();
-  }, [storeVersion]);
 
   // KPI calculations
   const totalPaymentsIn = payments
@@ -720,7 +738,10 @@ function FinancePageContent() {
   useEscapeKey(showDispatchModal && !confirmState.isOpen, () => setShowDispatchModal(false));
   useEscapeKey(showPaymentModal, () => setShowPaymentModal(false));
 
-  if (!imfexStore.isLoadedFromBackend) {
+  if (
+    !imfexStore.isLoadedFromBackend &&
+    (purchasesQuery.isLoading || salesInvoicesQuery.isLoading || dispatchesQuery.isLoading || paymentsQuery.isLoading)
+  ) {
     return <PageLoadingSkeleton cards={4} rows={5} />;
   }
 

@@ -12,7 +12,8 @@ import {
   SalesInvoice,
   DispatchNote,
 } from '@/types';
-import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { useProjectQuery, useProfilesQuery } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getProjectStatusLabel, getUserRoleLabel } from '@/lib/enum-labels';
@@ -121,10 +122,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const resolvedParams = use(params);
   const router = useRouter();
   const projectId = resolvedParams?.id;
-  useImfexStore(); // Auto-subscribe to store state changes
+  useImfexStore(); // Subscribe to multi-step workflow mutations (advance payment, dispatch, attachments)
+  const projectQuery = useProjectQuery(projectId);
+  const profilesQuery = useProfilesQuery();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const profiles: UserProfile[] = profilesQuery.data ?? imfexStore.getProfiles();
   const [status, setStatus] = useState<ProjectStatus>('PLANNED');
   const [responsibleUserId, setResponsibleUserId] = useState<string>('');
   const [startDate, setStartDate] = useState('');
@@ -146,7 +149,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string>('');
   const [signatureData, setSignatureData] = useState<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = projectQuery.isLoading && !project;
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
   const [previewDispatch, setPreviewDispatch] = useState<DispatchNote | null>(null);
@@ -209,38 +212,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   }, [signatureData, project?.id]);
 
   useEffect(() => {
-    setProfiles(imfexStore.getProfiles());
-    if (!projectId) return;
-    if (hydratedProjectIdRef.current === projectId) return;
-
-    // 1. Check local store
-    const local = imfexStore.getProjectById(projectId);
-    if (local) {
-      hydratedProjectIdRef.current = projectId;
-      applyProjectData(local);
-      setIsLoading(false);
-      return;
-    }
-
-    // 2. Fetch directly from backend API
-    const baseUrl = getApiUrl();
-    authFetch(`${baseUrl}/api/projects/${projectId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.id) {
-          hydratedProjectIdRef.current = projectId;
-          applyProjectData(data);
-        } else {
-          const storeFound = imfexStore.getProjectById(projectId);
-          if (storeFound) {
-            hydratedProjectIdRef.current = projectId;
-            applyProjectData(storeFound);
-          }
-        }
-      })
-      .catch((err) => console.warn('Fetch project notice:', err))
-      .finally(() => setIsLoading(false));
-  }, [projectId, imfexStore.isLoadedFromBackend, imfexStore.getProjects().length]);
+    const prj = projectQuery.data;
+    if (!prj || hydratedProjectIdRef.current === prj.id) return;
+    hydratedProjectIdRef.current = prj.id;
+    applyProjectData(prj);
+  }, [projectQuery.data]);
 
   const executeSaveProject = (overridingStatus?: ProjectStatus) => {
     if (!project) return;

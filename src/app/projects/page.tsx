@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus } from '@/types';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { imfexStore } from '@/lib/store';
+import { useProjectsQuery, useSaveProjectMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -27,9 +28,10 @@ import {
 
 export default function ProjectsPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore();
+  const projectsQuery = useProjectsQuery();
+  const saveProjectMutation = useSaveProjectMutation();
 
-  const [projects, setProjects] = useState<Project[]>([]);
+  const projects = projectsQuery.data ?? imfexStore.getProjects();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'KANBAN' | 'TABLE'>('KANBAN');
@@ -41,14 +43,6 @@ export default function ProjectsPage() {
     project: Project;
     newStatus: ProjectStatus;
   } | null>(null);
-
-  const refreshList = () => {
-    setProjects(imfexStore.getProjects());
-  };
-
-  useEffect(() => {
-    refreshList();
-  }, [storeVersion]);
 
   const filtered = projects.filter((p) => {
     const term = search.toLowerCase().trim();
@@ -87,14 +81,19 @@ export default function ProjectsPage() {
   const confirmProjectStatusChange = () => {
     if (!pendingStatusChange) return;
     const { project, newStatus } = pendingStatusChange;
-    imfexStore.saveProject({
-      ...project,
-      status: newStatus,
-    });
-    refreshList();
-    toast.success(
-      'Статусот на проектот е променет!',
-      `Проектот ${project.projectNumber} е префрлен во статус „${getStatusLabel(newStatus)}“.`
+    saveProjectMutation.mutate(
+      {
+        ...project,
+        status: newStatus,
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            'Статусот на проектот е променет!',
+            `Проектот ${project.projectNumber} е префрлен во статус „${getStatusLabel(newStatus)}“.`
+          );
+        },
+      }
     );
     setPendingStatusChange(null);
   };

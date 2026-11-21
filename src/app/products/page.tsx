@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductStockType, UserRole, Project, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import {
+  useProductsQuery,
+  useCategoriesQuery,
+  useProjectsQuery,
+  useInventoryMovementsQuery,
+} from '@/lib/queries';
 import { ProductEditor } from '@/components/product-spec-builder/product-editor';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
@@ -27,7 +32,6 @@ import {
   Layers,
   Search,
   XCircle,
-  Loader2,
   ArrowRight,
   History,
   Settings2,
@@ -39,11 +43,15 @@ import {
 type ActiveTab = 'catalog' | 'config' | 'moves' | 'projects';
 
 export default function ProductsPage() {
-  const { t } = useI18n();
-  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
+  useImfexStore();
+  const productsQuery = useProductsQuery();
+  const categoriesQuery = useCategoriesQuery();
+  const projectsQuery = useProjectsQuery();
+  useInventoryMovementsQuery();
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState(imfexStore.getCategories());
+  const products = useMemo(() => productsQuery.data ?? imfexStore.getProducts(), [productsQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data ?? imfexStore.getCategories(), [categoriesQuery.data]);
+  const projectsList = useMemo(() => projectsQuery.data ?? imfexStore.getProjects(), [projectsQuery.data]);
   const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -82,37 +90,46 @@ export default function ProductsPage() {
   const [newProdDesc, setNewProdDesc] = useState('');
 
   const refreshProducts = () => {
-    const list = imfexStore.getProducts() || [];
-    const cats = imfexStore.getCategories() || [];
-    const projs = imfexStore.getProjects() || [];
-    setProducts(list);
-    setCategories(cats);
+    void productsQuery.refetch();
+    void categoriesQuery.refetch();
+    void projectsQuery.refetch();
+  };
 
-    if (projs.length > 0) {
-      setSelectedProjectId((prev) => (prev && projs.some((pr) => pr.id === prev) ? prev : projs[0].id));
+  useEffect(() => {
+    setIsMounted(true);
+    setRole(imfexStore.getCurrentRole());
+  }, []);
+
+  useEffect(() => {
+    if (projectsList.length > 0) {
+      setSelectedProjectId((prev) =>
+        prev && projectsList.some((pr) => pr.id === prev) ? prev : projectsList[0].id
+      );
     } else {
       setSelectedProjectId('');
     }
+  }, [projectsList]);
 
-    if (list.length > 0) {
+  useEffect(() => {
+    if (products.length > 0) {
       setSelectedProductId((prev) => {
-        if (prev && list.some((p) => p.id === prev)) return prev;
+        if (prev && products.some((p) => p.id === prev)) return prev;
         if (selectedProductCodeRef.current) {
-          const byCode = list.find((p) => p.code === selectedProductCodeRef.current);
+          const byCode = products.find((p) => p.code === selectedProductCodeRef.current);
           if (byCode) return byCode.id;
         }
-        return list[0].id;
+        return products[0].id;
       });
 
       setSelectedMotorId((prev) => {
-        if (prev && list.some((p) => p.id === prev)) return prev;
-        const motor = list.find((p) => getProductCatName(p, cats) === 'Автоматика');
+        if (prev && products.some((p) => p.id === prev)) return prev;
+        const motor = products.find((p) => getProductCatName(p, categories) === 'Автоматика');
         return motor ? motor.id : '';
       });
 
       setSelectedRailId((prev) => {
-        if (prev && list.some((p) => p.id === prev)) return prev;
-        const rail = list.find((p) => getProductCatName(p, cats) === 'Шини');
+        if (prev && products.some((p) => p.id === prev)) return prev;
+        const rail = products.find((p) => getProductCatName(p, categories) === 'Шини');
         return rail ? rail.id : '';
       });
     } else {
@@ -120,21 +137,12 @@ export default function ProductsPage() {
       setSelectedMotorId('');
       setSelectedRailId('');
     }
-  };
-
-  useEffect(() => {
-    setIsMounted(true);
-    setRole(imfexStore.getCurrentRole());
-    refreshProducts();
-  }, []);
-
-  useEffect(() => {
-    refreshProducts();
-  }, [storeVersion]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, categories]);
 
   useEscapeKey(showAddModal, () => setShowAddModal(false));
 
-  if (!isMounted || !imfexStore.isLoadedFromBackend) {
+  if (!isMounted || (!imfexStore.isLoadedFromBackend && productsQuery.isLoading)) {
     return <PageLoadingSkeleton cards={3} rows={6} />;
   }
 

@@ -1,10 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { CalendarEvent, CalendarEventType, Customer } from '@/types';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { CalendarEvent, CalendarEventType } from '@/types';
+import { imfexStore } from '@/lib/store';
+import {
+  useCalendarEventsQuery,
+  useCustomersQuery,
+  useProjectsQuery,
+  useServiceTicketsQuery,
+  useSaveCalendarEventMutation,
+  useDeleteCalendarEventMutation,
+} from '@/lib/queries';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
@@ -39,12 +47,16 @@ function compactCalendarTitle(rawTitle: string): string {
 
 export default function CalendarPage() {
   const { t, locale } = useI18n();
-  useImfexStore();
+  const calendarQuery = useCalendarEventsQuery();
+  const customersQuery = useCustomersQuery();
+  const projectsQuery = useProjectsQuery();
+  const serviceTicketsQuery = useServiceTicketsQuery();
+  const saveEventMutation = useSaveCalendarEventMutation();
+  const deleteEventMutation = useDeleteCalendarEventMutation();
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [filterType, setFilterType] = useState<string>('ALL');
-  const [customers, setCustomers] = useState<Customer[]>([]);
 
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -63,11 +75,14 @@ export default function CalendarPage() {
   const [eventDescription, setEventDescription] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
-  useEffect(() => {
-    setCustomers(imfexStore.getCustomers());
-  }, []);
-
-  const allEvents = imfexStore.getCalendarEvents();
+  // Merge custom CalendarEvents with live Project & Service milestones from TanStack Query caches
+  const allEvents = useMemo(() => {
+    void calendarQuery.data;
+    void projectsQuery.data;
+    void serviceTicketsQuery.data;
+    void customersQuery.data;
+    return imfexStore.getCalendarEvents();
+  }, [calendarQuery.data, projectsQuery.data, serviceTicketsQuery.data, customersQuery.data]);
   const filteredEvents =
     filterType === 'ALL' ? allEvents : allEvents.filter((e) => e.eventType === filterType);
 
@@ -148,8 +163,8 @@ export default function CalendarPage() {
     const startIso = eventAllDay ? eventStartDate : `${eventStartDate}T${eventStartTime}`;
     const endIso = eventAllDay ? safeEndDate : `${safeEndDate}T${eventEndTime}`;
 
-    const newEv: CalendarEvent = {
-      id: editingEventId || `event-${Date.now()}`,
+    const newEv: Partial<CalendarEvent> = {
+      ...(editingEventId ? { id: editingEventId } : {}),
       title: eventTitle,
       description: eventDescription,
       startDate: startIso,
@@ -157,16 +172,16 @@ export default function CalendarPage() {
       allDay: eventAllDay,
       eventType,
       customerId: eventCustomerId || undefined,
-      customer: eventCustomerId ? imfexStore.getCustomerById(eventCustomerId) : undefined,
       projectId: eventProjectId || undefined,
       location: eventLocation,
       color: eventType === 'MEETING' ? 'purple' : eventType === 'INSTALLATION' ? 'amber' : 'blue',
-      isSystemEvent: false,
-      createdAt: new Date().toISOString(),
     };
 
-    imfexStore.saveCalendarEvent(newEv);
-    setIsNewEventModalOpen(false);
+    saveEventMutation.mutate(newEv, {
+      onSuccess: () => {
+        setIsNewEventModalOpen(false);
+      },
+    });
   };
 
   const monthDays = useMemo(() => {
@@ -1037,8 +1052,11 @@ export default function CalendarPage() {
         variant="danger"
         onConfirm={() => {
           if (eventIdToDelete) {
-            imfexStore.deleteCalendarEvent(eventIdToDelete);
-            setSelectedEvent(null);
+            deleteEventMutation.mutate(eventIdToDelete, {
+              onSuccess: () => {
+                setSelectedEvent(null);
+              },
+            });
           }
           setEventIdToDelete(null);
         }}

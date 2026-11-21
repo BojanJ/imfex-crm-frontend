@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { imfexStore } from '@/lib/store';
+import { useServiceTicketsQuery, useDeleteServiceTicketMutation } from '@/lib/queries';
 import { ServiceTicket, ServiceStatus } from '@/types';
 import { formatDate } from '@/lib/date-format';
 import { getServicePriorityLabel, getServiceStatusLabel } from '@/lib/enum-labels';
@@ -59,16 +60,13 @@ function statusVariant(status: ServiceStatus): BadgeVariant {
 
 export default function ServiceDeskPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore();
+  const ticketsQuery = useServiceTicketsQuery();
+  const deleteTicketMutation = useDeleteServiceTicketMutation();
 
-  const [tickets, setTickets] = useState<ServiceTicket[]>([]);
+  const tickets = ticketsQuery.data ?? imfexStore.getServiceTickets();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ServiceStatus>('ALL');
   const [ticketToDelete, setTicketToDelete] = useState<ServiceTicket | null>(null);
-
-  useEffect(() => {
-    setTickets(imfexStore.getServiceTickets());
-  }, [storeVersion]);
 
   const filtered = tickets.filter((st) => {
     const matchesStatus = statusFilter === 'ALL' || st.status === statusFilter;
@@ -82,7 +80,7 @@ export default function ServiceDeskPage() {
     return matchesStatus && matchesSearch;
   });
 
-  if (!imfexStore.isLoadedFromBackend) {
+  if (!imfexStore.isLoadedFromBackend && ticketsQuery.isLoading) {
     return <PageLoadingSkeleton cards={0} rows={5} />;
   }
 
@@ -219,8 +217,11 @@ export default function ServiceDeskPage() {
         variant="danger"
         onConfirm={() => {
           if (ticketToDelete) {
-            imfexStore.deleteServiceTicket(ticketToDelete.id);
-            toast.info('Сервисниот тикет е избришан');
+            deleteTicketMutation.mutate(ticketToDelete.id, {
+              onSuccess: () => {
+                toast.info('Сервисниот тикет е избришан');
+              },
+            });
           }
           setTicketToDelete(null);
         }}

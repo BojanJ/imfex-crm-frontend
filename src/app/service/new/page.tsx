@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
-import { Customer, InstalledItem, ServicePriority, ServiceTicket } from '@/types';
+import { ServicePriority, ServiceTicket } from '@/types';
 import { imfexStore } from '@/lib/store';
+import {
+  useCustomersQuery,
+  useInstalledItemsQuery,
+  useSaveServiceTicketMutation,
+} from '@/lib/queries';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect } from '@/components/ui/entity-selectors';
@@ -23,38 +28,54 @@ import {
 export default function NewServiceTicketPage() {
   const router = useRouter();
   const { locale } = useI18n();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const customersQuery = useCustomersQuery();
+  const installedItemsQuery = useInstalledItemsQuery();
+  const saveTicketMutation = useSaveServiceTicketMutation();
+
+  const customers = useMemo(
+    () => customersQuery.data ?? imfexStore.getCustomers(),
+    [customersQuery.data]
+  );
+  const allInstalledItems = useMemo(
+    () => installedItemsQuery.data ?? imfexStore.getAllInstalledItems(),
+    [installedItemsQuery.data]
+  );
+
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [customerInstalledItems, setCustomerInstalledItems] = useState<InstalledItem[]>([]);
   const [selectedInstalledItemId, setSelectedInstalledItemId] = useState<string>('');
   const [defectDescription, setDefectDescription] = useState('');
   const [priority, setPriority] = useState<ServicePriority>('MEDIUM');
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
-  useEffect(() => {
-    const list = imfexStore.getCustomers();
-    setCustomers(list);
-    if (list.length > 0) {
-      setSelectedCustomerId(list[0].id);
-    }
-  }, []);
+  const customerInstalledItems = useMemo(
+    () =>
+      selectedCustomerId
+        ? allInstalledItems.filter((item) => item.customerId === selectedCustomerId)
+        : [],
+    [allInstalledItems, selectedCustomerId]
+  );
 
   useEffect(() => {
-    if (selectedCustomerId) {
-      const items = imfexStore.getInstalledItemsByCustomer(selectedCustomerId);
-      setCustomerInstalledItems(items);
-      if (items.length > 0) {
-        setSelectedInstalledItemId(items[0].id);
-      } else {
-        setSelectedInstalledItemId('');
-      }
+    if (!selectedCustomerId && customers.length > 0) {
+      setSelectedCustomerId(customers[0].id);
     }
-  }, [selectedCustomerId]);
+  }, [customers, selectedCustomerId]);
+
+  useEffect(() => {
+    if (customerInstalledItems.length > 0) {
+      setSelectedInstalledItemId((prev) =>
+        customerInstalledItems.some((i) => i.id === prev) ? prev : customerInstalledItems[0].id
+      );
+    } else {
+      setSelectedInstalledItemId('');
+    }
+  }, [customerInstalledItems]);
 
   const refreshCustomers = () => {
-    const list = imfexStore.getCustomers();
-    setCustomers(list);
-    if (list.length > 0) setSelectedCustomerId(list[list.length - 1].id);
+    void customersQuery.refetch().then((res) => {
+      const list = res.data || [];
+      if (list.length > 0) setSelectedCustomerId(list[0].id);
+    });
   };
 
   const handleCreateTicket = (e: React.FormEvent) => {
@@ -64,11 +85,10 @@ export default function NewServiceTicketPage() {
       return;
     }
 
-    const selectedCustObj = imfexStore.getCustomerById(selectedCustomerId);
-    const selectedItemObj = imfexStore.getAllInstalledItems().find((i) => i.id === selectedInstalledItemId);
+    const selectedCustObj = customers.find((c) => c.id === selectedCustomerId);
+    const selectedItemObj = allInstalledItems.find((i) => i.id === selectedInstalledItemId);
 
-    const newTicket: ServiceTicket = {
-      id: `srv-${Date.now()}`,
+    const newTicket: Partial<ServiceTicket> = {
       ticketNumber: imfexStore.generateTicketNumber(),
       customerId: selectedCustomerId,
       customer: selectedCustObj,
@@ -79,12 +99,14 @@ export default function NewServiceTicketPage() {
       status: 'OPEN',
       partsConsumed: [],
       laborHours: 0,
-      createdAt: new Date().toISOString(),
     };
 
-    const saved = imfexStore.saveServiceTicket(newTicket);
-    toast.success(`Сервисниот тикет ${saved.ticketNumber} е креиран!`);
-    router.push(`/service/${saved.id}`);
+    saveTicketMutation.mutate(newTicket, {
+      onSuccess: (saved) => {
+        toast.success(`Сервисниот тикет ${saved.ticketNumber} е креиран!`);
+        router.push(`/service/${saved.id}`);
+      },
+    });
   };
 
   const selectedCustObj = customers.find((c) => c.id === selectedCustomerId);

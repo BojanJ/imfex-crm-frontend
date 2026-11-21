@@ -6,9 +6,20 @@ import { getAuthToken } from './api';
 import { queryKeys } from './query-client';
 import { imfexStore } from './store';
 import { toast } from '@/components/ui/toastr';
-import type { CompanySettings, Customer, Offer } from '@/types';
+import type {
+  CalendarEvent,
+  CompanySettings,
+  Customer,
+  Offer,
+  Project,
+  ServiceTicket,
+} from '@/types';
 
 const isAuthed = () => Boolean(getAuthToken());
+
+// =========================================================================
+// COLLECTION QUERIES
+// =========================================================================
 
 export function useCustomersQuery() {
   return useQuery({
@@ -34,6 +45,23 @@ export function useOffersQuery() {
   });
 }
 
+export function useOfferQuery(id?: string) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.offer(id || ''),
+    queryFn: async () => {
+      const offer = await apiClient.offers.getById(id!);
+      return offer;
+    },
+    initialData: () => {
+      if (!id) return undefined;
+      const list = qc.getQueryData<Offer[]>(queryKeys.offers);
+      return list?.find((o) => o.id === id) || imfexStore.getOfferById(id);
+    },
+    enabled: Boolean(id) && isAuthed(),
+  });
+}
+
 export function useProjectsQuery() {
   return useQuery({
     queryKey: queryKeys.projects,
@@ -43,6 +71,22 @@ export function useProjectsQuery() {
       return data;
     },
     enabled: isAuthed(),
+  });
+}
+
+export function useProjectQuery(id?: string) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.project(id || ''),
+    queryFn: async () => {
+      return await apiClient.projects.getById(id!);
+    },
+    initialData: () => {
+      if (!id) return undefined;
+      const list = qc.getQueryData<Project[]>(queryKeys.projects);
+      return list?.find((p) => p.id === id) || imfexStore.getProjectById(id);
+    },
+    enabled: Boolean(id) && isAuthed(),
   });
 }
 
@@ -94,6 +138,118 @@ export function useServiceTicketsQuery() {
   });
 }
 
+export function useServiceTicketQuery(id?: string) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.serviceTicket(id || ''),
+    queryFn: async () => {
+      return await apiClient.serviceTickets.getById(id!);
+    },
+    initialData: () => {
+      if (!id) return undefined;
+      const list = qc.getQueryData<ServiceTicket[]>(queryKeys.serviceTickets);
+      return list?.find((t) => t.id === id) || imfexStore.getServiceTicketById(id);
+    },
+    enabled: Boolean(id) && isAuthed(),
+  });
+}
+
+export function useInstalledItemsQuery() {
+  return useQuery({
+    queryKey: queryKeys.installedItems,
+    queryFn: async () => {
+      const data = await apiClient.installedItems.list();
+      imfexStore.syncCollectionFromQuery('installedItems', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function useClientDocumentsQuery() {
+  return useQuery({
+    queryKey: queryKeys.documents,
+    queryFn: async () => {
+      const data = await apiClient.documents.list();
+      imfexStore.syncCollectionFromQuery('documents', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function useCalendarEventsQuery() {
+  return useQuery({
+    queryKey: queryKeys.calendarEvents,
+    queryFn: async () => {
+      const data = await apiClient.calendarEvents.list();
+      imfexStore.syncCollectionFromQuery('calendarEvents', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function usePurchaseInvoicesQuery() {
+  return useQuery({
+    queryKey: queryKeys.purchaseInvoices,
+    queryFn: async () => {
+      const data = await apiClient.finance.listPurchaseInvoices();
+      imfexStore.syncCollectionFromQuery('purchaseInvoices', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function useSalesInvoicesQuery() {
+  return useQuery({
+    queryKey: queryKeys.salesInvoices,
+    queryFn: async () => {
+      const data = await apiClient.finance.listSalesInvoices();
+      imfexStore.syncCollectionFromQuery('salesInvoices', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function useDispatchNotesQuery() {
+  return useQuery({
+    queryKey: queryKeys.dispatchNotes,
+    queryFn: async () => {
+      const data = await apiClient.finance.listDispatchNotes();
+      imfexStore.syncCollectionFromQuery('dispatchNotes', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function usePaymentsQuery() {
+  return useQuery({
+    queryKey: queryKeys.payments,
+    queryFn: async () => {
+      const data = await apiClient.finance.listPayments();
+      imfexStore.syncCollectionFromQuery('payments', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
+export function useInventoryMovementsQuery() {
+  return useQuery({
+    queryKey: queryKeys.inventoryMovements,
+    queryFn: async () => {
+      const data = await apiClient.finance.listInventoryMovements();
+      imfexStore.syncCollectionFromQuery('inventoryMovements', data);
+      return data;
+    },
+    enabled: isAuthed(),
+  });
+}
+
 export function useCompanySettingsQuery() {
   return useQuery({
     queryKey: queryKeys.companySettings,
@@ -114,6 +270,10 @@ export function useAuditLogsQuery(enabled = true, limit = 50) {
     staleTime: 15_000,
   });
 }
+
+// =========================================================================
+// MUTATIONS WITH OPTIMISTIC UPDATES & ROLLBACK
+// =========================================================================
 
 export function useSaveCustomerMutation() {
   const qc = useQueryClient();
@@ -199,6 +359,131 @@ export function useDeleteOfferMutation() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.offers });
+    },
+  });
+}
+
+export function useSaveProjectMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<Project>) => apiClient.projects.save(payload),
+    onMutate: async (payload) => {
+      await qc.cancelQueries({ queryKey: queryKeys.projects });
+      const previous = qc.getQueryData<Project[]>(queryKeys.projects) || [];
+      if (payload.id) {
+        const next = previous.map((p) => (p.id === payload.id ? { ...p, ...payload } : p));
+        qc.setQueryData(queryKeys.projects, next);
+        imfexStore.syncCollectionFromQuery('projects', next);
+      }
+      return { previous };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(queryKeys.projects, ctx.previous);
+        imfexStore.syncCollectionFromQuery('projects', ctx.previous);
+      }
+      toast.error('Грешка при зачувување на проект', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData<Project[]>(queryKeys.projects, (old = []) => {
+        const exists = old.some((p) => p.id === saved.id);
+        const next = exists ? old.map((p) => (p.id === saved.id ? { ...p, ...saved } : p)) : [saved, ...old];
+        imfexStore.syncCollectionFromQuery('projects', next);
+        return next;
+      });
+      qc.setQueryData(queryKeys.project(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: queryKeys.projects });
+      void qc.invalidateQueries({ queryKey: queryKeys.calendarEvents });
+    },
+  });
+}
+
+export function useSaveServiceTicketMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<ServiceTicket>) => apiClient.serviceTickets.save(payload),
+    onError: (err) => {
+      toast.error('Грешка при зачувување на сервисен тикет', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData<ServiceTicket[]>(queryKeys.serviceTickets, (old = []) => {
+        const exists = old.some((t) => t.id === saved.id);
+        const next = exists ? old.map((t) => (t.id === saved.id ? { ...t, ...saved } : t)) : [saved, ...old];
+        imfexStore.syncCollectionFromQuery('serviceTickets', next);
+        return next;
+      });
+      qc.setQueryData(queryKeys.serviceTicket(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: queryKeys.serviceTickets });
+      void qc.invalidateQueries({ queryKey: queryKeys.calendarEvents });
+    },
+  });
+}
+
+export function useDeleteServiceTicketMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.serviceTickets.remove(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: queryKeys.serviceTickets });
+      const previous = qc.getQueryData<ServiceTicket[]>(queryKeys.serviceTickets) || [];
+      const next = previous.filter((t) => t.id !== id);
+      qc.setQueryData(queryKeys.serviceTickets, next);
+      imfexStore.syncCollectionFromQuery('serviceTickets', next);
+      return { previous };
+    },
+    onError: (err, _id, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(queryKeys.serviceTickets, ctx.previous);
+        imfexStore.syncCollectionFromQuery('serviceTickets', ctx.previous);
+      }
+      toast.error('Тикетот не може да се избрише', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.serviceTickets });
+    },
+  });
+}
+
+export function useSaveCalendarEventMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Partial<CalendarEvent>) => apiClient.calendarEvents.save(payload),
+    onError: (err) => {
+      toast.error('Грешка при зачувување на настан', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: (saved) => {
+      qc.setQueryData<CalendarEvent[]>(queryKeys.calendarEvents, (old = []) => {
+        const exists = old.some((e) => e.id === saved.id);
+        const next = exists ? old.map((e) => (e.id === saved.id ? { ...e, ...saved } : e)) : [...old, saved];
+        imfexStore.syncCollectionFromQuery('calendarEvents', next);
+        return next;
+      });
+      void qc.invalidateQueries({ queryKey: queryKeys.calendarEvents });
+    },
+  });
+}
+
+export function useDeleteCalendarEventMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiClient.calendarEvents.remove(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: queryKeys.calendarEvents });
+      const previous = qc.getQueryData<CalendarEvent[]>(queryKeys.calendarEvents) || [];
+      const next = previous.filter((e) => e.id !== id);
+      qc.setQueryData(queryKeys.calendarEvents, next);
+      imfexStore.syncCollectionFromQuery('calendarEvents', next);
+      return { previous };
+    },
+    onError: (err, _id, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(queryKeys.calendarEvents, ctx.previous);
+        imfexStore.syncCollectionFromQuery('calendarEvents', ctx.previous);
+      }
+      toast.error('Настанот не може да се избрише', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.calendarEvents });
     },
   });
 }

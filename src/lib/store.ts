@@ -109,6 +109,7 @@ class ImfexStore {
   };
   private currentUser: UserProfile | null = null;
   public isLoadedFromBackend: boolean = false;
+  private isSyncingFromQuery: boolean = false;
   private version: number = 0;
   private listeners: Array<() => void> = [];
 
@@ -413,6 +414,9 @@ class ImfexStore {
 
   notifyListeners() {
     this.version += 1;
+    if (!this.isSyncingFromQuery && this.isLoadedFromBackend) {
+      this.seedQueryCache();
+    }
     this.listeners.forEach((l) => l());
   }
 
@@ -665,27 +669,27 @@ class ImfexStore {
     }
   }
 
-  /** Seeds TanStack Query's shared cache from the batched hydration payload so Query hooks reuse warm data without duplicate fetches. */
-  private seedQueryCache() {
-    queryClient.setQueryData(queryKeys.categories, this.categories);
-    queryClient.setQueryData(queryKeys.products, this.products);
-    queryClient.setQueryData(queryKeys.customers, this.customers);
-    queryClient.setQueryData(queryKeys.offers, this.offers);
-    queryClient.setQueryData(queryKeys.projects, this.projects);
-    queryClient.setQueryData(queryKeys.serviceTickets, this.serviceTickets);
-    queryClient.setQueryData(queryKeys.profiles, this.profiles);
-    queryClient.setQueryData(queryKeys.calendarEvents, this.calendarEvents);
-    queryClient.setQueryData(queryKeys.installedItems, this.installedItems);
-    queryClient.setQueryData(queryKeys.documents, this.documents);
-    queryClient.setQueryData(queryKeys.purchaseInvoices, this.purchaseInvoices);
-    queryClient.setQueryData(queryKeys.salesInvoices, this.salesInvoices);
-    queryClient.setQueryData(queryKeys.dispatchNotes, this.dispatchNotes);
-    queryClient.setQueryData(queryKeys.payments, this.payments);
-    queryClient.setQueryData(queryKeys.inventoryMovements, this.movements);
-    queryClient.setQueryData(queryKeys.companySettings, this.companySettings);
+  /** Seeds TanStack Query's shared cache from store state so all Query hooks immediately reflect every mutation without duplicate fetches. */
+  public seedQueryCache() {
+    queryClient.setQueryData(queryKeys.categories, [...this.categories]);
+    queryClient.setQueryData(queryKeys.products, [...this.products]);
+    queryClient.setQueryData(queryKeys.customers, [...this.customers]);
+    queryClient.setQueryData(queryKeys.offers, [...this.offers]);
+    queryClient.setQueryData(queryKeys.projects, [...this.projects]);
+    queryClient.setQueryData(queryKeys.serviceTickets, [...this.serviceTickets]);
+    queryClient.setQueryData(queryKeys.profiles, [...this.profiles]);
+    queryClient.setQueryData(queryKeys.calendarEvents, [...this.calendarEvents]);
+    queryClient.setQueryData(queryKeys.installedItems, [...this.installedItems]);
+    queryClient.setQueryData(queryKeys.documents, [...this.documents]);
+    queryClient.setQueryData(queryKeys.purchaseInvoices, [...this.purchaseInvoices]);
+    queryClient.setQueryData(queryKeys.salesInvoices, [...this.salesInvoices]);
+    queryClient.setQueryData(queryKeys.dispatchNotes, [...this.dispatchNotes]);
+    queryClient.setQueryData(queryKeys.payments, [...this.payments]);
+    queryClient.setQueryData(queryKeys.inventoryMovements, [...this.movements]);
+    queryClient.setQueryData(queryKeys.companySettings, { ...this.companySettings });
   }
 
-  /** Keeps legacy ImfexStore views synchronized when TanStack Query hooks fetch or mutate data directly. */
+  /** Keeps ImfexStore synchronized when TanStack Query hooks fetch or mutate data directly. */
   public syncCollectionFromQuery(
     collection:
       | 'customers'
@@ -695,40 +699,77 @@ class ImfexStore {
       | 'categories'
       | 'profiles'
       | 'serviceTickets'
+      | 'calendarEvents'
+      | 'installedItems'
+      | 'documents'
+      | 'purchaseInvoices'
+      | 'salesInvoices'
+      | 'dispatchNotes'
+      | 'payments'
+      | 'inventoryMovements'
       | 'companySettings',
     data: unknown
   ) {
-    if (collection === 'companySettings' && data && typeof data === 'object') {
-      this.companySettings = data as CompanySettings;
+    this.isSyncingFromQuery = true;
+    try {
+      if (collection === 'companySettings' && data && typeof data === 'object') {
+        this.companySettings = data as CompanySettings;
+        this.notifyListeners();
+        return;
+      }
+      if (!Array.isArray(data)) return;
+      switch (collection) {
+        case 'customers':
+          this.customers = data as Customer[];
+          break;
+        case 'offers':
+          this.offers = data as Offer[];
+          break;
+        case 'projects':
+          this.projects = data as Project[];
+          break;
+        case 'products':
+          this.products = data as Product[];
+          break;
+        case 'categories':
+          this.categories = data as ProductCategory[];
+          break;
+        case 'profiles':
+          this.profiles = data as UserProfile[];
+          break;
+        case 'serviceTickets':
+          this.serviceTickets = data as ServiceTicket[];
+          break;
+        case 'calendarEvents':
+          this.calendarEvents = data as CalendarEvent[];
+          break;
+        case 'installedItems':
+          this.installedItems = data as InstalledItem[];
+          break;
+        case 'documents':
+          this.documents = data as ClientDocument[];
+          break;
+        case 'purchaseInvoices':
+          this.purchaseInvoices = data as PurchaseInvoice[];
+          break;
+        case 'salesInvoices':
+          this.salesInvoices = data as SalesInvoice[];
+          break;
+        case 'dispatchNotes':
+          this.dispatchNotes = data as DispatchNote[];
+          break;
+        case 'payments':
+          this.payments = data as PaymentRecord[];
+          break;
+        case 'inventoryMovements':
+          this.movements = data as InventoryMovement[];
+          break;
+      }
+      this.isLoadedFromBackend = true;
       this.notifyListeners();
-      return;
+    } finally {
+      this.isSyncingFromQuery = false;
     }
-    if (!Array.isArray(data)) return;
-    switch (collection) {
-      case 'customers':
-        this.customers = data as Customer[];
-        break;
-      case 'offers':
-        this.offers = data as Offer[];
-        break;
-      case 'projects':
-        this.projects = data as Project[];
-        break;
-      case 'products':
-        this.products = data as Product[];
-        break;
-      case 'categories':
-        this.categories = data as ProductCategory[];
-        break;
-      case 'profiles':
-        this.profiles = data as UserProfile[];
-        break;
-      case 'serviceTickets':
-        this.serviceTickets = data as ServiceTicket[];
-        break;
-    }
-    this.isLoadedFromBackend = true;
-    this.notifyListeners();
   }
 
   async purgeCorruptedAndSyncBackend() {

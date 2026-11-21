@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Customer, Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
+import { Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
+import { imfexStore, getApiUrl, authFetch } from '@/lib/store';
+import { useCustomersQuery, useProductsQuery, useCategoriesQuery } from '@/lib/queries';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
@@ -46,11 +47,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const urlCustomerId = searchParams ? searchParams.get('customerId') : null;
   const urlProductId = searchParams ? searchParams.get('productId') : null;
   const { t, locale } = useI18n();
-  useImfexStore(); // Auto-subscribe to store updates
+  const customersQuery = useCustomersQuery();
+  const productsQuery = useProductsQuery();
+  const categoriesQuery = useCategoriesQuery();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const customers = useMemo(() => customersQuery.data ?? imfexStore.getCustomers(), [customersQuery.data]);
+  const products = useMemo(() => productsQuery.data ?? imfexStore.getProducts(), [productsQuery.data]);
+  const categories = useMemo(() => categoriesQuery.data ?? imfexStore.getCategories(), [categoriesQuery.data]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
     existingOffer?.customerId || urlCustomerId || ''
   );
@@ -122,16 +125,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
   const hydratedOfferIdRef = useRef<string | null>(null);
   const initializedNewOfferRef = useRef<boolean>(false);
-  const storeVersion = useImfexStore();
 
-  // Sync customers and products when store updates without overwriting unsaved form edits
+  // Sync customers and products from TanStack Query caches without overwriting unsaved form edits
   useEffect(() => {
-    const custs = imfexStore.getCustomers();
-    const prods = imfexStore.getProducts();
-    const cats = imfexStore.getCategories();
-    setCustomers(custs);
-    setProducts(prods);
-    setCategories(cats);
+    const custs = customers;
+    const prods = products;
 
     if (existingOffer) {
       if (hydratedOfferIdRef.current !== existingOffer.id) {
@@ -194,12 +192,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         ]);
       }
     }
-  }, [storeVersion, existingOffer?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, products, existingOffer?.id]);
 
   const refreshCustomers = () => {
-    const list = imfexStore.getCustomers();
-    setCustomers(list);
-    if (list.length > 0) setSelectedCustomerId(list[list.length - 1].id);
+    void customersQuery.refetch().then((res) => {
+      const list = res.data || [];
+      if (list.length > 0) setSelectedCustomerId(list[0].id);
+    });
   };
 
   const calculateItemUnitPrice = (item: OfferItem): number => {

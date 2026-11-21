@@ -1,10 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
-import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket, UserProfile } from '@/types';
-import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
+import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket } from '@/types';
+import { imfexStore } from '@/lib/store';
+import {
+  useProfilesQuery,
+  useServiceTicketQuery,
+  useSaveServiceTicketMutation,
+} from '@/lib/queries';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
@@ -45,10 +50,13 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const resolvedParams = use(params);
   const router = useRouter();
   const ticketId = resolvedParams?.id;
-  useImfexStore();
 
+  const ticketQuery = useServiceTicketQuery(ticketId);
+  const profilesQuery = useProfilesQuery();
+  const saveTicketMutation = useSaveServiceTicketMutation();
+
+  const profiles = profilesQuery.data ?? imfexStore.getProfiles();
   const [ticket, setTicket] = useState<ServiceTicket | null>(null);
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [status, setStatus] = useState<ServiceStatus>('OPEN');
   const [priority, setPriority] = useState<ServicePriority>('MEDIUM');
   const [assignedTechnicianId, setAssignedTechnicianId] = useState<string>('');
@@ -56,10 +64,15 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const [laborHours, setLaborHours] = useState<number>(0);
   const [solution, setSolution] = useState<string>('');
   const [partsConsumed, setPartsConsumed] = useState<ConsumedPart[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const hydratedIdRef = useRef<string | null>(null);
 
-  const applyTicketData = (tk: ServiceTicket) => {
+  const isLoading = ticketQuery.isLoading && !ticket;
+
+  useEffect(() => {
+    const tk = ticketQuery.data;
+    if (!tk || hydratedIdRef.current === tk.id) return;
+    hydratedIdRef.current = tk.id;
     setTicket(tk);
     setStatus(tk.status);
     setPriority(tk.priority);
@@ -68,33 +81,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setLaborHours(Number(tk.laborHours || 0));
     setSolution(tk.solution || '');
     setPartsConsumed(tk.partsConsumed || []);
-  };
-
-  useEffect(() => {
-    setProfiles(imfexStore.getProfiles());
-    if (!ticketId) return;
-
-    const local = imfexStore.getServiceTicketById(ticketId);
-    if (local) {
-      applyTicketData(local);
-      setIsLoading(false);
-      return;
-    }
-
-    const baseUrl = getApiUrl();
-    authFetch(`${baseUrl}/api/service-tickets/${ticketId}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && data.id) {
-          applyTicketData(data);
-        } else {
-          const storeFound = imfexStore.getServiceTicketById(ticketId);
-          if (storeFound) applyTicketData(storeFound);
-        }
-      })
-      .catch((err) => console.warn('Fetch service ticket notice:', err))
-      .finally(() => setIsLoading(false));
-  }, [ticketId, imfexStore.isLoadedFromBackend, imfexStore.getServiceTickets().length]);
+  }, [ticketQuery.data]);
 
   const handleSaveTicket = (overridingStatus?: ServiceStatus) => {
     if (!ticket) return;
@@ -104,24 +91,26 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
       ...ticket,
       status: nextStatus,
       priority,
-      assignedTechnicianId,
+      assignedTechnicianId: assignedTechnicianId || undefined,
       assignedTechnician: profiles.find((p) => p.id === assignedTechnicianId),
-      scheduledDate,
+      scheduledDate: scheduledDate || undefined,
       laborHours,
       solution,
       partsConsumed,
       closedAt: nextStatus === 'CLOSED' ? new Date().toISOString() : ticket.closedAt,
     };
 
-    const saved = imfexStore.saveServiceTicket(updated);
-    setTicket(saved);
-    setStatus(nextStatus);
-
-    if (nextStatus === 'CLOSED') {
-      toast.success(`Барањето за сервис ${saved.ticketNumber} е затворено.`);
-    } else {
-      toast.success(`Барањето за сервис ${saved.ticketNumber} е ажурирано.`);
-    }
+    saveTicketMutation.mutate(updated, {
+      onSuccess: (saved) => {
+        setTicket(saved);
+        setStatus(nextStatus);
+        if (nextStatus === 'CLOSED') {
+          toast.success(`Барањето за сервис ${saved.ticketNumber} е затворено.`);
+        } else {
+          toast.success(`Барањето за сервис ${saved.ticketNumber} е ажурирано.`);
+        }
+      },
+    });
   };
 
   const handleAddPart = () => {
