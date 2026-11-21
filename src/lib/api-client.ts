@@ -248,5 +248,19 @@ export const apiClient = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
+    sendInvoice: (payload: {
+      to: string;
+      customerName: string;
+      invoiceNumber: string;
+      invoiceType?: 'PROFORMA' | 'ADVANCE' | 'FINAL' | 'DISPATCH';
+      totalAmount?: number;
+      dueDate?: string;
+      pdfBase64?: string;
+      customMessage?: string;
+    }) =>
+      requestJson<{ success: boolean; id?: string }>('/api/email/send-invoice', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
   },
 };

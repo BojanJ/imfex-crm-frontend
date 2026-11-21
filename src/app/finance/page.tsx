@@ -71,6 +71,7 @@ import {
   Boxes,
   Trash2,
   Printer,
+  Mail,
   Euro,
   Sparkles,
   Percent,
@@ -136,6 +137,7 @@ function FinancePageContent() {
   // PDF Preview state
   const [pdfInvoice, setPdfInvoice] = useState<SalesInvoice | null>(null);
   const [pdfDispatch, setPdfDispatch] = useState<DispatchNote | null>(null);
+  const [pdfInitialEmailOpen, setPdfInitialEmailOpen] = useState(false);
 
   // Selected project/offer for Advance Modal
   const [advanceTargetProject, setAdvanceTargetProject] = useState<Project | null>(null);
@@ -1204,10 +1206,24 @@ function FinancePageContent() {
                         <td className="p-4">
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
                             <button
-                              onClick={() => setPdfInvoice(sinv)}
+                              onClick={() => {
+                                setPdfInitialEmailOpen(false);
+                                setPdfInvoice(sinv);
+                              }}
                               className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[10px] hover:brightness-110 flex items-center gap-1 cursor-pointer"
                             >
                               <Printer className="w-3.5 h-3.5" /> PDF Фактура
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setPdfInitialEmailOpen(true);
+                                setPdfInvoice(sinv);
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-[10px] hover:bg-blue-500/20 flex items-center gap-1 cursor-pointer"
+                              title="Испрати фактура по е-пошта"
+                            >
+                              <Mail className="w-3.5 h-3.5" /> Е-пошта
                             </button>
 
                             {sinv.status !== 'PAID' && (
@@ -2615,9 +2631,11 @@ function FinancePageContent() {
         onClose={() => {
           setPdfInvoice(null);
           setPdfDispatch(null);
+          setPdfInitialEmailOpen(false);
         }}
         invoice={pdfInvoice}
         dispatchNote={pdfDispatch}
+        initialEmailOpen={pdfInitialEmailOpen}
       />
 
       {/* Partner / Supplier Modal */}

@@ -108,4 +108,30 @@ describe('Typed apiClient & TanStack Query Client (IMP-02)', () => {
     expect(queryKeys.project('prj-7')).toEqual(['projects', 'prj-7']);
     expect(queryKeys.serviceTicket('srv-3')).toEqual(['service-tickets', 'srv-3']);
   });
+
+  it('posts invoice email payload to /api/email/send-invoice', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ success: true, id: 'email-123' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    const res = await apiClient.email.sendInvoice({
+      to: 'client@example.com',
+      customerName: 'Test Client',
+      invoiceNumber: 'FAK-2026-0001',
+      invoiceType: 'FINAL',
+      totalAmount: 1500,
+      dueDate: '05.12.2026',
+      pdfBase64: 'JVBERi0xLjQ=',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.id).toBe('email-123');
+    const [calledUrl, init] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(String(calledUrl)).toMatch(/\/api\/email\/send-invoice$/);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).invoiceNumber).toBe('FAK-2026-0001');
+  });
 });

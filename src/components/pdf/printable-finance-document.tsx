@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SalesInvoice, DispatchNote } from '@/types';
 import {
   generateSalesInvoiceVectorPdf,
@@ -9,8 +9,10 @@ import {
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { imfexStore } from '@/lib/store';
+import { apiClient, ApiError } from '@/lib/api-client';
+import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
-import { Download, Printer, X, FileText, Loader2, Truck } from 'lucide-react';
+import { Download, Printer, X, FileText, Loader2, Truck, Mail, CheckCircle2, Send } from 'lucide-react';
 
 interface PrintableInvoiceProps {
   invoice: SalesInvoice;
@@ -407,6 +409,7 @@ interface FinancePdfModalProps {
   onClose: () => void;
   invoice?: SalesInvoice | null;
   dispatchNote?: DispatchNote | null;
+  initialEmailOpen?: boolean;
 }
 
 export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
@@ -414,31 +417,92 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
   onClose,
   invoice,
   dispatchNote,
+  initialEmailOpen = false,
 }) => {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(initialEmailOpen);
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const resolvedCustomer = invoice
+    ? invoice.customer || (invoice.customerId ? imfexStore.getCustomerById(invoice.customerId) : undefined)
+    : dispatchNote
+    ? dispatchNote.customer || (dispatchNote.customerId ? imfexStore.getCustomerById(dispatchNote.customerId) : undefined)
+    : undefined;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setShowEmailForm(initialEmailOpen);
+    setRecipientEmail(resolvedCustomer?.email || '');
+    setCustomMessage('');
+    setEmailStatus('idle');
+  }, [isOpen, invoice?.id, dispatchNote?.id, initialEmailOpen, resolvedCustomer?.email]);
 
   useEscapeKey(isOpen, onClose);
 
   if (!isOpen || (!invoice && !dispatchNote)) return null;
 
   const docNumber = invoice ? invoice.invoiceNumber : dispatchNote!.dispatchNumber;
+  const customerName = resolvedCustomer?.companyName || resolvedCustomer?.name || 'Клиент';
+
+  const generateCurrentVectorPdf = async (downloadFilename?: string) => {
+    const company = imfexStore.getCompanySettings();
+    if (invoice) {
+      const projectNumber = invoice.projectId
+        ? imfexStore.getProjectById(invoice.projectId)?.projectNumber || invoice.projectId
+        : undefined;
+      return await generateSalesInvoiceVectorPdf(invoice, company, projectNumber, downloadFilename);
+    }
+    return await generateDispatchNoteVectorPdf(dispatchNote!, company, downloadFilename);
+  };
 
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
-      const company = imfexStore.getCompanySettings();
-      if (invoice) {
-        const projectNumber = invoice.projectId
-          ? imfexStore.getProjectById(invoice.projectId)?.projectNumber || invoice.projectId
-          : undefined;
-        await generateSalesInvoiceVectorPdf(invoice, company, projectNumber, `${docNumber}_IMFEX.pdf`);
-      } else if (dispatchNote) {
-        await generateDispatchNoteVectorPdf(dispatchNote, company, `${docNumber}_IMFEX.pdf`);
-      }
+      await generateCurrentVectorPdf(`${docNumber}_IMFEX.pdf`);
     } catch (e) {
       console.error('PDF generation error:', e);
+      toast.error('Грешка при генерирање на PDF документот');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleSendEmail = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const targetEmail = recipientEmail.trim();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      toast.error('Внесете валидна е-пошта адреса на примачот.');
+      setShowEmailForm(true);
+      return;
+    }
+
+    setEmailStatus('sending');
+    try {
+      const result = await generateCurrentVectorPdf();
+      await apiClient.email.sendInvoice({
+        to: targetEmail,
+        customerName,
+        invoiceNumber: docNumber,
+        invoiceType: invoice ? invoice.invoiceType : 'DISPATCH',
+        totalAmount: invoice ? Number(invoice.totalAmount || 0) : undefined,
+        dueDate: invoice?.dueDate ? formatDate(invoice.dueDate) : undefined,
+        pdfBase64: result.pdfBase64,
+        customMessage: customMessage.trim() || undefined,
+      });
+
+      toast.success('Е-пошта е испратена!', `Документот ${docNumber} е испратен до ${targetEmail}.`);
+      setEmailStatus('sent');
+      setShowEmailForm(false);
+      setTimeout(() => setEmailStatus('idle'), 5000);
+    } catch (err) {
+      console.error('Send Invoice Email Error:', err);
+      toast.error(
+        'Грешка при испраќање на е-пошта',
+        err instanceof ApiError ? err.message : 'Мрежна грешка при испраќање.'
+      );
+      setEmailStatus('idle');
     }
   };
 
@@ -450,7 +514,7 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
       aria-label={`Официјален PDF Документ ${docNumber}`}
     >
       <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden gap-3">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 text-primary rounded-lg">
               {invoice ? <FileText className="w-5 h-5" /> : <Truck className="w-5 h-5" />}
@@ -458,19 +522,38 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
             <div>
               <h3 className="font-bold text-base">Официјален PDF Документ — {docNumber}</h3>
               <p className="text-xs text-muted-foreground">
-                Преглед, печатење и преземање на PDF документ
+                Преглед, печатење, испраќање по е-пошта и преземање на PDF
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <button
+              type="button"
               onClick={() => window.print()}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground cursor-pointer"
             >
               <Printer className="w-4 h-4" /> Печати
             </button>
             <button
+              type="button"
+              onClick={() => setShowEmailForm((prev) => !prev)}
+              disabled={emailStatus === 'sending'}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
+                showEmailForm
+                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                  : 'border-border bg-card hover:bg-muted text-foreground'
+              }`}
+            >
+              <Mail className="w-4 h-4 text-blue-500" />
+              {emailStatus === 'sending'
+                ? 'Се испраќа...'
+                : emailStatus === 'sent'
+                ? 'Испратено!'
+                : 'Испрати по е-пошта'}
+            </button>
+            <button
+              type="button"
               onClick={handleDownload}
               disabled={isGenerating}
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50"
@@ -495,6 +578,72 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Inline Email Dispatch Form */}
+        {showEmailForm && (
+          <form
+            onSubmit={handleSendEmail}
+            className="px-6 py-3.5 border-b border-border bg-blue-500/5 flex flex-col md:flex-row items-stretch md:items-end gap-3 text-xs print:hidden"
+          >
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                Е-пошта на примач ({customerName}) *
+              </label>
+              <input
+                type="email"
+                required
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="client@company.mk"
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div className="flex-[1.4] min-w-[220px]">
+              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                Дополнителна порака (опционално)
+              </label>
+              <input
+                type="text"
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                placeholder="пр. Во прилог Ви ја доставуваме фактурата..."
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={emailStatus === 'sending'}
+                className="h-9 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              >
+                {emailStatus === 'sending' ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Се испраќа...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" /> Испрати PDF
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEmailForm(false)}
+                className="h-9 px-3 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground cursor-pointer"
+              >
+                Откажи
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Email Sent Success Banner */}
+        {emailStatus === 'sent' && (
+          <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium print:hidden">
+            <CheckCircle2 className="w-4 h-4" />
+            Документот {docNumber} е успешно испратен по е-пошта до {recipientEmail}.
+          </div>
+        )}
 
         <div className="flex-1 bg-slate-100 dark:bg-slate-900 p-6 overflow-y-auto print:bg-white print:p-0">
           {invoice ? (
