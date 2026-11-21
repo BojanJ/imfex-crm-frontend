@@ -34,8 +34,10 @@ import {
 import { formatDate } from './date-format';
 import { toast } from '@/components/ui/toastr';
 import { getApiUrl, getAuthToken, authFetch, registerUnauthorizedHandler } from './api';
+import { apiClient } from './api-client';
+import { queryClient, queryKeys } from './query-client';
 
-export { getApiUrl, getAuthToken, authFetch };
+export { getApiUrl, getAuthToken, authFetch, apiClient };
 
 export function generateTempPassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -653,6 +655,7 @@ class ImfexStore {
 
       this.ensureWarehouseCatalog();
       this.persistWarehouseState();
+      this.seedQueryCache();
       this.isLoadedFromBackend = true;
       this.notifyListeners();
     } catch (e) {
@@ -660,6 +663,72 @@ class ImfexStore {
       this.ensureWarehouseCatalog();
       this.notifyListeners();
     }
+  }
+
+  /** Seeds TanStack Query's shared cache from the batched hydration payload so Query hooks reuse warm data without duplicate fetches. */
+  private seedQueryCache() {
+    queryClient.setQueryData(queryKeys.categories, this.categories);
+    queryClient.setQueryData(queryKeys.products, this.products);
+    queryClient.setQueryData(queryKeys.customers, this.customers);
+    queryClient.setQueryData(queryKeys.offers, this.offers);
+    queryClient.setQueryData(queryKeys.projects, this.projects);
+    queryClient.setQueryData(queryKeys.serviceTickets, this.serviceTickets);
+    queryClient.setQueryData(queryKeys.profiles, this.profiles);
+    queryClient.setQueryData(queryKeys.calendarEvents, this.calendarEvents);
+    queryClient.setQueryData(queryKeys.installedItems, this.installedItems);
+    queryClient.setQueryData(queryKeys.documents, this.documents);
+    queryClient.setQueryData(queryKeys.purchaseInvoices, this.purchaseInvoices);
+    queryClient.setQueryData(queryKeys.salesInvoices, this.salesInvoices);
+    queryClient.setQueryData(queryKeys.dispatchNotes, this.dispatchNotes);
+    queryClient.setQueryData(queryKeys.payments, this.payments);
+    queryClient.setQueryData(queryKeys.inventoryMovements, this.movements);
+    queryClient.setQueryData(queryKeys.companySettings, this.companySettings);
+  }
+
+  /** Keeps legacy ImfexStore views synchronized when TanStack Query hooks fetch or mutate data directly. */
+  public syncCollectionFromQuery(
+    collection:
+      | 'customers'
+      | 'offers'
+      | 'projects'
+      | 'products'
+      | 'categories'
+      | 'profiles'
+      | 'serviceTickets'
+      | 'companySettings',
+    data: unknown
+  ) {
+    if (collection === 'companySettings' && data && typeof data === 'object') {
+      this.companySettings = data as CompanySettings;
+      this.notifyListeners();
+      return;
+    }
+    if (!Array.isArray(data)) return;
+    switch (collection) {
+      case 'customers':
+        this.customers = data as Customer[];
+        break;
+      case 'offers':
+        this.offers = data as Offer[];
+        break;
+      case 'projects':
+        this.projects = data as Project[];
+        break;
+      case 'products':
+        this.products = data as Product[];
+        break;
+      case 'categories':
+        this.categories = data as ProductCategory[];
+        break;
+      case 'profiles':
+        this.profiles = data as UserProfile[];
+        break;
+      case 'serviceTickets':
+        this.serviceTickets = data as ServiceTicket[];
+        break;
+    }
+    this.isLoadedFromBackend = true;
+    this.notifyListeners();
   }
 
   async purgeCorruptedAndSyncBackend() {
@@ -773,6 +842,7 @@ class ImfexStore {
       sessionStorage.removeItem('imfex_auth_token');
       sessionStorage.removeItem('imfex_current_user');
     }
+    queryClient.clear();
     this.notifyListeners();
   }
 
@@ -798,25 +868,15 @@ class ImfexStore {
     this.companySettings = { ...this.companySettings, ...settings };
     this.notifyListeners();
     try {
-      const res = await authFetch(`${getApiUrl()}/api/company-settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(this.companySettings),
-      });
-      if (!res.ok) {
-        this.companySettings = prev;
-        this.notifyListeners();
-        toast.error('Грешка при зачувување на податоците за компанијата');
-        return null;
-      }
-      const saved = await res.json();
+      const saved = await apiClient.companySettings.update(this.companySettings);
       this.companySettings = saved;
+      queryClient.setQueryData(queryKeys.companySettings, saved);
       this.notifyListeners();
       return saved;
     } catch {
       this.companySettings = prev;
       this.notifyListeners();
-      toast.error('Мрежна грешка при зачувување на подесувањата');
+      toast.error('Грешка при зачувување на податоците за компанијата');
       return null;
     }
   }

@@ -10,6 +10,7 @@ import {
 import type { CompanySettings, DispatchNote, Offer, Product, SalesInvoice } from '@/types';
 
 const sampleCompany: CompanySettings = {
+  id: 'default',
   companyName: 'ИМФЕКС ЕКСПОРТ-ИМПОРТ ДООЕЛ',
   address: 'Ул. Качанички Пат бб, Скопје',
   taxId: 'МК4030998123456',
@@ -28,13 +29,14 @@ const sampleProduct: Product = {
   stockQuantity: 0,
   reservedQuantity: 0,
   purchasePrice: 600,
-  models: [{ id: 'mod-1', name: 'ISO-40 Премиум', basePrice: 1200 }],
+  models: [{ id: 'mod-1', productId: 'prod-1', name: 'ISO-40 Премиум', basePrice: 1200 }],
   specificationKeys: [
     {
       id: 'spec-1',
+      productId: 'prod-1',
       name: 'Боја на панел',
       inputType: 'SELECT',
-      options: [{ id: 'opt-1', label: 'Антрацит RAL 7016', priceModifier: 100 }],
+      options: [{ id: 'opt-1', specificationKeyId: 'spec-1', label: 'Антрацит RAL 7016', priceModifier: 100 }],
     },
   ],
 };
@@ -51,6 +53,7 @@ const sampleOffer: Offer = {
     city: 'Скопје',
     phone: '+389 70 111 222',
     email: 'marko@tehnogradba.mk',
+    createdAt: '2026-11-21T10:00:00.000Z',
   },
   status: 'SENT',
   taxRate: 18,
@@ -67,7 +70,7 @@ const sampleOffer: Offer = {
       productId: 'prod-1',
       productModelId: 'mod-1',
       customTitle: 'Секциона Врата - ISO-40 Премиум',
-      serviceTypes: ['SUPPLY', 'INSTALLATION'],
+      serviceTypes: ['PRODUCT', 'INSTALLATION'],
       widthMm: 3000,
       heightMm: 2500,
       quantity: 1,

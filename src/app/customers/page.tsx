@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer, Offer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { useCustomersQuery, useDeleteCustomerMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { getCustomerTypeLabel, getServiceStatusLabel } from '@/lib/enum-labels';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
@@ -51,9 +52,11 @@ function customerTypeVariant(type: string): BadgeVariant {
 
 export default function CustomersPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore();
+  useImfexStore();
+  const customersQuery = useCustomersQuery();
+  const deleteCustomerMutation = useDeleteCustomerMutation();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const customers = customersQuery.data ?? imfexStore.getCustomers();
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,12 +70,8 @@ export default function CustomersPage() {
   useEscapeKey(Boolean(activeCustomerDetail) && !previewOffer, () => setActiveCustomerDetail(null));
 
   const refreshList = () => {
-    setCustomers(imfexStore.getCustomers());
+    void customersQuery.refetch();
   };
-
-  useEffect(() => {
-    refreshList();
-  }, [storeVersion]);
 
   const handleDelete = (id: string) => {
     const found = customers.find((c) => c.id === id);
@@ -547,10 +546,13 @@ export default function CustomersPage() {
         variant="danger"
         onConfirm={() => {
           if (customerToDelete) {
-            imfexStore.deleteCustomer(customerToDelete.id);
-            if (activeCustomerDetail?.id === customerToDelete.id) setActiveCustomerDetail(null);
-            refreshList();
-            toast.info('Клиентот е избришан');
+            const targetId = customerToDelete.id;
+            deleteCustomerMutation.mutate(targetId, {
+              onSuccess: () => {
+                if (activeCustomerDetail?.id === targetId) setActiveCustomerDetail(null);
+                toast.info('Клиентот е избришан');
+              },
+            });
           }
           setCustomerToDelete(null);
         }}

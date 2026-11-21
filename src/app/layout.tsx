@@ -4,6 +4,7 @@ import { I18nProvider } from '@/lib/i18n-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { ToastProvider } from '@/components/ui/toastr';
 import { LayoutWrapper } from '@/components/layout-wrapper';
+import { QueryProvider } from '@/components/query-provider';
 
 export const metadata: Metadata = {
   title: 'IMFEX CRM & Operational Quoting Suite',
@@ -24,13 +25,15 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="bg-background text-foreground antialiased min-h-screen transition-colors duration-150">
-        <ThemeProvider>
-          <I18nProvider>
-            <ToastProvider>
-              <LayoutWrapper>{children}</LayoutWrapper>
-            </ToastProvider>
-          </I18nProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <I18nProvider>
+              <ToastProvider>
+                <LayoutWrapper>{children}</LayoutWrapper>
+              </ToastProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

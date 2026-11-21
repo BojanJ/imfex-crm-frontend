@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { useOffersQuery, useDeleteOfferMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getOfferStatusLabel } from '@/lib/enum-labels';
@@ -44,9 +45,11 @@ function offerStatusSelectStyle(status: string) {
 
 export default function OffersPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore();
+  useImfexStore();
+  const offersQuery = useOffersQuery();
+  const deleteOfferMutation = useDeleteOfferMutation();
 
-  const [offers, setOffers] = useState<Offer[]>([]);
+  const offers = offersQuery.data ?? imfexStore.getOffers();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
@@ -70,12 +73,8 @@ export default function OffersPage() {
   ];
 
   const refreshList = () => {
-    setOffers(imfexStore.getOffers());
+    void offersQuery.refetch();
   };
-
-  useEffect(() => {
-    refreshList();
-  }, [storeVersion]);
 
   const handleDelete = (id: string) => {
     const offer = offers.find((o) => o.id === id);
@@ -86,9 +85,11 @@ export default function OffersPage() {
       confirmLabel: 'Да, избриши',
       variant: 'danger',
       onConfirm: () => {
-        imfexStore.deleteOffer(id);
-        refreshList();
-        toast.info('Понудата е избришана');
+        deleteOfferMutation.mutate(id, {
+          onSuccess: () => {
+            toast.info('Понудата е избришана');
+          },
+        });
         setConfirmState(null);
       },
     });

@@ -3,6 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore, generateTempPassword } from '@/lib/store';
+import {
+  useCompanySettingsQuery,
+  useProfilesQuery,
+  useUpdateCompanySettingsMutation,
+} from '@/lib/queries';
 import { getUserRoleLabel } from '@/lib/enum-labels';
 import { UserProfile, UserRole } from '@/types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -98,8 +103,12 @@ export default function SettingsPage() {
     setTimeout(() => setSyncStatusMsg(''), 5000);
   };
 
+  const profilesQuery = useProfilesQuery();
+  const companySettingsQuery = useCompanySettingsQuery();
+  const updateCompanyMutation = useUpdateCompanySettingsMutation();
+
   // User Management State
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const profiles: UserProfile[] = profilesQuery.data ?? imfexStore.getProfiles();
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -109,7 +118,7 @@ export default function SettingsPage() {
   const [resetMessage, setResetMessage] = useState('');
 
   // Company Info State
-  const initialCompany = imfexStore.getCompanySettings();
+  const initialCompany = companySettingsQuery.data ?? imfexStore.getCompanySettings();
   const [companyName, setCompanyName] = useState(initialCompany.companyName);
   const [companyAddress, setCompanyAddress] = useState(initialCompany.address);
   const [companyTaxId, setCompanyTaxId] = useState(initialCompany.taxId);
@@ -123,14 +132,13 @@ export default function SettingsPage() {
   const companyHydratedRef = React.useRef(false);
 
   const refreshProfiles = () => {
-    setProfiles(imfexStore.getProfiles());
+    void profilesQuery.refetch();
   };
 
   useEffect(() => {
-    refreshProfiles();
-    if (!companyHydratedRef.current && imfexStore.isLoadedFromBackend) {
+    const cs = companySettingsQuery.data;
+    if (!companyHydratedRef.current && cs) {
       companyHydratedRef.current = true;
-      const cs = imfexStore.getCompanySettings();
       setCompanyName(cs.companyName);
       setCompanyAddress(cs.address);
       setCompanyTaxId(cs.taxId);
@@ -139,7 +147,7 @@ export default function SettingsPage() {
       setCompanyBankAccount(cs.bankAccount || '');
       setCompanyDefaultAdvance(String(cs.defaultAdvancePercent ?? 50));
     }
-  }, [storeVersion]);
+  }, [companySettingsQuery.data, storeVersion]);
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -239,20 +247,24 @@ export default function SettingsPage() {
   const handleSaveCompanySettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAdvance = Math.min(100, Math.max(0, Math.round(Number(companyDefaultAdvance) || 50)));
-    const saved = await imfexStore.saveCompanySettings({
-      companyName: companyName.trim(),
-      address: companyAddress.trim(),
-      taxId: companyTaxId.trim(),
-      email: companyEmail.trim(),
-      phone: companyPhone.trim(),
-      bankAccount: companyBankAccount.trim() || undefined,
-      defaultAdvancePercent: parsedAdvance,
-    });
-    if (saved) {
-      setCompanyDefaultAdvance(String(saved.defaultAdvancePercent ?? parsedAdvance));
-      setSavedSuccess(true);
-      toast.success('Податоците за компанијата се зачувани!');
-      setTimeout(() => setSavedSuccess(false), 3000);
+    try {
+      const saved = await updateCompanyMutation.mutateAsync({
+        companyName: companyName.trim(),
+        address: companyAddress.trim(),
+        taxId: companyTaxId.trim(),
+        email: companyEmail.trim(),
+        phone: companyPhone.trim(),
+        bankAccount: companyBankAccount.trim() || undefined,
+        defaultAdvancePercent: parsedAdvance,
+      });
+      if (saved) {
+        setCompanyDefaultAdvance(String(saved.defaultAdvancePercent ?? parsedAdvance));
+        setSavedSuccess(true);
+        toast.success('Податоците за компанијата се зачувани!');
+        setTimeout(() => setSavedSuccess(false), 3000);
+      }
+    } catch {
+      // Error toast and rollback handled by useUpdateCompanySettingsMutation
     }
   };
 

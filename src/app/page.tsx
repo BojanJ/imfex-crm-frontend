@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore, useImfexStore } from '@/lib/store';
+import { imfexStore } from '@/lib/store';
+import { useOffersQuery, useProjectsQuery, useServiceTicketsQuery } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import {
@@ -11,7 +12,7 @@ import {
   getProjectStatusLabel,
   getServicePriorityLabel,
 } from '@/lib/enum-labels';
-import { Offer, Project, ServiceTicket } from '@/types';
+import { Offer } from '@/types';
 import {
   TrendingUp,
   Users,
@@ -54,18 +55,18 @@ function projectBadgeVariant(status: string): BadgeVariant {
 
 export default function DashboardPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore();
+  const offersQuery = useOffersQuery();
+  const projectsQuery = useProjectsQuery();
+  const ticketsQuery = useServiceTicketsQuery();
 
-  const [offers, setOffers] = useState<Offer[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
+  const offers = offersQuery.data ?? imfexStore.getOffers();
+  const projects = projectsQuery.data ?? imfexStore.getProjects();
+  const serviceTickets = ticketsQuery.data ?? imfexStore.getServiceTickets();
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
 
-  useEffect(() => {
-    setOffers(imfexStore.getOffers());
-    setProjects(imfexStore.getProjects());
-    setServiceTickets(imfexStore.getServiceTickets());
-  }, [storeVersion]);
+  const isLoading =
+    !imfexStore.isLoadedFromBackend &&
+    (offersQuery.isLoading || projectsQuery.isLoading || ticketsQuery.isLoading);
 
   const totalRevenue = offers
     .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')
@@ -81,7 +82,7 @@ export default function DashboardPage() {
     (st) => (st.priority === 'URGENT' || st.priority === 'HIGH') && st.status !== 'CLOSED'
   );
 
-  if (!imfexStore.isLoadedFromBackend) {
+  if (isLoading) {
     return <PageLoadingSkeleton cards={4} rows={4} />;
   }
 
