@@ -5,7 +5,8 @@ import { PrintableOfferDocument } from './printable-offer-document';
 import { Offer, Product } from '@/types';
 import { formatDate } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
-import { generateMultiPagePdf } from '@/lib/pdf-generator';
+import { generateOfferVectorPdf } from '@/lib/pdf-generator';
+import { imfexStore } from '@/lib/store';
 import { getApiUrl, authFetch } from '@/lib/api';
 import { useI18n } from '@/lib/i18n-context';
 import { toast } from '@/components/ui/toastr';
@@ -35,12 +36,15 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
     try {
-      const element = document.getElementById('printable-offer-document');
-      if (!element) return;
-
-      await generateMultiPagePdf(element, `${offer.offerNumber}_IMFEX_Quote.pdf`);
+      await generateOfferVectorPdf(
+        offer,
+        products,
+        imfexStore.getCompanySettings(),
+        `${offer.offerNumber}_IMFEX_Quote.pdf`
+      );
     } catch (err) {
       console.error('PDF Export Error:', err);
+      toast.error('Грешка при генерирање на PDF документот');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -53,12 +57,12 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
   const handleSendEmail = async () => {
     setEmailStatus('sending');
     try {
-      const element = document.getElementById('printable-offer-document');
-      let pdfBase64 = '';
-      if (element) {
-        const result = await generateMultiPagePdf(element);
-        pdfBase64 = result.pdfBase64;
-      }
+      const result = await generateOfferVectorPdf(
+        offer,
+        products,
+        imfexStore.getCompanySettings()
+      );
+      const pdfBase64 = result.pdfBase64;
 
       const API_BASE_URL = getApiUrl();
       const res = await authFetch(`${API_BASE_URL}/api/email/send-offer`, {

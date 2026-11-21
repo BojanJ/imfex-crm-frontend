@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import { SalesInvoice, DispatchNote } from '@/types';
-import { generateMultiPagePdf } from '@/lib/pdf-generator';
+import {
+  generateSalesInvoiceVectorPdf,
+  generateDispatchNoteVectorPdf,
+} from '@/lib/pdf-generator';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { imfexStore } from '@/lib/store';
@@ -423,9 +426,14 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
-      const el = document.getElementById('printable-finance-document');
-      if (el) {
-        await generateMultiPagePdf(el, `${docNumber}_IMFEX.pdf`);
+      const company = imfexStore.getCompanySettings();
+      if (invoice) {
+        const projectNumber = invoice.projectId
+          ? imfexStore.getProjectById(invoice.projectId)?.projectNumber || invoice.projectId
+          : undefined;
+        await generateSalesInvoiceVectorPdf(invoice, company, projectNumber, `${docNumber}_IMFEX.pdf`);
+      } else if (dispatchNote) {
+        await generateDispatchNoteVectorPdf(dispatchNote, company, `${docNumber}_IMFEX.pdf`);
       }
     } catch (e) {
       console.error('PDF generation error:', e);

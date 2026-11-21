@@ -495,13 +495,13 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               )}
             </div>
 
-            <div className="bg-white/10 border border-white/20 p-3 rounded-xl text-center space-y-1">
-              <div className="w-16 h-16 bg-white mx-auto rounded-lg flex items-center justify-center p-1">
-                <svg className="w-14 h-14 text-slate-900" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v3h-3v-3zm0 5h3v3h-3v-3zm-5-5h3v3h-3v-3zm0 5h3v3h-3v-3z" />
-                </svg>
-              </div>
-              <p className="text-[9px] font-bold text-slate-300">Скенирајте за веб страна</p>
+            <div className="bg-white/10 border border-white/20 px-4 py-3 rounded-xl text-right space-y-1">
+              <p className="text-[10px] font-bold text-blue-300 uppercase tracking-wider">Официјална понуда</p>
+              <p className="text-xs font-black font-mono text-white">{offer.offerNumber}</p>
+              {company.bankAccount && (
+                <p className="text-[10px] text-slate-300 font-mono">Жиро: {company.bankAccount}</p>
+              )}
+              <p className="text-[10px] text-slate-400">© {currentYear} {company.companyName}</p>
             </div>
           </div>
         </div>

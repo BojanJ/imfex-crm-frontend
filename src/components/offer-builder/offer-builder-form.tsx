@@ -9,8 +9,7 @@ import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
-import { generateMultiPagePdf } from '@/lib/pdf-generator';
-import { PrintableOfferDocument } from '@/components/pdf/printable-offer-document';
+import { generateOfferVectorPdf } from '@/lib/pdf-generator';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect, CustomerSelect } from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -484,22 +483,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const saved = handleSaveOffer('SENT');
     setStatus('SENT');
 
-    // Wait for React to commit savedOfferForPdf into the hidden email PDF container before capturing
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    );
-
     let pdfBase64 = '';
     try {
-      const element =
-        document.getElementById('email-printable-offer-document') ||
-        document.getElementById('printable-offer-document');
-      if (element) {
-        const result = await generateMultiPagePdf(element);
-        pdfBase64 = result.pdfBase64;
-      }
+      const result = await generateOfferVectorPdf(
+        saved,
+        products,
+        imfexStore.getCompanySettings()
+      );
+      pdfBase64 = result.pdfBase64;
     } catch (e) {
-      console.warn('PDF capture notice:', e);
+      console.warn('PDF vector generation notice:', e);
     }
 
     const API_BASE_URL = getApiUrl();
@@ -1491,17 +1484,6 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         onClose={() => setPreviewFinanceInvoice(null)}
         invoice={previewFinanceInvoice}
       />
-
-      {/* Hidden Offscreen PDF Render Container for Email Dispatch Attachment */}
-      {savedOfferForPdf && (
-        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '800px' }} id="email-printable-offer-container">
-          <PrintableOfferDocument
-            offer={savedOfferForPdf}
-            products={products}
-            containerId="email-printable-offer-document"
-          />
-        </div>
-      )}
 
       <ConfirmModal
         isOpen={confirmState.isOpen}
