@@ -421,36 +421,26 @@ class ImfexStore {
     }
     const baseUrl = getApiUrl();
     try {
-      const [
-        resCat,
-        resProd,
-        resCust,
-        resOff,
-        resProj,
-        resServ,
-        resProf,
-        resCal,
-        resInst,
-        resDocs,
-        resPurchases,
-        resSales,
-        resDispatches,
-        resPayments,
-        resMoves,
-        resCompany,
-      ] = await Promise.all([
+      // Fetch in small batches of 4 to avoid exhausting Supabase Session Pooler connections
+      const [resCat, resProd, resCust, resOff] = await Promise.all([
         authFetch(`${baseUrl}/api/categories`).catch(() => null),
         authFetch(`${baseUrl}/api/products`).catch(() => null),
         authFetch(`${baseUrl}/api/customers`).catch(() => null),
         authFetch(`${baseUrl}/api/offers`).catch(() => null),
+      ]);
+      const [resProj, resServ, resProf, resCal] = await Promise.all([
         authFetch(`${baseUrl}/api/projects`).catch(() => null),
         authFetch(`${baseUrl}/api/service-tickets`).catch(() => null),
         authFetch(`${baseUrl}/api/profiles`).catch(() => null),
         authFetch(`${baseUrl}/api/calendar-events`).catch(() => null),
+      ]);
+      const [resInst, resDocs, resPurchases, resSales] = await Promise.all([
         authFetch(`${baseUrl}/api/installed-items`).catch(() => null),
         authFetch(`${baseUrl}/api/client-documents`).catch(() => null),
         authFetch(`${baseUrl}/api/purchase-invoices`).catch(() => null),
         authFetch(`${baseUrl}/api/sales-invoices`).catch(() => null),
+      ]);
+      const [resDispatches, resPayments, resMoves, resCompany] = await Promise.all([
         authFetch(`${baseUrl}/api/dispatch-notes`).catch(() => null),
         authFetch(`${baseUrl}/api/payments`).catch(() => null),
         authFetch(`${baseUrl}/api/inventory-movements`).catch(() => null),
