@@ -6,23 +6,59 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { ServiceTicket, ServiceStatus } from '@/types';
 import { formatDate } from '@/lib/date-format';
+import { getServicePriorityLabel, getServiceStatusLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { toast } from '@/components/ui/toastr';
 import {
+  PageHeader,
+  FilterBar,
+  StatusBadge,
+  EmptyState,
+  BadgeVariant,
+} from '@/components/ui/page-primitives';
+import {
   Wrench,
   Plus,
-  Search,
   AlertTriangle,
   Clock,
   CheckCircle2,
   User,
   Trash2,
-  ArrowUpRight,
+  ChevronRight,
 } from 'lucide-react';
 
+function priorityVariant(priority: string): BadgeVariant {
+  switch (priority) {
+    case 'URGENT':
+      return 'danger';
+    case 'HIGH':
+      return 'warning';
+    case 'MEDIUM':
+      return 'primary';
+    default:
+      return 'neutral';
+  }
+}
+
+function statusVariant(status: ServiceStatus): BadgeVariant {
+  switch (status) {
+    case 'OPEN':
+      return 'danger';
+    case 'ASSIGNED':
+      return 'primary';
+    case 'IN_PROGRESS':
+      return 'warning';
+    case 'COMPLETED':
+    case 'CLOSED':
+      return 'success';
+    default:
+      return 'neutral';
+  }
+}
+
 export default function ServiceDeskPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storeVersion = useImfexStore();
 
   const [tickets, setTickets] = useState<ServiceTicket[]>([]);
@@ -46,172 +82,120 @@ export default function ServiceDeskPage() {
     return matchesStatus && matchesSearch;
   });
 
-  const priorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'URGENT':
-        return 'bg-red-500/15 text-red-500 border-red-500/30';
-      case 'HIGH':
-        return 'bg-amber-500/15 text-amber-500 border-amber-500/30';
-      case 'MEDIUM':
-        return 'bg-blue-500/15 text-blue-500 border-blue-500/30';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
-  const statusBadge = (status: ServiceStatus) => {
-    switch (status) {
-      case 'OPEN':
-        return 'bg-red-500/10 text-red-500 border-red-500/20';
-      case 'ASSIGNED':
-        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
-      case 'IN_PROGRESS':
-        return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      case 'COMPLETED':
-      case 'CLOSED':
-        return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
   if (!imfexStore.isLoadedFromBackend) {
     return <PageLoadingSkeleton cards={0} rows={5} />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-xl border border-border">
-        <div>
-          <h1 className="font-extrabold text-xl tracking-tight flex items-center gap-2">
-            <Wrench className="w-5 h-5 text-primary" />
-            <span>{t('nav.service') || 'Сервис и Тикети'}</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Управување со сервисни интервенции, теренски тикети и техничка поддршка.
-          </p>
-        </div>
+    <div className="space-y-6 pb-10">
+      <PageHeader
+        title={t('nav.service') || 'Сервис и Тикети'}
+        subtitle="Управување со сервисни интервенции, теренски тикети и техничка поддршка."
+        icon={<Wrench className="w-5 h-5" />}
+        actions={
+          <Link
+            href="/service/new"
+            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Нов Сервисен Тикет</span>
+          </Link>
+        }
+      />
 
-        <Link
-          href="/service/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
-        >
-          <Plus className="w-4 h-4" /> Нов Сервисен Тикет
-        </Link>
-      </div>
+      <FilterBar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Пребарај по број, клиент, опис или техничар..."
+      >
+        {(['ALL', 'OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'] as const).map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => setStatusFilter(st)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              statusFilter === st
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {getServiceStatusLabel(st, locale)}
+          </button>
+        ))}
+      </FilterBar>
 
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Пребарај по број, клиент, опис или техничар..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {(['ALL', 'OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'] as const).map((st) => (
-            <button
-              key={st}
-              type="button"
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                statusFilter === st
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-muted/40 text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              {st}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tickets List */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+      {/* Tickets Table */}
+      <div className="surface-card rounded-xl overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-12 text-center space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-emerald-500/60 mx-auto" />
-            <p className="text-sm font-bold text-foreground">Нема сервисни тикети</p>
-            <p className="text-xs text-muted-foreground">
-              Кликнете „Нов Сервисен Тикет“ за да евидентирате нова интервенција.
-            </p>
-          </div>
+          <EmptyState
+            icon={<CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
+            title="Нема сервисни тикети"
+            description="Кликнете „Нов Сервисен Тикет“ за да евидентирате нова интервенција."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-muted/40 border-b border-border text-[10px] font-bold uppercase text-muted-foreground">
+              <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3">Тикет</th>
+                  <th className="px-5 py-3">Тикет</th>
                   <th className="px-4 py-3">Клиент и Дефект</th>
                   <th className="px-4 py-3">Приоритет</th>
                   <th className="px-4 py-3">Статус</th>
                   <th className="px-4 py-3">Техничар / Термин</th>
-                  <th className="px-4 py-3 text-right">Акции</th>
+                  <th className="px-5 py-3 text-right">Акции</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border/70">
                 {filtered.map((st) => (
-                  <tr key={st.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-primary whitespace-nowrap">
-                      {st.ticketNumber}
+                  <tr key={st.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3.5 font-mono font-semibold text-primary whitespace-nowrap">
+                      <Link href={`/service/${st.id}`} className="hover:underline">
+                        {st.ticketNumber}
+                      </Link>
                     </td>
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-foreground">
+                    <td className="px-4 py-3.5 max-w-md">
+                      <p className="font-medium text-foreground truncate">
                         {st.customer?.companyName || st.customer?.name || 'Клиент'}
                       </p>
-                      <p className="text-[11px] text-muted-foreground line-clamp-1">
+                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                         {st.defectDescription}
                       </p>
                     </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-extrabold ${priorityBadge(
-                          st.priority
-                        )}`}
-                      >
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <StatusBadge variant={priorityVariant(st.priority)}>
                         {st.priority === 'URGENT' && <AlertTriangle className="w-3 h-3" />}
-                        {st.priority}
-                      </span>
+                        {getServicePriorityLabel(st.priority, locale)}
+                      </StatusBadge>
                     </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded-md border text-[10px] font-extrabold ${statusBadge(
-                          st.status
-                        )}`}
-                      >
-                        {st.status}
-                      </span>
+                    <td className="px-4 py-3.5 whitespace-nowrap">
+                      <StatusBadge variant={statusVariant(st.status)} dot>
+                        {getServiceStatusLabel(st.status, locale)}
+                      </StatusBadge>
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground space-y-0.5">
-                      <div className="flex items-center gap-1">
-                        <User className="w-3 h-3" />
+                    <td className="px-4 py-3.5 text-[11px] text-muted-foreground space-y-0.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        <User className="w-3 h-3 shrink-0" />
                         <span>{st.assignedTechnician?.fullName || 'Недоделен'}</span>
                       </div>
                       {st.scheduledDate && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3 h-3 shrink-0" />
                           <span>{formatDate(st.scheduledDate)}</span>
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">
                         <Link
                           href={`/service/${st.id}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-bold text-[11px]"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium text-xs transition-colors"
                         >
-                          Отвори <ArrowUpRight className="w-3 h-3" />
+                          Отвори <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                         </Link>
                         <button
                           type="button"
                           onClick={() => setTicketToDelete(st)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 cursor-pointer"
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
                           title="Избриши тикет"
                           aria-label="Избриши тикет"
                         >

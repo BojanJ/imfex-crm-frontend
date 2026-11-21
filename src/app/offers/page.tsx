@@ -14,22 +14,37 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import {
   FileSpreadsheet,
   Plus,
-  Search,
   FileText,
   Edit3,
   Trash2,
   Briefcase,
   Euro,
+  Receipt,
 } from 'lucide-react';
-
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
+import { PageHeader, FilterBar, EmptyState } from '@/components/ui/page-primitives';
+
+function offerStatusSelectStyle(status: string) {
+  switch (status) {
+    case 'ACCEPTED':
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+    case 'SENT':
+      return 'bg-primary/10 text-blue-700 dark:text-blue-400 border-primary/20';
+    case 'REJECTED':
+      return 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20';
+    case 'EXPIRED':
+      return 'bg-muted text-muted-foreground border-border';
+    default:
+      return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
+  }
+}
 
 export default function OffersPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates from Supabase REST API
+  const storeVersion = useImfexStore();
 
   const [offers, setOffers] = useState<Offer[]>([]);
   const [search, setSearch] = useState('');
@@ -47,18 +62,17 @@ export default function OffersPage() {
   } | null>(null);
 
   const statusOptions = [
-    { value: 'DRAFT', label: t('offers.draft') },
-    { value: 'SENT', label: t('offers.sent') },
-    { value: 'ACCEPTED', label: t('offers.accepted') },
-    { value: 'REJECTED', label: t('offers.rejected') },
-    { value: 'EXPIRED', label: t('offers.expired') },
+    { value: 'DRAFT', label: getOfferStatusLabel('DRAFT', locale) },
+    { value: 'SENT', label: getOfferStatusLabel('SENT', locale) },
+    { value: 'ACCEPTED', label: getOfferStatusLabel('ACCEPTED', locale) },
+    { value: 'REJECTED', label: getOfferStatusLabel('REJECTED', locale) },
+    { value: 'EXPIRED', label: getOfferStatusLabel('EXPIRED', locale) },
   ];
 
   const refreshList = () => {
     setOffers(imfexStore.getOffers());
   };
 
-  // Sync state whenever store receives updates
   useEffect(() => {
     refreshList();
   }, [storeVersion]);
@@ -101,6 +115,16 @@ export default function OffersPage() {
     });
   };
 
+  const handleCreateProforma = (offer: Offer) => {
+    const pro = imfexStore.createSalesInvoiceFromOfferOrProject({
+      invoiceType: 'PROFORMA',
+      offerId: offer.id,
+      customerId: offer.customerId,
+    });
+    setPreviewInvoice(pro);
+    toast.success('Креирана Про-фактура!', pro.invoiceNumber);
+  };
+
   const filtered = offers.filter((o) => {
     const term = search.toLowerCase().trim();
     const matchesSearch =
@@ -124,152 +148,124 @@ export default function OffersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-xl border border-border">
-        <div>
-          <h1 className="font-extrabold text-xl tracking-tight flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-primary" />
-            <span>{t('offers.title')}</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t('offers.subtitle')}
-          </p>
-        </div>
+    <div className="space-y-6 pb-10">
+      <PageHeader
+        title={t('offers.title')}
+        subtitle={t('offers.subtitle')}
+        icon={<FileSpreadsheet className="w-5 h-5" />}
+        actions={
+          <Link
+            href="/offers/new"
+            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('offers.create_offer')}</span>
+          </Link>
+        }
+      />
 
-        <Link
-          href="/offers/new"
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md shrink-0"
-        >
-          <Plus className="w-4 h-4" /> {t('offers.create_offer')}
-        </Link>
-      </div>
+      <FilterBar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder={t('offers.search_placeholder')}
+      >
+        {['ALL', 'DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'].map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => setStatusFilter(st)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+              statusFilter === st
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            {getOfferStatusLabel(st, locale)}
+          </button>
+        ))}
+      </FilterBar>
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap gap-3 items-center justify-between bg-card p-4 rounded-xl border border-border">
-        <div className="relative flex-1 min-w-[220px] max-w-md">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder={t('offers.search_placeholder')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-muted-foreground uppercase">{t('offers.filter_status')}</span>
-          {['ALL', 'DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'EXPIRED'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                statusFilter === st
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'bg-muted text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {getOfferStatusLabel(st, locale)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Offers Table Card */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+      {/* Offers Table Surface */}
+      <div className="surface-card rounded-xl overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="p-12 text-center text-xs text-muted-foreground">
-            Нема пронајдено понуди. Кликнете "+ Креирај Понуда" за да креирате нова понуда.
-          </div>
+          <EmptyState
+            icon={<FileSpreadsheet className="w-5 h-5" />}
+            title="Нема пронајдено понуди"
+            description="Кликнете „Креирај Нова Понуда“ за да креирате нова понуда."
+          />
         ) : (
           <>
-            {/* Mobile Cards View */}
-            <div className="grid grid-cols-1 divide-y divide-border md:hidden text-xs">
+            {/* Mobile Cards */}
+            <div className="divide-y divide-border md:hidden text-xs">
               {filtered.map((offer) => (
-                <div key={offer.id} className="p-5 space-y-4">
-                  <div className="flex justify-between items-center">
+                <div key={offer.id} className="p-4 space-y-3">
+                  <div className="flex justify-between items-start gap-2">
                     <div>
-                      <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
-                      <p className="text-[10px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
+                      <Link
+                        href={`/offers/${offer.id}`}
+                        className="font-mono font-semibold text-primary hover:underline"
+                      >
+                        {offer.offerNumber}
+                      </Link>
+                      <p className="text-[11px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
                     </div>
-                    <div className="w-32">
+                    <div className="w-32 shrink-0">
                       <SearchableSelect
                         options={statusOptions}
                         value={offer.status}
                         onChange={(val) => handleSetStatus(offer.id, val)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
-                          offer.status === 'ACCEPTED'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
-                            : offer.status === 'SENT'
-                            ? 'bg-blue-500/10 text-blue-500'
-                            : offer.status === 'REJECTED'
-                            ? 'bg-red-500/10 text-red-500'
-                            : offer.status === 'EXPIRED'
-                            ? 'bg-gray-500/10 text-gray-500'
-                            : 'bg-amber-500/10 text-amber-500'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
+                          offer.status
+                        )}`}
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <p className="font-bold text-foreground">
-                      {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                     </p>
-                    <p className="text-[10px] text-muted-foreground">{offer.customer?.email}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {(offer.items || []).length} item(s) configured
+                    <p className="text-[11px] text-muted-foreground">
+                      {(offer.items || []).length} {t('offers.items').toLowerCase()} • ДДВ {Number(offer.taxRate ?? 18)}%
                     </p>
                   </div>
 
-                  <div className="text-[10px] text-muted-foreground space-y-0.5 bg-muted/30 p-2 rounded-lg border border-border">
-                    {Number(offer.discountRate || 0) > 0 && (
-                      <p className="text-emerald-600 font-bold">
-                        {t('offers.discount')}: {Number(offer.discountRate)}% (-{formatCurrency(offer.discountAmount)})
-                      </p>
-                    )}
-                    <p>ДДВ ({Number(offer.taxRate ?? 18)}%): {formatCurrency(offer.taxAmount)}</p>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2">
-                    <div className="text-left">
-                      <span className="text-[10px] text-muted-foreground block font-semibold uppercase">{t('offers.total')}</span>
-                      <span className="font-black text-foreground">
-                        {formatCurrency(offer.totalAmount)}
-                      </span>
-                    </div>
+                  <div className="flex justify-between items-center pt-2.5 border-t border-border/60">
+                    <span className="font-semibold text-sm text-foreground tabular-nums">
+                      {formatCurrency(offer.totalAmount)}
+                    </span>
 
                     <div className="flex items-center gap-1">
-                      {offer.status === 'ACCEPTED' && (
-                        <Link
-                          href="/projects"
-                          className="p-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 rounded-lg font-semibold flex items-center gap-1 text-[10px]"
-                          title="View Operational Project"
-                        >
-                          <Briefcase className="w-3.5 h-3.5" />
-                        </Link>
-                      )}
                       <button
+                        type="button"
+                        onClick={() => setAdvanceOffer(offer)}
+                        className="p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Евидентирај аванс"
+                      >
+                        <Euro className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setSelectedOfferForPdf(offer)}
-                        className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-semibold flex items-center gap-1 text-[10px]"
+                        className="px-2 py-1 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer"
                         title={t('offers.pdf_preview')}
                       >
-                        <FileText className="w-3.5 h-3.5" /> PDF
+                        <FileText className="w-3.5 h-3.5 text-muted-foreground" /> PDF
                       </button>
                       <Link
                         href={`/offers/${offer.id}`}
-                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg border border-border bg-card"
-                        title="Edit Offer"
+                        className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
+                        title="Уреди понуда"
                       >
-                        <Edit3 className="w-4 h-4" />
+                        <Edit3 className="w-3.5 h-3.5" />
                       </Link>
                       <button
+                        type="button"
                         onClick={() => handleDelete(offer.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg"
-                        title="Delete Offer"
+                        className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                        title="Избриши понуда"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -277,120 +273,133 @@ export default function OffersPage() {
               ))}
             </div>
 
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto w-full">
-              <table className="w-full text-left text-xs min-w-[950px]">
-                <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
+            {/* Desktop Table — Compact, Zero Horizontal Overflow */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>
-                    <th className="p-4">{t('offers.offer_number')}</th>
-                    <th className="p-4">{t('offers.customer')}</th>
-                    <th className="p-4">{t('offers.items')}</th>
-                    <th className="p-4">{t('offers.status')}</th>
-                    <th className="p-4">{t('offers.discount')} / {t('offers.tax_rate')}</th>
-                    <th className="p-4 text-right">{t('offers.total')}</th>
-                    <th className="p-4 text-center">{t('offers.action')}</th>
+                    <th className="px-3.5 py-3 whitespace-nowrap">{t('offers.offer_number')}</th>
+                    <th className="px-2.5 py-3">{t('offers.customer')}</th>
+                    <th className="px-2.5 py-3 whitespace-nowrap">{t('offers.status')}</th>
+                    <th className="px-2.5 py-3 whitespace-nowrap">ДДВ / Попуст</th>
+                    <th className="px-2.5 py-3 text-right whitespace-nowrap">{t('offers.total')}</th>
+                    <th className="px-3.5 py-3 text-right whitespace-nowrap">{t('offers.action')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border/70">
                   {filtered.map((offer) => (
-                    <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
-                      <td className="p-4">
-                        <p className="font-extrabold text-primary">{offer.offerNumber}</p>
-                        <p className="text-[10px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
+                    <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-3.5 py-3 whitespace-nowrap">
+                        <Link
+                          href={`/offers/${offer.id}`}
+                          className="font-mono font-semibold text-primary hover:underline block"
+                        >
+                          {offer.offerNumber}
+                        </Link>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDate(offer.createdAt)} • {(offer.items || []).length} {t('offers.items').toLowerCase()}
+                        </span>
                       </td>
-                      <td className="p-4">
-                        <p className="font-bold text-foreground">
-                          {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+
+                      <td className="px-2.5 py-3 max-w-[170px]">
+                        <p className="font-medium text-foreground truncate">
+                          {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">{offer.customer?.email}</p>
+                        {offer.customer?.email && (
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {offer.customer.email}
+                          </p>
+                        )}
                       </td>
-                      <td className="p-4 text-muted-foreground">
-                        {(offer.items || []).length} item(s) configured
-                      </td>
-                      <td className="p-4">
-                        <div className="w-32">
+
+                      <td className="px-2.5 py-3 whitespace-nowrap">
+                        <div className="w-28">
                           <SearchableSelect
                             options={statusOptions}
                             value={offer.status}
                             onChange={(val) => handleSetStatus(offer.id, val)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase border-0 outline-none cursor-pointer ${
-                              offer.status === 'ACCEPTED'
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-black'
-                                : offer.status === 'SENT'
-                                ? 'bg-blue-500/10 text-blue-500'
-                                : offer.status === 'REJECTED'
-                                ? 'bg-red-500/10 text-red-500'
-                                : offer.status === 'EXPIRED'
-                                ? 'bg-gray-500/10 text-gray-500'
-                                : 'bg-amber-500/10 text-amber-500'
-                            }`}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
+                              offer.status
+                            )}`}
                           />
                         </div>
                       </td>
-                      <td className="p-4 text-muted-foreground">
+
+                      <td className="px-2.5 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
                         {Number(offer.discountRate || 0) > 0 && (
-                          <span className="block text-[10px] text-emerald-600 font-bold">
-                            {t('offers.discount')}: {Number(offer.discountRate)}% (-{formatCurrency(offer.discountAmount)})
+                          <span className="block text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                            -{Number(offer.discountRate)}% ({formatCurrency(offer.discountAmount)})
                           </span>
                         )}
-                        <span>ДДВ ({Number(offer.taxRate ?? 18)}%): {formatCurrency(offer.taxAmount)}</span>
+                        <span className="text-[11px]">
+                          ДДВ {Number(offer.taxRate ?? 18)}%: {formatCurrency(offer.taxAmount)}
+                        </span>
                       </td>
-                      <td className="p-4 text-right font-black text-base text-foreground">
+
+                      <td className="px-2.5 py-3 text-right font-semibold text-sm text-foreground tabular-nums whitespace-nowrap">
                         {formatCurrency(offer.totalAmount)}
                       </td>
-                      <td className="p-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+
+                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1">
                           <button
+                            type="button"
                             onClick={() => setAdvanceOffer(offer)}
-                            className="p-1.5 bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 rounded-lg font-bold flex items-center gap-1 text-[11px] cursor-pointer"
-                            title="Евидентирај уплата на аванс (со избор за Набавка)"
+                            className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
+                            title="Евидентирај уплата на аванс"
                           >
-                            <Euro className="w-3.5 h-3.5" /> Аванс
+                            <Euro className="w-3 h-3 text-muted-foreground" />
+                            <span>Аванс</span>
                           </button>
+
                           <button
-                            onClick={() => {
-                              const pro = imfexStore.createSalesInvoiceFromOfferOrProject({
-                                invoiceType: 'PROFORMA',
-                                offerId: offer.id,
-                                customerId: offer.customerId,
-                              });
-                              setPreviewInvoice(pro);
-                              toast.success('Креирана Про-фактура!', pro.invoiceNumber);
-                            }}
-                            className="p-1.5 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 rounded-lg font-bold flex items-center gap-1 text-[11px] cursor-pointer"
-                            title="Генерирај Про-фактура од понудата"
+                            type="button"
+                            onClick={() => handleCreateProforma(offer)}
+                            className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center cursor-pointer transition-colors"
+                            title="Генерирај Про-фактура"
+                            aria-label="Генерирај Про-фактура"
                           >
-                            Про-ф-ра
+                            <Receipt className="w-3.5 h-3.5" />
                           </button>
+
                           {offer.status === 'ACCEPTED' && (
                             <Link
                               href="/projects"
-                              className="p-1.5 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 rounded-lg font-semibold flex items-center gap-1 text-[11px]"
-                              title="View Operational Project"
+                              className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-primary inline-flex items-center justify-center transition-colors"
+                              title="Отвори Оперативен Проект"
+                              aria-label="Отвори Оперативен Проект"
                             >
-                              <Briefcase className="w-3.5 h-3.5" /> {t('projects.title')}
+                              <Briefcase className="w-3.5 h-3.5" />
                             </Link>
                           )}
+
                           <button
+                            type="button"
                             onClick={() => setSelectedOfferForPdf(offer)}
-                            className="p-1.5 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 rounded-lg font-semibold flex items-center gap-1 text-[11px]"
+                            className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
                             title={t('offers.pdf_preview')}
                           >
-                            <FileText className="w-3.5 h-3.5" /> PDF
+                            <FileText className="w-3 h-3 text-primary" />
+                            <span>PDF</span>
                           </button>
+
                           <Link
                             href={`/offers/${offer.id}`}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
-                            title="Edit Offer"
+                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
+                            title="Уреди понуда"
+                            aria-label="Уреди понуда"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </Link>
+
                           <button
+                            type="button"
                             onClick={() => handleDelete(offer.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg"
-                            title="Delete Offer"
+                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
+                            title="Избриши понуда"
+                            aria-label="Избриши понуда"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>

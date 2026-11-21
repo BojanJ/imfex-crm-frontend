@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  X,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -43,140 +44,133 @@ export const Sidebar: React.FC<SidebarProps> = ({
     router.replace('/login');
   };
 
-  const navItems = [
+  const navGroups = [
     {
-      label: t('nav.dashboard'),
-      href: '/',
-      icon: LayoutDashboard,
+      label: null,
+      items: [
+        { label: t('nav.dashboard'), href: '/', icon: LayoutDashboard },
+        { label: t('nav.customers'), href: '/customers', icon: Users },
+        { label: t('nav.products'), href: '/products', icon: Package },
+      ],
     },
     {
-      label: t('nav.products'),
-      href: '/products',
-      icon: Package,
+      label: null,
+      items: [
+        { label: t('nav.offers'), href: '/offers', icon: FileSpreadsheet },
+        { label: t('nav.projects'), href: '/projects', icon: Briefcase },
+        { label: t('nav.finance') || 'Финансии и Набавки', href: '/finance', icon: Landmark },
+        { label: t('nav.service') || 'Сервис и Тикети', href: '/service', icon: Wrench },
+        { label: t('nav.calendar'), href: '/calendar', icon: Calendar },
+      ],
     },
     {
-      label: t('nav.customers'),
-      href: '/customers',
-      icon: Users,
-    },
-    {
-      label: t('nav.offers'),
-      href: '/offers',
-      icon: FileSpreadsheet,
-    },
-    {
-      label: t('nav.projects'),
-      href: '/projects',
-      icon: Briefcase,
-    },
-    {
-      label: t('nav.finance') || 'Финансии и Набавки',
-      href: '/finance',
-      icon: Landmark,
-    },
-    {
-      label: t('nav.service') || 'Сервис и Тикети',
-      href: '/service',
-      icon: Wrench,
-    },
-    {
-      label: t('nav.calendar'),
-      href: '/calendar',
-      icon: Calendar,
-    },
-    {
-      label: t('nav.settings'),
-      href: '/settings',
-      icon: Settings,
+      label: null,
+      items: [{ label: t('nav.settings'), href: '/settings', icon: Settings }],
     },
   ];
 
   const content = (
-    <div className="flex flex-col justify-between h-full p-4 space-y-6">
+    <div className="flex flex-col justify-between h-full px-3 py-4">
       <div className="space-y-4">
-        {/* Header / Collapse Toggle on Desktop */}
-        <div className="hidden lg:flex items-center justify-between px-2">
+        {/* Desktop Collapse Toggle */}
+        <div className={`hidden lg:flex items-center ${isCollapsed ? 'justify-center' : 'justify-between px-2'}`}>
           {!isCollapsed && (
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              {t('nav.dashboard')}
-            </p>
+            <span className="text-[11px] font-medium text-muted-foreground tracking-wide">
+              Навигација
+            </span>
           )}
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all ml-auto cursor-pointer"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-border/80 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            title={isCollapsed ? 'Прошири мени' : 'Собери мени'}
+            aria-label={isCollapsed ? 'Прошири мени' : 'Собери мени'}
           >
-            {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        {/* Mobile / Tablet Header Title */}
-        <div className="lg:hidden flex items-center justify-between pb-2 border-b border-border">
-          <span className="font-extrabold text-sm text-primary">IMFEX Navigation</span>
+        {/* Mobile Drawer Header */}
+        <div className="lg:hidden flex items-center justify-between px-2 pb-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-md text-xs font-bold tracking-wider">
+              IMFEX
+            </span>
+            <span className="font-semibold text-xs text-foreground">CRM</span>
+          </div>
           <button
             type="button"
             onClick={onMobileClose}
-            className="text-muted-foreground hover:text-foreground font-bold text-sm p-1 rounded-lg hover:bg-muted cursor-pointer"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
             aria-label="Затвори мени"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Links */}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+        {/* Grouped Navigation Links */}
+        <nav className="space-y-3" aria-label="Главна навигација">
+          {navGroups.map((group, gIdx) => (
+            <div
+              key={gIdx}
+              className={`space-y-0.5 ${gIdx > 0 ? 'pt-3 border-t border-border/60' : ''}`}
+            >
+              {group.items.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== '/' && pathname.startsWith(item.href));
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onMobileClose}
-                title={isCollapsed ? item.label : undefined}
-                className={`flex items-center ${
-                  isCollapsed ? 'justify-center py-3' : 'justify-between px-3 py-2.5'
-                } rounded-xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
-                  {!isCollapsed && <span>{item.label}</span>}
-                </div>
-              </Link>
-            );
-          })}
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onMobileClose}
+                    title={isCollapsed ? item.label : undefined}
+                    className={`flex items-center ${
+                      isCollapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2'
+                    } rounded-lg text-[13px] transition-colors ${
+                      isActive
+                        ? 'bg-primary/10 text-blue-700 dark:bg-primary/15 dark:text-blue-400 font-semibold'
+                        : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-medium'
+                    }`}
+                  >
+                    <item.icon
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? 'text-primary' : 'text-muted-foreground/80'
+                      }`}
+                    />
+                    {!isCollapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
       </div>
 
-      {/* Footer Status */}
-      <div className={`pt-4 pb-6 lg:pb-2 border-t border-border text-[11px] text-muted-foreground ${isCollapsed ? 'text-center' : 'flex items-center justify-between gap-2'}`}>
+      {/* Footer Sign-Out (keeps bottom-left clean of dev indicators) */}
+      <div className="pt-3 border-t border-border/70">
         {!isCollapsed ? (
-          <>
+          <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-muted-foreground">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="font-medium truncate">IMFEX Enterprise v1.0</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="truncate">v1.0 • IMFEX</span>
             </div>
             <button
               type="button"
               onClick={handleSignOut}
-              className="text-muted-foreground hover:text-red-500 p-1 cursor-pointer shrink-0"
+              className="text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 p-1 rounded-md hover:bg-muted transition-colors cursor-pointer shrink-0"
               title={t('nav.sign_out')}
               aria-label={t('nav.sign_out')}
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
-          </>
+          </div>
         ) : (
           <button
             type="button"
             onClick={handleSignOut}
-            className="mx-auto text-muted-foreground hover:text-red-500 p-1.5 rounded-lg hover:bg-muted cursor-pointer block"
+            className="mx-auto text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 p-2 rounded-lg hover:bg-muted transition-colors cursor-pointer flex items-center justify-center"
             title={t('nav.sign_out')}
             aria-label={t('nav.sign_out')}
           >
@@ -189,24 +183,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Collapsible Sticky Sidebar (auto-collapses into drawer below lg/1024px) */}
+      {/* Desktop Sticky Collapsible Sidebar */}
       <aside
-        className={`hidden lg:flex flex-col border-r border-border bg-card transition-all duration-300 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto shrink-0 ${
-          isCollapsed ? 'w-20' : 'w-64'
+        className={`hidden lg:flex flex-col border-r border-border bg-card/60 transition-all duration-200 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto shrink-0 ${
+          isCollapsed ? 'w-[68px]' : 'w-60'
         }`}
       >
         {content}
       </aside>
 
-      {/* Mobile & Tablet Drawer Overlay */}
+      {/* Mobile & Tablet Drawer */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex"
+          className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex"
           role="dialog"
           aria-modal="true"
           aria-label="Навигација"
         >
-          <div className="w-72 bg-card border-r border-border h-full overflow-y-auto shadow-2xl">
+          <div className="w-68 max-w-[82vw] bg-card border-r border-border h-full overflow-y-auto shadow-xl">
             {content}
           </div>
           <div className="flex-1" onClick={onMobileClose} />

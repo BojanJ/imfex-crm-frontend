@@ -8,7 +8,14 @@ import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ProductSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
+import {
+  getServicePriorityLabel,
+  getServiceStatusLabel,
+  getUserRoleLabel,
+} from '@/lib/enum-labels';
 import { toast } from '@/components/ui/toastr';
+import { PageHeader, SectionCard, StatusBadge, BadgeVariant } from '@/components/ui/page-primitives';
 import {
   Wrench,
   ArrowLeft,
@@ -21,16 +28,24 @@ import {
   Clock,
   Printer,
   Loader2,
+  X,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
+function statusBadgeVariant(status: ServiceStatus): BadgeVariant {
+  if (status === 'OPEN') return 'danger';
+  if (status === 'ASSIGNED') return 'primary';
+  if (status === 'IN_PROGRESS') return 'warning';
+  return 'success';
+}
+
 export default function ServiceTicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const resolvedParams = use(params);
   const router = useRouter();
   const ticketId = resolvedParams?.id;
-  useImfexStore(); // Auto-subscribe to live store updates
+  useImfexStore();
 
   const [ticket, setTicket] = useState<ServiceTicket | null>(null);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
@@ -42,25 +57,23 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const [solution, setSolution] = useState<string>('');
   const [partsConsumed, setPartsConsumed] = useState<ConsumedPart[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
-  const applyTicketData = (t: ServiceTicket) => {
-    setTicket(t);
-    setStatus(t.status);
-    setPriority(t.priority);
-    setAssignedTechnicianId(t.assignedTechnicianId || '');
-    setScheduledDate(t.scheduledDate ? String(t.scheduledDate).slice(0, 16) : '');
-    setLaborHours(Number(t.laborHours || 0));
-    setSolution(t.solution || '');
-    setPartsConsumed(t.partsConsumed || []);
+  const applyTicketData = (tk: ServiceTicket) => {
+    setTicket(tk);
+    setStatus(tk.status);
+    setPriority(tk.priority);
+    setAssignedTechnicianId(tk.assignedTechnicianId || '');
+    setScheduledDate(tk.scheduledDate ? String(tk.scheduledDate).slice(0, 16) : '');
+    setLaborHours(Number(tk.laborHours || 0));
+    setSolution(tk.solution || '');
+    setPartsConsumed(tk.partsConsumed || []);
   };
 
   useEffect(() => {
     setProfiles(imfexStore.getProfiles());
     if (!ticketId) return;
 
-    // 1. Check local store
     const local = imfexStore.getServiceTicketById(ticketId);
     if (local) {
       applyTicketData(local);
@@ -68,7 +81,6 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
       return;
     }
 
-    // 2. Fetch directly from backend API
     const baseUrl = getApiUrl();
     authFetch(`${baseUrl}/api/service-tickets/${ticketId}`)
       .then((res) => (res.ok ? res.json() : null))
@@ -106,7 +118,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setStatus(nextStatus);
 
     if (nextStatus === 'CLOSED') {
-      toast.success(`Барањето за сервис ${saved.ticketNumber} е ЗАТВОРЕНО.`);
+      toast.success(`Барањето за сервис ${saved.ticketNumber} е затворено.`);
     } else {
       toast.success(`Барањето за сервис ${saved.ticketNumber} е ажурирано.`);
     }
@@ -118,7 +130,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
       name: 'Резервен Опто-Сензор / Релеј',
       code: 'REL-FUS-12V',
       quantity: 1,
-      unitCost: 15.00,
+      unitCost: 15.0,
     };
     setPartsConsumed((prev) => [...prev, newPart]);
   };
@@ -144,22 +156,25 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     return (
       <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin text-primary" />
-        <span>Се вчитуваат детали за сервисот од базата...</span>
+        <span>Се вчитуваат детали за сервисот...</span>
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="bg-card border border-border rounded-xl p-12 text-center space-y-4 max-w-md mx-auto my-12 shadow-sm text-xs">
-        <p className="text-sm font-bold text-red-500">Сервисниот тикет не е пронајден</p>
+      <div className="surface-card rounded-xl p-12 text-center space-y-4 max-w-md mx-auto my-12 text-xs">
+        <p className="text-sm font-semibold text-rose-600 dark:text-rose-400">
+          Сервисниот тикет не е пронајден
+        </p>
         <p className="text-muted-foreground">
           Бараниот тикет (ID: <code className="font-mono">{ticketId}</code>) не постои или е избришан.
         </p>
         <div className="pt-2">
           <button
+            type="button"
             onClick={() => router.push('/service')}
-            className="inline-flex items-center gap-1.5 px-4 py-2 font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+            className="h-9 inline-flex items-center gap-1.5 px-4 font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" /> Назад кон Сервис
           </button>
@@ -168,256 +183,333 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     );
   }
 
+  const addPartCleanLabel = (t('service.add_part') || 'Додај Дел').replace(/^\+\s*/, '');
+
   return (
-    <div className="space-y-6 pb-24 text-xs">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/service')}
-            className="p-2 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <h1 className="font-extrabold text-lg flex items-center gap-2">
-              <Wrench className="w-5 h-5 text-primary" />
-              <span>Барање за Сервис {ticket.ticketNumber}</span>
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {t('offers.customer')}: {ticket.customer?.companyName || ticket.customer?.name} • Опрема: {ticket.installedItem?.title || 'Општо Одржување'} • Датум: {formatDate(ticket.createdAt)}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsReportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-blue-500" /> {t('service.generate_report')}
-          </button>
-          {status !== 'CLOSED' && (
+    <div className="space-y-6 pb-16 text-xs">
+      <PageHeader
+        backHref="/service"
+        title={ticket.ticketNumber}
+        badge={
+          <StatusBadge variant={statusBadgeVariant(status)} dot>
+            {getServiceStatusLabel(status, locale)}
+          </StatusBadge>
+        }
+        subtitle={`${ticket.customer?.companyName || ticket.customer?.name || 'Клиент'} • ${
+          ticket.installedItem?.title || 'Општо одржување'
+        } • ${formatDate(ticket.createdAt)}`}
+        actions={
+          <>
             <button
-              onClick={() => handleSaveTicket('CLOSED')}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-md cursor-pointer"
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <CheckCircle2 className="w-4 h-4" /> {t('service.close_ticket')}
+              <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>Извештај</span>
             </button>
-          )}
-          <button
-            onClick={() => handleSaveTicket()}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
-          >
-            <Save className="w-4 h-4" /> {t('projects.save_changes')}
-          </button>
-        </div>
-      </div>
+            {status !== 'CLOSED' && (
+              <button
+                type="button"
+                onClick={() => handleSaveTicket('CLOSED')}
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{t('service.close_ticket')}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleSaveTicket()}
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{t('projects.save_changes')}</span>
+            </button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-6">
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-              <User className="w-4 h-4 text-primary" /> Распоред на Техничар и Закажување
-            </h3>
-
-            <div>
-              <label className="block font-semibold mb-1 text-muted-foreground">{t('service.status')}</label>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left Sticky Control Sidebar */}
+        <SectionCard
+          className="lg:sticky lg:top-20"
+          title="Распоред и Статус"
+          icon={<User className="w-4 h-4" />}
+        >
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block font-medium text-muted-foreground">{t('service.status')}</label>
               <SearchableSelect
-                options={[
-                  { value: 'OPEN', label: 'ОТВОРЕНО' },
-                  { value: 'ASSIGNED', label: 'ДОДЕЛЕНО' },
-                  { value: 'IN_PROGRESS', label: 'ВО ТЕК' },
-                  { value: 'COMPLETED', label: 'ЗАВРШЕНО' },
-                  { value: 'CLOSED', label: 'ЗАТВОРЕНО' },
-                ]}
+                options={(['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'] as ServiceStatus[]).map(
+                  (s) => ({ value: s, label: getServiceStatusLabel(s, locale) })
+                )}
                 value={status}
                 onChange={(val) => setStatus(val as ServiceStatus)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-extrabold text-primary outline-none"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium text-foreground outline-none"
               />
             </div>
 
-            <div>
-              <label className="block font-semibold mb-1 text-muted-foreground">{t('service.priority')}</label>
+            <div className="space-y-1.5">
+              <label className="block font-medium text-muted-foreground">{t('service.priority')}</label>
               <SearchableSelect
-                options={[
-                  { value: 'LOW', label: 'НИЗОК' },
-                  { value: 'MEDIUM', label: 'СРЕДЕН' },
-                  { value: 'HIGH', label: 'ВИСОК' },
-                  { value: 'URGENT', label: 'ИТНО' },
-                ]}
+                options={(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as ServicePriority[]).map((p) => ({
+                  value: p,
+                  label: getServicePriorityLabel(p, locale),
+                }))}
                 value={priority}
                 onChange={(val) => setPriority(val as ServicePriority)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none text-red-500"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium text-foreground outline-none"
               />
             </div>
 
-            <div>
-              <label className="block font-semibold mb-1 text-muted-foreground">{t('service.technician')}</label>
+            <div className="space-y-1.5">
+              <label className="block font-medium text-muted-foreground">{t('service.technician')}</label>
               <SearchableSelect
                 options={[
                   { value: '', label: '-- Додели Техничар --' },
                   ...profiles.map((p) => ({
                     value: p.id,
-                    label: `${p.fullName} (${p.role})`,
+                    label: `${p.fullName} (${getUserRoleLabel(p.role, locale)})`,
                   })),
                 ]}
                 value={assignedTechnicianId}
                 onChange={(val) => setAssignedTechnicianId(val)}
                 placeholder="-- Додели Техничар --"
                 searchPlaceholder="Пребарај техничар..."
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium outline-none"
               />
             </div>
 
-            <div>
-              <label className="block font-semibold mb-1 text-muted-foreground">{t('service.scheduled_date')}</label>
+            <div className="space-y-1.5">
+              <label className="block font-medium text-muted-foreground">{t('service.scheduled_date')}</label>
               <input
                 type="datetime-local"
                 value={scheduledDate}
                 onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-foreground"
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background outline-none font-medium text-foreground"
               />
             </div>
           </div>
-        </div>
+        </SectionCard>
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-card border border-border rounded-xl p-5 space-y-2">
-            <h3 className="font-bold text-xs uppercase text-muted-foreground">{t('service.defect')}</h3>
-            <p className="p-3 bg-muted/30 rounded-lg border border-border font-medium text-foreground text-sm">
-              "{ticket.defectDescription}"
+        {/* Right Details Column */}
+        <div className="lg:col-span-2 space-y-5">
+          <SectionCard title={t('service.defect')}>
+            <p className="text-sm text-foreground leading-relaxed bg-muted/35 border border-border/80 rounded-lg p-3.5">
+              {ticket.defectDescription}
             </p>
-          </div>
+          </SectionCard>
 
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Wrench className="w-4 h-4 text-primary" /> {t('service.parts_consumed')}
-              </h3>
-              <button onClick={handleAddPart} className="flex items-center gap-1 text-xs font-bold text-primary hover:underline cursor-pointer">
-                <Plus className="w-3.5 h-3.5" /> {t('service.add_part')} (Рачно)
+          <SectionCard
+            title={t('service.parts_consumed')}
+            icon={<Wrench className="w-4 h-4" />}
+            action={
+              <button
+                type="button"
+                onClick={handleAddPart}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{addPartCleanLabel} (Рачно)</span>
               </button>
-            </div>
+            }
+          >
+            <div className="space-y-3">
+              {/* Quick Part Selector from Inventory */}
+              <div className="p-3 bg-muted/25 rounded-lg border border-border/80 flex flex-col sm:flex-row sm:items-center gap-2.5">
+                <span className="text-xs font-medium text-muted-foreground shrink-0">
+                  Избери од магацин:
+                </span>
+                <div className="flex-1 w-full">
+                  <ProductSelect
+                    value=""
+                    onChange={(_prodId, prod) => {
+                      if (prod) {
+                        setPartsConsumed((prev) => [
+                          ...prev,
+                          {
+                            id: `part-${Date.now()}`,
+                            name: `${prod.name}`,
+                            code: prod.code,
+                            quantity: 1,
+                            unitCost: Number(prod.models?.[0]?.basePrice || prod.purchasePrice || 0),
+                          },
+                        ]);
+                        toast.success('Резервен дел додаден', `${prod.code} — ${prod.name}`);
+                      }
+                    }}
+                    placeholder="Пребарај резервен дел по код или назив..."
+                    allowClear
+                  />
+                </div>
+              </div>
 
-            {/* Quick Part Selector from Inventory */}
-            <div className="p-3 bg-muted/20 rounded-xl border border-border flex flex-col sm:flex-row items-center gap-2">
-              <span className="text-xs font-bold text-muted-foreground shrink-0">+ Избери дел од магацин:</span>
-              <div className="flex-1 w-full">
-                <ProductSelect
-                  value=""
-                  onChange={(prodId, prod) => {
-                    if (prod) {
-                      setPartsConsumed((prev) => [
-                        ...prev,
-                        {
-                          id: `part-${Date.now()}`,
-                          name: `${prod.name}`,
-                          code: prod.code,
-                          quantity: 1,
-                          unitCost: Number(prod.models?.[0]?.basePrice || prod.purchasePrice || 0),
-                        },
-                      ]);
-                      toast.success('Резервен дел додаден', `${prod.code} — ${prod.name}`);
-                    }
-                  }}
-                  placeholder="Пребарај резервен дел по код (PRD-) или назив..."
-                  allowClear
+              {partsConsumed.length === 0 ? (
+                <p className="text-center py-4 text-muted-foreground text-xs">
+                  Нема евидентирано потрошени делови.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {partsConsumed.map((part, idx) => (
+                    <div
+                      key={part.id || idx}
+                      className="p-2.5 bg-muted/20 border border-border/80 rounded-lg grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center"
+                    >
+                      <div className="sm:col-span-6">
+                        <input
+                          type="text"
+                          value={part.name}
+                          onChange={(e) => handleUpdatePart(idx, { name: e.target.value })}
+                          className="w-full h-8 px-2.5 rounded-md border border-border bg-background font-medium text-foreground outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div className="sm:col-span-4 flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          value={part.quantity}
+                          onChange={(e) =>
+                            handleUpdatePart(idx, { quantity: parseInt(e.target.value) || 1 })
+                          }
+                          className="w-14 h-8 px-2 rounded-md border border-border bg-background text-center outline-none tabular-nums"
+                        />
+                        <span className="text-muted-foreground">×</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={part.unitCost}
+                          onChange={(e) =>
+                            handleUpdatePart(idx, { unitCost: parseFloat(e.target.value) || 0 })
+                          }
+                          className="w-20 h-8 px-2 rounded-md border border-border bg-background outline-none tabular-nums"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 flex items-center justify-between sm:justify-end gap-2 font-semibold text-foreground tabular-nums">
+                        <span>{formatCurrency(part.quantity * part.unitCost)}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePart(idx)}
+                          className="p-1 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-500/10 cursor-pointer"
+                          aria-label="Отстрани дел"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex justify-end pt-2 border-t border-border/70 text-xs">
+                    <span className="text-muted-foreground mr-2">Вкупно делови:</span>
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCurrency(totalPartsCost)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Работни часови и решение"
+            icon={<Clock className="w-4 h-4" />}
+          >
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block font-medium text-muted-foreground">
+                  {t('service.labor_hours')}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={laborHours}
+                  onChange={(e) => setLaborHours(parseFloat(e.target.value) || 0)}
+                  className="w-32 h-9 px-3 rounded-lg border border-border bg-background font-semibold text-foreground tabular-nums outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block font-medium text-muted-foreground">
+                  {t('service.solution')}
+                </label>
+                <textarea
+                  rows={4}
+                  value={solution}
+                  onChange={(e) => setSolution(e.target.value)}
+                  placeholder="Опис на извршениот сервис, тестирање и дијагностика..."
+                  className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
             </div>
-
-            {partsConsumed.map((part, idx) => (
-              <div key={part.id || idx} className="p-3 bg-muted/20 border border-border rounded-lg grid grid-cols-1 sm:grid-cols-4 gap-3 items-center">
-                <div className="sm:col-span-2">
-                  <input
-                    type="text"
-                    value={part.name}
-                    onChange={(e) => handleUpdatePart(idx, { name: e.target.value })}
-                    className="w-full px-2 py-1 rounded border border-border bg-background font-bold outline-none"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={part.quantity}
-                      onChange={(e) => handleUpdatePart(idx, { quantity: parseInt(e.target.value) || 1 })}
-                      className="w-12 px-1 py-1 rounded border border-border bg-background text-center outline-none font-bold"
-                    />
-                    <span>x</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={part.unitCost}
-                      onChange={(e) => handleUpdatePart(idx, { unitCost: parseFloat(e.target.value) || 0 })}
-                      className="w-16 px-1 py-1 rounded border border-border bg-background outline-none font-bold"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-between font-extrabold text-foreground">
-                  <span>€{(part.quantity * part.unitCost).toFixed(2)}</span>
-                  <button onClick={() => handleRemovePart(idx)} className="text-red-500 p-1 cursor-pointer">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-              <Clock className="w-4 h-4 text-primary" /> Работни Часови и Забелешки за Решение
-            </h3>
-
-            <div>
-              <label className="block font-bold mb-1 text-muted-foreground">{t('service.labor_hours')}</label>
-              <input
-                type="number"
-                step="0.5"
-                value={laborHours}
-                onChange={(e) => setLaborHours(parseFloat(e.target.value) || 0)}
-                className="w-32 px-3 py-2 rounded-lg border border-border bg-background font-bold text-primary outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1 text-muted-foreground">{t('service.solution')}</label>
-              <textarea
-                rows={4}
-                value={solution}
-                onChange={(e) => setSolution(e.target.value)}
-                placeholder="Опис на извршениот сервис, тестирање и дијагностика..."
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
-              />
-            </div>
-          </div>
+          </SectionCard>
         </div>
       </div>
 
+      {/* Printable Report Modal */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-6 text-xs">
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setIsReportModalOpen(false)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-xl space-y-5 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-extrabold text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" /> {t('service.generate_report')} - {ticket.ticketNumber}
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                <FileText className="w-4 h-4 text-primary" />
+                <span>
+                  {t('service.generate_report')} — {ticket.ticketNumber}
+                </span>
               </h3>
-              <button onClick={() => setIsReportModalOpen(false)} className="text-muted-foreground font-bold">✕</button>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
+                aria-label="Затвори"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="space-y-4 p-6 bg-white text-gray-900 rounded-xl border border-gray-200">
-              <div className="flex justify-between items-start border-b pb-4">
+            <div className="space-y-3 p-6 bg-white text-slate-900 rounded-xl border border-slate-200">
+              <div className="flex justify-between items-start border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-xl font-black text-blue-900">IMFEX ИЗВЕШТАЈ ЗА СЕРВИС</h2>
-                  <p className="text-xs text-gray-500">Тикет #: {ticket.ticketNumber}</p>
+                  <h2 className="text-lg font-bold text-blue-900">IMFEX ИЗВЕШТАЈ ЗА СЕРВИС</h2>
+                  <p className="text-xs text-slate-500">Тикет: {ticket.ticketNumber}</p>
                 </div>
+                <p className="text-xs text-slate-500">{formatDate(ticket.createdAt)}</p>
               </div>
-              <p className="font-bold">Дефект: {ticket.defectDescription}</p>
-              <p>Решение: {solution || 'Завршено'}</p>
+              <p>
+                <strong className="font-semibold">Клиент:</strong>{' '}
+                {ticket.customer?.companyName || ticket.customer?.name}
+              </p>
+              <p>
+                <strong className="font-semibold">Дефект:</strong> {ticket.defectDescription}
+              </p>
+              <p>
+                <strong className="font-semibold">Решение:</strong> {solution || 'Завршено'}
+              </p>
+              <p>
+                <strong className="font-semibold">Работни часови:</strong> {laborHours} ч. •{' '}
+                <strong className="font-semibold">Делови:</strong> {formatCurrency(totalPartsCost)}
+              </p>
             </div>
 
-            <div className="flex justify-end">
-              <button onClick={() => window.print()} className="px-5 py-2 bg-primary text-primary-foreground font-bold rounded-xl flex items-center gap-2 cursor-pointer">
-                <Printer className="w-4 h-4" /> {t('service.print_pdf')}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="h-9 px-4 rounded-lg border border-border bg-card hover:bg-muted text-foreground font-medium cursor-pointer"
+              >
+                Затвори
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="h-9 px-4 bg-primary text-primary-foreground font-semibold rounded-lg inline-flex items-center gap-1.5 cursor-pointer hover:bg-primary/90"
+              >
+                <Printer className="w-3.5 h-3.5" /> {t('service.print_pdf')}
               </button>
             </div>
           </div>

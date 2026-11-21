@@ -193,18 +193,18 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           'px-3 py-2 text-xs rounded-lg border border-border bg-background font-semibold text-foreground hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <span className="truncate text-left flex-1 flex items-center gap-1.5 min-w-0">
+        <span className="text-left flex-1 flex items-center gap-1.5 min-w-0 overflow-hidden">
           {selectedOption ? (
             <>
               {selectedOption.code && (
-                <span className="font-mono text-[10px] font-black bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded shrink-0">
+                <span className="font-mono text-[10px] font-semibold bg-primary/10 text-blue-700 dark:text-blue-400 border border-primary/20 px-1.5 py-0.5 rounded shrink-0">
                   {selectedOption.code}
                 </span>
               )}
-              <span className="truncate font-semibold">{selectedOption.label}</span>
+              <span className="truncate font-medium min-w-0 flex-1">{selectedOption.label}</span>
               {selectedOption.badge && (
                 <span
-                  className={`hidden sm:inline-block text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                  className={`hidden xl:inline-block text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0 ${
                     selectedOption.badgeColor || 'bg-muted text-muted-foreground'
                   }`}
                 >
@@ -213,7 +213,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               )}
             </>
           ) : (
-            <span className="text-muted-foreground font-normal">{placeholder}</span>
+            <span className="text-muted-foreground font-normal truncate">{placeholder}</span>
           )}
         </span>
 
@@ -252,7 +252,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 }
               : { position: 'absolute', zIndex: 99999 }
           }
-          className="max-h-80 rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col transition-all duration-150"
+          className="max-h-80 rounded-xl border border-border bg-card shadow-lg overflow-hidden flex flex-col transition-all duration-150"
         >
           {/* Search Box */}
           <div className="p-2 border-b border-border bg-muted/40 sticky top-0 z-10 space-y-1.5">

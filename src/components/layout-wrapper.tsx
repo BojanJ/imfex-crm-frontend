@@ -6,7 +6,7 @@ import { Navbar } from '@/components/navbar';
 import { Sidebar } from '@/components/sidebar';
 import { ChangePasswordModal } from '@/components/auth/change-password-modal';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
@@ -33,43 +33,43 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsAuthChecking(false);
   }, [pathname, isLoginPage, router]);
 
-  // Auth Guard Loading State
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center space-y-3">
-        <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1 rounded-xl font-black text-sm shadow-md">
-          <Sparkles className="w-4 h-4 text-amber-300" /> IMFEX Enterprise
-        </div>
-        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground animate-pulse">
-          <Loader2 className="w-4 h-4 animate-spin text-primary" />
-          <span>Verifying Security Session...</span>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3">
+        <span className="bg-primary text-primary-foreground px-3 py-1 rounded-lg font-bold text-xs tracking-wider">
+          IMFEX
+        </span>
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+          <span>Проверка на сесија...</span>
         </div>
       </div>
     );
   }
 
-  // Prevent flashing protected content before redirecting to /login
   if (!isAuthenticated && !isLoginPage) {
     return null;
   }
 
-  // Login Page View (Full Width)
   if (isLoginPage) {
     return <main className="min-h-screen bg-background">{children}</main>;
   }
 
-  // Authenticated App Shell View
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       <Navbar onMobileMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
-      <div className="flex flex-1">
+      <div className="flex flex-1 min-w-0">
         <Sidebar
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           isMobileOpen={isMobileMenuOpen}
           onMobileClose={() => setIsMobileMenuOpen(false)}
         />
-        <main className="flex-1 min-w-0 p-4 sm:p-6 overflow-x-hidden">{children}</main>
+        <main className="flex-1 min-w-0 overflow-x-hidden">
+          <div className="max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+            {children}
+          </div>
+        </main>
       </div>
       <ChangePasswordModal
         isOpen={Boolean(isAuthenticated && currentUser?.mustChangePassword)}

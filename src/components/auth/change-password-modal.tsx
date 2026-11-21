@@ -71,12 +71,12 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Задолжителна промена на лозинка"
     >
-      <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-5 text-xs">
+      <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-xl space-y-5 text-xs">
         <div className="flex items-start gap-3">
           <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
             <ShieldAlert className="w-5 h-5" />

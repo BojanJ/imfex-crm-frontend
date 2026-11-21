@@ -6,46 +6,65 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
-import { getOfferStatusLabel, getProjectStatusLabel, getServicePriorityLabel } from '@/lib/enum-labels';
-import { Offer, Customer, Project, ServiceTicket } from '@/types';
+import {
+  getOfferStatusLabel,
+  getProjectStatusLabel,
+  getServicePriorityLabel,
+} from '@/lib/enum-labels';
+import { Offer, Project, ServiceTicket } from '@/types';
 import {
   TrendingUp,
-  FileSpreadsheet,
   Users,
   CheckCircle2,
   Plus,
-  ArrowUpRight,
   Euro,
   FileText,
   Briefcase,
   Wrench,
   AlertTriangle,
   Clock,
-  Sparkles,
   ChevronRight,
+  Package,
 } from 'lucide-react';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
+import {
+  PageHeader,
+  StatCard,
+  SectionCard,
+  StatusBadge,
+  EmptyState,
+  BadgeVariant,
+} from '@/components/ui/page-primitives';
+
+function offerBadgeVariant(status: string): BadgeVariant {
+  if (status === 'ACCEPTED') return 'success';
+  if (status === 'SENT') return 'primary';
+  if (status === 'REJECTED') return 'danger';
+  if (status === 'EXPIRED') return 'neutral';
+  return 'warning';
+}
+
+function projectBadgeVariant(status: string): BadgeVariant {
+  if (status === 'COMPLETED' || status === 'CLOSED') return 'success';
+  if (status === 'INSTALLATION') return 'warning';
+  if (status === 'PROCUREMENT') return 'purple';
+  return 'primary';
+}
 
 export default function DashboardPage() {
   const { t, locale } = useI18n();
-  const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
+  const storeVersion = useImfexStore();
 
   const [offers, setOffers] = useState<Offer[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [serviceTickets, setServiceTickets] = useState<ServiceTicket[]>([]);
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
 
-  const refreshDashboard = () => {
+  useEffect(() => {
     setOffers(imfexStore.getOffers());
-    setCustomers(imfexStore.getCustomers());
     setProjects(imfexStore.getProjects());
     setServiceTickets(imfexStore.getServiceTickets());
-  };
-
-  useEffect(() => {
-    refreshDashboard();
   }, [storeVersion]);
 
   const totalRevenue = offers
@@ -55,329 +74,354 @@ export default function DashboardPage() {
   const acceptedCount = offers.filter((o) => o.status === 'ACCEPTED').length;
   const acceptanceRate = offers.length > 0 ? Math.round((acceptedCount / offers.length) * 100) : 0;
 
-  const activeProjectsCount = projects.filter((p) => p.status !== 'CLOSED' && p.status !== 'COMPLETED').length;
-  const urgentServiceTickets = serviceTickets.filter((t) => (t.priority === 'URGENT' || t.priority === 'HIGH') && t.status !== 'CLOSED');
+  const activeProjectsCount = projects.filter(
+    (p) => p.status !== 'CLOSED' && p.status !== 'COMPLETED'
+  ).length;
+  const urgentServiceTickets = serviceTickets.filter(
+    (st) => (st.priority === 'URGENT' || st.priority === 'HIGH') && st.status !== 'CLOSED'
+  );
 
   if (!imfexStore.isLoadedFromBackend) {
     return <PageLoadingSkeleton cards={4} rows={4} />;
   }
 
+  const progressMap: Record<string, number> = {
+    PLANNED: 20,
+    PROCUREMENT: 40,
+    PRODUCTION: 60,
+    INSTALLATION: 80,
+    COMPLETED: 100,
+    CLOSED: 100,
+  };
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* Hero Welcome Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-primary/20 via-card to-card p-6 sm:p-8 rounded-2xl border border-primary/20 shadow-md relative overflow-hidden">
-        <div className="space-y-2 max-w-2xl relative z-10">
-          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 px-3 py-1 rounded-full text-primary text-xs font-black">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" /> {t('dashboard.command_hub')}
-          </div>
-          <h1 className="font-extrabold text-2xl sm:text-3xl tracking-tight text-foreground">
-            {t('dashboard.welcome')}
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            {t('dashboard.subtitle')}
-          </p>
-        </div>
+    <div className="space-y-6 pb-10">
+      {/* Clean Minimal Page Header */}
+      <PageHeader
+        title={t('dashboard.welcome')}
+        subtitle={t('dashboard.subtitle')}
+        actions={
+          <>
+            <Link
+              href="/customers"
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Users className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{t('dashboard.new_customer')}</span>
+            </Link>
+            <Link
+              href="/products"
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Package className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{t('nav.products')}</span>
+            </Link>
+            <Link
+              href="/finance"
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Euro className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{t('nav.finance') || 'Финансии'}</span>
+            </Link>
+            <Link
+              href="/offers/new"
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{t('dashboard.new_offer')}</span>
+            </Link>
+          </>
+        }
+      />
 
-        {/* Quick Action Shortcuts */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 relative z-10 shrink-0">
-          <Link
-            href="/offers/new"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
-          >
-            <Plus className="w-4 h-4" /> {t('dashboard.new_offer')}
-          </Link>
-          <Link
-            href="/finance"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
-          >
-            <Euro className="w-4 h-4 text-emerald-500" /> {t('nav.finance') || 'Финансии и Набавки'}
-          </Link>
-          <Link
-            href="/products"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
-          >
-            <Briefcase className="w-4 h-4 text-primary" /> {t('nav.products')}
-          </Link>
-          <Link
-            href="/customers"
-            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
-          >
-            <Users className="w-4 h-4 text-blue-500" /> {t('dashboard.new_customer')}
-          </Link>
-        </div>
-      </div>
-
-      {/* KPI Metrics Cards Grid */}
+      {/* Calm 4-Column KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Revenue */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-2 relative overflow-hidden group hover:border-emerald-500/50 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {t('dashboard.quoted_revenue')}
-            </span>
-            <div className="p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
-              <Euro className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-foreground">{formatCurrency(totalRevenue)}</p>
-          <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5" /> {t('dashboard.pipeline_growth')}
-          </p>
-        </div>
+        <StatCard
+          label={t('dashboard.quoted_revenue')}
+          value={formatCurrency(totalRevenue)}
+          tone="success"
+          icon={<Euro className="w-4 h-4" />}
+          helper={
+            <>
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>{t('dashboard.pipeline_growth')}</span>
+            </>
+          }
+        />
 
-        {/* Active Projects */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-2 relative overflow-hidden group hover:border-primary/50 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {t('dashboard.active_projects')}
-            </span>
-            <div className="p-2 bg-primary/10 text-primary rounded-xl">
-              <Briefcase className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-foreground">{activeProjectsCount}</p>
-          <p className="text-[11px] text-primary font-medium flex items-center gap-1">
-            <Clock className="w-3.5 h-3.5" /> {t('dashboard.in_procurement_install')}
-          </p>
-        </div>
+        <StatCard
+          label={t('dashboard.active_projects')}
+          value={activeProjectsCount}
+          tone="primary"
+          icon={<Briefcase className="w-4 h-4" />}
+          helper={
+            <>
+              <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>{t('dashboard.in_procurement_install')}</span>
+            </>
+          }
+        />
 
-        {/* Urgent Service Desk */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-2 relative overflow-hidden group hover:border-amber-500/50 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {t('nav.service')}
-            </span>
-            <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
-              <Wrench className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-black text-foreground">{serviceTickets.length}</p>
-            {urgentServiceTickets.length > 0 && (
-              <span className="text-[10px] font-black bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full animate-pulse">
+        <StatCard
+          label={t('nav.service')}
+          value={serviceTickets.length}
+          tone="warning"
+          icon={<Wrench className="w-4 h-4" />}
+          badge={
+            urgentServiceTickets.length > 0 ? (
+              <StatusBadge variant="danger">
                 {urgentServiceTickets.length} {t('dashboard.urgent')}
-              </span>
-            )}
-          </div>
-          <p className="text-[11px] text-muted-foreground font-medium">{t('dashboard.field_dispatch')}</p>
-        </div>
+              </StatusBadge>
+            ) : undefined
+          }
+          helper={t('dashboard.field_dispatch')}
+        />
 
-        {/* Acceptance Rate */}
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm space-y-2 relative overflow-hidden group hover:border-blue-500/50 transition-all">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              {t('dashboard.accepted_ratio')}
-            </span>
-            <div className="p-2 bg-blue-500/10 text-blue-500 rounded-xl">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <p className="text-2xl font-black text-foreground">{acceptanceRate}%</p>
-          <p className="text-[11px] text-muted-foreground font-medium">{acceptedCount} {t('dashboard.quotes_signed')}</p>
-        </div>
+        <StatCard
+          label={t('dashboard.accepted_ratio')}
+          value={`${acceptanceRate}%`}
+          tone="primary"
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          helper={`${acceptedCount} ${t('dashboard.quotes_signed')}`}
+        />
       </div>
 
       {/* Operational Widgets Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Widget 1: Active Projects Status Pipeline Summary */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div>
-              <h2 className="font-extrabold text-base flex items-center gap-2 text-foreground">
-                <Briefcase className="w-4 h-4 text-primary" /> {t('dashboard.active_projects_status')}
-              </h2>
-              <p className="text-xs text-muted-foreground">{t('dashboard.progress_desc')}</p>
+        {/* Active Projects Pipeline */}
+        <SectionCard
+          className="lg:col-span-2"
+          title={t('dashboard.active_projects_status')}
+          subtitle={t('dashboard.progress_desc')}
+          icon={<Briefcase className="w-4 h-4" />}
+          action={
+            <Link
+              href="/projects"
+              className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+            >
+              {t('dashboard.view_all_pipeline')}
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          }
+        >
+          {projects.length === 0 ? (
+            <EmptyState
+              icon={<Briefcase className="w-5 h-5" />}
+              title={t('projects.title')}
+              description={t('dashboard.progress_desc')}
+            />
+          ) : (
+            <div className="divide-y divide-border/70 -mx-5">
+              {projects.slice(0, 4).map((prj) => {
+                const pct = progressMap[prj.status] || 10;
+
+                return (
+                  <Link
+                    key={prj.id}
+                    href={`/projects/${prj.id}`}
+                    className="block px-5 py-3.5 hover:bg-muted/35 transition-colors space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-mono font-semibold text-primary shrink-0">
+                          {prj.projectNumber}
+                        </span>
+                        <span className="font-medium text-foreground truncate">
+                          {prj.customer?.companyName || prj.customer?.name}
+                        </span>
+                      </div>
+                      <StatusBadge variant={projectBadgeVariant(prj.status)} dot>
+                        {getProjectStatusLabel(prj.status, locale)}
+                      </StatusBadge>
+                    </div>
+
+                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-primary h-full rounded-full transition-all duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span>
+                        {prj.installationDate ? t('projects.installation_date') : t('projects.target_deadline')}:{' '}
+                        {formatDate(prj.installationDate || prj.targetDeliveryDate, '—')}
+                      </span>
+                      <span className="truncate">
+                        {t('projects.responsible')}: {prj.responsibleUser?.fullName || '—'}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
-            <Link href="/projects" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-              {t('dashboard.view_all_pipeline')} <ChevronRight className="w-4 h-4" />
+          )}
+        </SectionCard>
+
+        {/* Urgent Service Alerts */}
+        <SectionCard
+          title={t('dashboard.urgent_service_alerts')}
+          icon={<AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+          action={
+            <Link
+              href="/service"
+              className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+            >
+              {t('nav.service')}
+              <ChevronRight className="w-3.5 h-3.5" />
             </Link>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            {projects.slice(0, 3).map((prj) => {
-              const progressMap: Record<string, number> = {
-                PLANNED: 20,
-                PROCUREMENT: 40,
-                PRODUCTION: 60,
-                INSTALLATION: 80,
-                COMPLETED: 100,
-                CLOSED: 100,
-              };
-              const pct = progressMap[prj.status] || 10;
-
-              return (
-                <div key={prj.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-2">
-                  <div className="flex items-center justify-between gap-2 font-bold">
-                    <span className="text-primary shrink-0">{prj.projectNumber}</span>
-                    <span className="text-foreground truncate">{prj.customer?.companyName || prj.customer?.name}</span>
-                    <span className="text-[10px] uppercase bg-primary/10 text-primary px-2 py-0.5 rounded font-black shrink-0">
-                      {getProjectStatusLabel(prj.status, locale)}
-                    </span>
-                  </div>
-
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div className="bg-primary h-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>
-                      {prj.installationDate ? t('projects.installation_date') : t('projects.target_deadline')}:{' '}
-                      {formatDate(prj.installationDate || prj.targetDeliveryDate, '—')}
-                    </span>
-                    <span>{t('projects.responsible')}: {prj.responsibleUser?.fullName || 'IMFEX Agent'}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Widget 2: Urgent Service Desk Alerts */}
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h2 className="font-extrabold text-base flex items-center gap-2 text-foreground">
-              <AlertTriangle className="w-4 h-4 text-amber-500" /> {t('dashboard.urgent_service_alerts')}
-            </h2>
-            <Link href="/service" className="text-xs font-bold text-primary hover:underline">
-              {t('nav.service')} →
-            </Link>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            {urgentServiceTickets.length === 0 ? (
-              <div className="p-6 text-center border border-dashed border-border rounded-xl text-muted-foreground italic">
-                {t('dashboard.no_urgent_tickets')}
-              </div>
-            ) : (
-              urgentServiceTickets.map((st) => (
+          }
+        >
+          {urgentServiceTickets.length === 0 ? (
+            <div className="py-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+              {t('dashboard.no_urgent_tickets')}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {urgentServiceTickets.map((st) => (
                 <Link
                   key={st.id}
                   href={`/service/${st.id}`}
-                  className="block p-3 bg-red-500/10 border border-red-500/20 hover:border-red-500/40 rounded-xl space-y-1 transition-all"
+                  className="block p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/[0.05] hover:bg-rose-500/[0.09] transition-colors space-y-1.5"
                 >
-                  <div className="flex items-center justify-between font-extrabold">
-                    <span className="text-red-600 dark:text-red-400">{st.ticketNumber}</span>
-                    <span className="text-[9px] uppercase bg-red-500 text-white px-2 py-0.5 rounded font-black">
-                      {getServicePriorityLabel(st.priority, locale)}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-rose-700 dark:text-rose-400">
+                      {st.ticketNumber}
                     </span>
+                    <StatusBadge variant="danger">
+                      {getServicePriorityLabel(st.priority, locale)}
+                    </StatusBadge>
                   </div>
-                  <p className="font-semibold text-foreground truncate">{st.defectDescription}</p>
-                  <p className="text-[10px] text-muted-foreground">{st.customer?.companyName || st.customer?.name}</p>
+                  <p className="text-xs font-medium text-foreground truncate">
+                    {st.defectDescription}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground truncate">
+                    {st.customer?.companyName || st.customer?.name}
+                  </p>
                 </Link>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Offers Table Section */}
-      <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-border pb-4">
-          <div>
-            <h2 className="font-extrabold text-base text-foreground">{t('dashboard.recent_offers')}</h2>
-            <p className="text-xs text-muted-foreground">{t('dashboard.latest_quotes_desc')}</p>
-          </div>
-          <Link href="/offers" className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-            {t('dashboard.view_all_quotes')} <ArrowUpRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Mobile Cards View */}
-        <div className="grid grid-cols-1 gap-4 md:hidden">
-          {offers.map((offer) => (
-            <div key={offer.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-3 shadow-sm">
-              <div className="flex justify-between items-center">
-                <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
-                <span
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                    offer.status === 'ACCEPTED'
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                      : offer.status === 'SENT'
-                      ? 'bg-blue-500/10 text-blue-500'
-                      : 'bg-amber-500/10 text-amber-500'
-                  }`}
-                >
-                  {getOfferStatusLabel(offer.status, locale)}
-                </span>
-              </div>
-              <div className="space-y-1">
-                <p className="font-bold text-foreground">
-                  {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
-                </p>
-                <p className="text-muted-foreground text-[10px]">
-                  {offer.items.length} {t('offers.items').toLowerCase()}
-                </p>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-border">
-                <span className="font-black text-foreground">
-                  {formatCurrency(offer.totalAmount)}
-                </span>
-                <button
-                  onClick={() => setSelectedOfferForPdf(offer)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-card hover:bg-muted text-foreground transition-colors border border-border"
-                >
-                  <FileText className="w-3.5 h-3.5 text-blue-500" /> PDF
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
-
-        {/* Desktop Table View */}
-        <div className="hidden md:block border border-border rounded-xl overflow-hidden text-xs">
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left min-w-[650px]">
-              <thead className="bg-muted/50 font-bold border-b border-border text-muted-foreground uppercase text-[10px]">
-                <tr>
-                  <th className="p-3.5">{t('offers.offer_number')}</th>
-                  <th className="p-3.5">{t('offers.customer')}</th>
-                  <th className="p-3.5">{t('offers.items')}</th>
-                  <th className="p-3.5">{t('offers.status')}</th>
-                  <th className="p-3.5 text-right">{t('offers.total')}</th>
-                  <th className="p-3.5 text-center">{t('offers.action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {offers.map((offer) => (
-                  <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="p-3.5 font-extrabold text-primary">{offer.offerNumber}</td>
-                    <td className="p-3.5 font-semibold text-foreground">
-                      {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
-                    </td>
-                    <td className="p-3.5 text-muted-foreground">
-                      {offer.items.length} {t('offers.items').toLowerCase()}
-                    </td>
-                    <td className="p-3.5">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                          offer.status === 'ACCEPTED'
-                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                            : offer.status === 'SENT'
-                            ? 'bg-blue-500/10 text-blue-500'
-                            : 'bg-amber-500/10 text-amber-500'
-                        }`}
-                      >
-                        {getOfferStatusLabel(offer.status, locale)}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right font-black text-foreground">
-                      {formatCurrency(offer.totalAmount)}
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => setSelectedOfferForPdf(offer)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-blue-500" /> PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          )}
+        </SectionCard>
       </div>
+
+      {/* Recent Offers Table */}
+      <SectionCard
+        title={t('dashboard.recent_offers')}
+        subtitle={t('dashboard.latest_quotes_desc')}
+        noPadding
+        action={
+          <Link
+            href="/offers"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+          >
+            {t('dashboard.view_all_quotes')}
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        }
+      >
+        {offers.length === 0 ? (
+          <EmptyState
+            icon={<FileText className="w-5 h-5" />}
+            title={t('dashboard.recent_offers')}
+            description={t('dashboard.latest_quotes_desc')}
+          />
+        ) : (
+          <>
+            {/* Mobile Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {offers.slice(0, 6).map((offer) => (
+                <div key={offer.id} className="p-4 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/offers/${offer.id}`}
+                      className="font-mono font-semibold text-primary hover:underline"
+                    >
+                      {offer.offerNumber}
+                    </Link>
+                    <StatusBadge variant={offerBadgeVariant(offer.status)} dot>
+                      {getOfferStatusLabel(offer.status, locale)}
+                    </StatusBadge>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {offer.items.length} {t('offers.items').toLowerCase()}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                    <span className="font-semibold text-foreground tabular-nums">
+                      {formatCurrency(offer.totalAmount)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOfferForPdf(offer)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-primary" /> PDF
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
+                  <tr>
+                    <th className="px-5 py-3">{t('offers.offer_number')}</th>
+                    <th className="px-4 py-3">{t('offers.customer')}</th>
+                    <th className="px-4 py-3">{t('offers.items')}</th>
+                    <th className="px-4 py-3">{t('offers.status')}</th>
+                    <th className="px-4 py-3 text-right">{t('offers.total')}</th>
+                    <th className="px-5 py-3 text-right">{t('offers.action')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/70">
+                  {offers.slice(0, 6).map((offer) => (
+                    <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3.5 whitespace-nowrap">
+                        <Link
+                          href={`/offers/${offer.id}`}
+                          className="font-mono font-semibold text-primary hover:underline"
+                        >
+                          {offer.offerNumber}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3.5 font-medium text-foreground">
+                        {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
+                      </td>
+                      <td className="px-4 py-3.5 text-muted-foreground tabular-nums">
+                        {offer.items.length} {t('offers.items').toLowerCase()}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <StatusBadge variant={offerBadgeVariant(offer.status)} dot>
+                          {getOfferStatusLabel(offer.status, locale)}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-semibold text-foreground tabular-nums whitespace-nowrap">
+                        {formatCurrency(offer.totalAmount)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOfferForPdf(offer)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-muted-foreground" /> PDF
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </SectionCard>
 
       {/* PDF Export Modal */}
       {selectedOfferForPdf && (

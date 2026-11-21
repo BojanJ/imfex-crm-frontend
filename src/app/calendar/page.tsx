@@ -12,6 +12,7 @@ import { TIME_SLOTS_24H } from '@/lib/formatters';
 import { getCalendarEventTypeLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
+import { PageHeader, SectionCard, EmptyState } from '@/components/ui/page-primitives';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -22,33 +23,33 @@ import {
   Users,
   Clock,
   MapPin,
-  FileText,
-  Trash2,
   X,
-  Check,
-  Tag,
   ExternalLink,
-  Sparkles,
-  Filter,
 } from 'lucide-react';
 
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 
+function compactCalendarTitle(rawTitle: string): string {
+  return rawTitle
+    .replace(/^Project Start:\s*/i, 'Старт: ')
+    .replace(/^Target Delivery:\s*/i, 'Рок: ')
+    .replace(/^Installation:\s*/i, 'Монтажа: ')
+    .replace(/^Service:\s*/i, 'Сервис: ');
+}
+
 export default function CalendarPage() {
   const { t, locale } = useI18n();
-  useImfexStore(); // Auto-subscribe to store updates
+  useImfexStore();
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [customers, setCustomers] = useState<Customer[]>([]);
 
-  // Modals state
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventIdToDelete, setEventIdToDelete] = useState<string | null>(null);
 
-  // Form State
   const [eventTitle, setEventTitle] = useState('');
   const [eventType, setEventType] = useState<CalendarEventType>('MEETING');
   const [eventStartDate, setEventStartDate] = useState('');
@@ -67,11 +68,9 @@ export default function CalendarPage() {
   }, []);
 
   const allEvents = imfexStore.getCalendarEvents();
-  const filteredEvents = filterType === 'ALL' 
-    ? allEvents 
-    : allEvents.filter((e) => e.eventType === filterType);
+  const filteredEvents =
+    filterType === 'ALL' ? allEvents : allEvents.filter((e) => e.eventType === filterType);
 
-  // Navigation handlers
   const handlePrev = () => {
     const d = new Date(currentDate);
     if (viewMode === 'month') d.setMonth(d.getMonth() - 1);
@@ -88,9 +87,7 @@ export default function CalendarPage() {
     setCurrentDate(d);
   };
 
-  const handleToday = () => {
-    setCurrentDate(new Date());
-  };
+  const handleToday = () => setCurrentDate(new Date());
 
   const toLocalDateStr = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -98,7 +95,6 @@ export default function CalendarPage() {
   const isSystemAutoEvent = (event: CalendarEvent) =>
     Boolean(event.isSystemEvent || event.id.startsWith('proj-') || event.id.startsWith('serv-event-'));
 
-  // Open modal to add event for specific date
   const handleOpenAddEventModal = (dateStr?: string) => {
     setEditingEventId(null);
     setEventTitle('');
@@ -116,9 +112,8 @@ export default function CalendarPage() {
     setIsNewEventModalOpen(true);
   };
 
-  // Edit existing custom event
   const handleOpenEditEventModal = (event: CalendarEvent) => {
-    if (isSystemAutoEvent(event)) return; // Auto-generated project & service events are read-only
+    if (isSystemAutoEvent(event)) return;
     setEditingEventId(event.id);
     setEventTitle(event.title);
     setEventType(event.eventType);
@@ -145,7 +140,6 @@ export default function CalendarPage() {
     setIsNewEventModalOpen(true);
   };
 
-  // Save new or updated event
   const handleSaveEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventTitle || !eventStartDate) return;
@@ -161,7 +155,7 @@ export default function CalendarPage() {
       startDate: startIso,
       endDate: endIso,
       allDay: eventAllDay,
-      eventType: eventType,
+      eventType,
       customerId: eventCustomerId || undefined,
       customer: eventCustomerId ? imfexStore.getCustomerById(eventCustomerId) : undefined,
       projectId: eventProjectId || undefined,
@@ -175,45 +169,30 @@ export default function CalendarPage() {
     setIsNewEventModalOpen(false);
   };
 
-  const handleDeleteEvent = (id: string) => {
-    setEventIdToDelete(id);
-  };
-
-  // Helpers for Month Grid (using local dates to avoid UTC timezone off-by-one shifts)
   const monthDays = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
 
-    // Monday-based index (0 = Monday, 6 = Sunday)
     let startDayIdx = firstDay.getDay() - 1;
     if (startDayIdx === -1) startDayIdx = 6;
-
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
     const days: { date: Date; isCurrentMonth: boolean; dateStr: string }[] = [];
-
-    // Prev month padding
     for (let i = startDayIdx - 1; i >= 0; i--) {
       const prevDate = new Date(year, month - 1, daysInPrevMonth - i);
       days.push({ date: prevDate, isCurrentMonth: false, dateStr: toLocalDateStr(prevDate) });
     }
-
-    // Current month days
     for (let d = 1; d <= lastDay.getDate(); d++) {
       const curDate = new Date(year, month, d);
       days.push({ date: curDate, isCurrentMonth: true, dateStr: toLocalDateStr(curDate) });
     }
-
-    // Next month padding to fill 35 or 42 grid cells
     const remaining = 35 - days.length > 0 ? 35 - days.length : 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
       const nextDate = new Date(year, month + 1, i);
       days.push({ date: nextDate, isCurrentMonth: false, dateStr: toLocalDateStr(nextDate) });
     }
-
     return days;
   }, [currentDate]);
 
@@ -225,7 +204,6 @@ export default function CalendarPage() {
     [locale]
   );
 
-  // Helpers for 7-day Week Grid (Monday - Sunday)
   const weekDays = useMemo(() => {
     const start = new Date(currentDate);
     const offset = start.getDay() === 0 ? 6 : start.getDay() - 1;
@@ -237,40 +215,58 @@ export default function CalendarPage() {
     });
   }, [currentDate, weekdayLabels]);
 
-  // Format Header Title
   const formattedHeaderTitle = useMemo(() => {
     if (viewMode === 'month') {
-      return currentDate.toLocaleDateString(locale === 'mk' ? 'mk-MK' : 'en-US', {
+      if (locale === 'mk') {
+        const mkMonths = [
+          'Јануари',
+          'Февруари',
+          'Март',
+          'Април',
+          'Мај',
+          'Јуни',
+          'Јули',
+          'Август',
+          'Септември',
+          'Октомври',
+          'Ноември',
+          'Декември',
+        ];
+        return `${mkMonths[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+      }
+      return currentDate.toLocaleDateString('en-US', {
         month: 'long',
         year: 'numeric',
       });
-    } else if (viewMode === 'week') {
+    }
+    if (viewMode === 'week') {
       const start = new Date(currentDate);
       const day = start.getDay() === 0 ? 6 : start.getDay() - 1;
       start.setDate(start.getDate() - day);
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
-      return `${formatDate(start)} - ${formatDate(end)}`;
-    } else if (viewMode === 'day') {
-      return formatDate(currentDate);
-    } else {
-      return t('calendar.agenda_overview');
+      return `${formatDate(start)} — ${formatDate(end)}`;
     }
+    if (viewMode === 'day') {
+      return formatDate(currentDate);
+    }
+    return t('calendar.agenda_overview');
   }, [currentDate, viewMode, locale, t]);
 
-  // Color helper for badges
   const getEventBadgeClass = (event: CalendarEvent) => {
     if (event.eventType === 'PROJECT') {
-      return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
-    } else if (event.eventType === 'SERVICE') {
-      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-    } else if (event.eventType === 'MEETING') {
-      return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
-    } else if (event.eventType === 'INSTALLATION') {
-      return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
-    } else {
-      return 'bg-primary/10 text-primary border-primary/20';
+      return 'bg-primary/10 text-blue-700 dark:text-blue-400 border-primary/20';
     }
+    if (event.eventType === 'SERVICE') {
+      return 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20';
+    }
+    if (event.eventType === 'MEETING') {
+      return 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20';
+    }
+    if (event.eventType === 'INSTALLATION') {
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
+    }
+    return 'bg-muted text-foreground border-border';
   };
 
   const getEventIcon = (event: CalendarEvent) => {
@@ -285,95 +281,75 @@ export default function CalendarPage() {
   useEscapeKey(Boolean(selectedEvent) && !eventIdToDelete, () => setSelectedEvent(null));
   useEscapeKey(isNewEventModalOpen, () => setIsNewEventModalOpen(false));
 
+  const inputClass =
+    'w-full h-9 px-3 text-xs rounded-lg border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors';
+
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-6 rounded-xl border border-border">
-        <div>
-          <h1 className="font-extrabold text-xl tracking-tight flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 text-primary" />
-            <span>{t('nav.calendar')}</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t('calendar.subtitle')}
-          </p>
-        </div>
-
-        <button
-          onClick={() => handleOpenAddEventModal()}
-          className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> {t('calendar.add_event')}
-        </button>
-      </div>
-
-      {/* Calendar Controls & Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
-        {/* Left: Navigation Controls */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handlePrev}
-              className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Претходен"
-              aria-label="Претходен период"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNext}
-              className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Следен"
-              aria-label="Следен период"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
+    <div className="space-y-5 pb-10">
+      <PageHeader
+        title={t('nav.calendar')}
+        subtitle={t('calendar.subtitle')}
+        icon={<CalendarIcon className="w-5 h-5" />}
+        actions={
           <button
             type="button"
-            onClick={handleToday}
-            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
+            onClick={() => handleOpenAddEventModal()}
+            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
           >
-            {t('calendar.today')}
+            <Plus className="w-4 h-4" />
+            <span>{t('calendar.add_event')}</span>
           </button>
+        }
+      />
 
-          <h2 className="font-extrabold text-base text-foreground tracking-tight capitalize">
-            {formattedHeaderTitle}
-          </h2>
-        </div>
-
-        {/* Right: View Mode Tabs & Category Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-1 flex-wrap">
-            <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-            {(['ALL', 'PROJECT', 'SERVICE', 'MEETING', 'INSTALLATION', 'MAINTENANCE'] as const).map((fid) => (
+      {/* Clean 2-Tier Calendar Toolbar */}
+      <div className="surface-card rounded-xl p-3.5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Navigation & Period Title */}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center rounded-lg border border-border bg-background overflow-hidden">
               <button
-                key={fid}
-                onClick={() => setFilterType(fid)}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer ${
-                  filterType === fid
-                    ? 'bg-primary/10 text-primary font-bold'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
+                type="button"
+                onClick={handlePrev}
+                className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                title="Претходен"
+                aria-label="Претходен период"
               >
-                {getCalendarEventTypeLabel(fid, locale)}
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={handleToday}
+                className="h-8 px-3 text-xs font-medium border-x border-border text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                {t('calendar.today')}
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                title="Следен"
+                aria-label="Следен период"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <h2 className="font-semibold text-sm sm:text-base text-foreground capitalize pl-1">
+              {formattedHeaderTitle}
+            </h2>
           </div>
 
-          {/* View Mode Selector */}
-          <div className="flex items-center bg-muted/40 p-1 rounded-xl border border-border text-xs font-semibold">
+          {/* Segmented View Switcher */}
+          <div className="inline-flex items-center bg-muted/70 p-0.5 rounded-lg border border-border text-xs">
             {(['month', 'week', 'day', 'agenda'] as ViewMode[]).map((v) => (
               <button
                 key={v}
+                type="button"
                 onClick={() => setViewMode(v)}
-                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                   viewMode === v
-                    ? 'bg-card text-foreground font-bold shadow-sm'
+                    ? 'bg-card text-foreground shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -382,20 +358,38 @@ export default function CalendarPage() {
             ))}
           </div>
         </div>
+
+        {/* Category Filter Pills */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-2.5 border-t border-border/60">
+          {(['ALL', 'PROJECT', 'SERVICE', 'MEETING', 'INSTALLATION', 'MAINTENANCE'] as const).map(
+            (fid) => (
+              <button
+                key={fid}
+                type="button"
+                onClick={() => setFilterType(fid)}
+                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                  filterType === fid
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {getCalendarEventTypeLabel(fid, locale)}
+              </button>
+            )
+          )}
+        </div>
       </div>
 
       {/* MONTH VIEW */}
       {viewMode === 'month' && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-          {/* Weekday Headers */}
-          <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-bold text-muted-foreground py-2.5 uppercase tracking-wider">
+        <div className="surface-card rounded-xl overflow-hidden">
+          <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-[11px] font-medium text-muted-foreground py-2.5">
             {weekdayLabels.map((lbl) => (
               <span key={lbl}>{lbl}</span>
             ))}
           </div>
 
-          {/* Grid Cells */}
-          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-border min-h-[580px]">
+          <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-border/70 min-h-[560px]">
             {monthDays.map(({ date, isCurrentMonth, dateStr }, idx) => {
               const dayEvents = filteredEvents.filter((e) => e.startDate.startsWith(dateStr));
               const isToday = dateStr === todayStr;
@@ -404,16 +398,18 @@ export default function CalendarPage() {
                 <div
                   key={idx}
                   onClick={() => handleOpenAddEventModal(dateStr)}
-                  className={`p-2 min-h-[100px] flex flex-col transition-colors cursor-pointer group hover:bg-muted/30 ${
-                    !isCurrentMonth ? 'bg-muted/10 opacity-40' : ''
+                  className={`p-2 min-h-[104px] flex flex-col transition-colors cursor-pointer group hover:bg-muted/25 ${
+                    !isCurrentMonth ? 'bg-muted/15 text-muted-foreground/50' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span
-                      className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                      className={`text-xs font-medium w-6 h-6 rounded-full flex items-center justify-center tabular-nums ${
                         isToday
-                          ? 'bg-primary text-primary-foreground shadow-sm'
-                          : 'text-foreground'
+                          ? 'bg-primary text-primary-foreground font-semibold'
+                          : isCurrentMonth
+                          ? 'text-foreground'
+                          : 'text-muted-foreground/60'
                       }`}
                     >
                       {date.getDate()}
@@ -425,33 +421,33 @@ export default function CalendarPage() {
                         e.stopPropagation();
                         handleOpenAddEventModal(dateStr);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-all"
-                      title="Add Event"
+                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
+                      title={t('calendar.add_event')}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* Day Events */}
                   <div className="space-y-1 overflow-y-auto flex-1 max-h-24">
                     {dayEvents.slice(0, 3).map((ev) => (
                       <div
                         key={ev.id}
+                        title={ev.title}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedEvent(ev);
                         }}
-                        className={`px-2 py-1 rounded-md text-[10px] font-semibold border flex items-center gap-1.5 truncate cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${getEventBadgeClass(
+                        className={`px-1.5 py-0.5 rounded text-[11px] font-medium border flex items-center gap-1 truncate cursor-pointer transition-opacity hover:opacity-90 ${getEventBadgeClass(
                           ev
                         )}`}
                       >
                         {getEventIcon(ev)}
-                        <span className="truncate">{ev.title}</span>
+                        <span className="truncate">{compactCalendarTitle(ev.title)}</span>
                       </div>
                     ))}
                     {dayEvents.length > 3 && (
-                      <p className="text-[10px] font-bold text-muted-foreground pl-1">
-                        +{dayEvents.length - 3} more
+                      <p className="text-[10px] font-medium text-muted-foreground pl-1">
+                        +{dayEvents.length - 3} {locale === 'mk' ? 'повеќе' : 'more'}
                       </p>
                     )}
                   </div>
@@ -464,59 +460,66 @@ export default function CalendarPage() {
 
       {/* AGENDA VIEW */}
       {viewMode === 'agenda' && (
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-          <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-            <CalendarIcon className="w-4 h-4 text-primary" /> Upcoming Events Agenda
-          </h3>
-
+        <SectionCard
+          title={t('calendar.agenda_overview')}
+          icon={<CalendarIcon className="w-4 h-4" />}
+          noPadding
+        >
           {filteredEvents.length === 0 ? (
-            <p className="text-center py-12 text-xs text-muted-foreground italic">
-              No upcoming events found. Click "+ Add Event" to create a new appointment.
-            </p>
+            <EmptyState
+              icon={<CalendarIcon className="w-5 h-5" />}
+              title={locale === 'mk' ? 'Нема закажани настани' : 'No upcoming events'}
+              description={
+                locale === 'mk'
+                  ? 'Кликнете „Додај Настан“ за да креирате нов термин.'
+                  : 'Click "Add Event" to create a new appointment.'
+              }
+            />
           ) : (
-            <div className="space-y-3 divide-y divide-border">
+            <div className="divide-y divide-border/70">
               {[...filteredEvents]
                 .sort((a, b) => a.startDate.localeCompare(b.startDate))
                 .map((ev) => (
                   <div
                     key={ev.id}
                     onClick={() => setSelectedEvent(ev)}
-                    className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 hover:bg-muted/30 rounded-xl transition-colors cursor-pointer"
+                    className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/30 transition-colors cursor-pointer text-xs"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className={`p-2.5 rounded-xl border ${getEventBadgeClass(ev)}`}>
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className={`p-2 rounded-lg border shrink-0 ${getEventBadgeClass(ev)}`}>
                         {getEventIcon(ev)}
                       </div>
 
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-xs text-foreground">{ev.title}</span>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-foreground">{ev.title}</span>
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${getEventBadgeClass(
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${getEventBadgeClass(
                               ev
                             )}`}
                           >
-                            {ev.eventType}
+                            {getCalendarEventTypeLabel(ev.eventType, locale)}
                           </span>
                         </div>
 
                         {ev.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1">{ev.description}</p>
+                          <p className="text-muted-foreground line-clamp-1">{ev.description}</p>
                         )}
 
-                        <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-0.5">
-                          <span className="flex items-center gap-1">
+                        <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
+                          <span className="inline-flex items-center gap-1 tabular-nums">
                             <Clock className="w-3 h-3" />
-                            {formatDate(ev.startDate)}{ev.startDate.includes('T') ? ` ${ev.startDate.split('T')[1].slice(0, 5)}` : ''}
+                            {formatDate(ev.startDate)}
+                            {ev.startDate.includes('T') ? ` ${ev.startDate.split('T')[1].slice(0, 5)}` : ''}
                           </span>
                           {ev.customer && (
-                            <span className="flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1">
                               <Users className="w-3 h-3" />
                               {ev.customer.companyName || ev.customer.name}
                             </span>
                           )}
                           {ev.location && (
-                            <span className="flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1">
                               <MapPin className="w-3 h-3" />
                               {ev.location}
                             </span>
@@ -525,21 +528,23 @@ export default function CalendarPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
                       {ev.projectId && (
                         <Link
                           href={`/projects/${ev.projectId}`}
-                          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 flex items-center gap-1"
+                          className="px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground inline-flex items-center gap-1"
                         >
-                          View Project <ExternalLink className="w-3 h-3" />
+                          {locale === 'mk' ? 'Проект' : 'Project'}
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
                         </Link>
                       )}
                       {ev.serviceTicketId && (
                         <Link
                           href={`/service/${ev.serviceTicketId}`}
-                          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 flex items-center gap-1"
+                          className="px-2.5 py-1 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground inline-flex items-center gap-1"
                         >
-                          View Ticket <ExternalLink className="w-3 h-3" />
+                          {locale === 'mk' ? 'Тикет' : 'Ticket'}
+                          <ExternalLink className="w-3 h-3 text-muted-foreground" />
                         </Link>
                       )}
                     </div>
@@ -547,12 +552,12 @@ export default function CalendarPage() {
                 ))}
             </div>
           )}
-        </div>
+        </SectionCard>
       )}
 
-      {/* WEEK VIEW (7-Day Monday-Sunday Grid) */}
+      {/* WEEK VIEW */}
       {viewMode === 'week' && (
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-x-auto">
+        <div className="surface-card rounded-xl overflow-x-auto">
           <div className="min-w-[760px]">
             <div className="grid grid-cols-7 border-b border-border bg-muted/40">
               {weekDays.map(({ date, label, dateStr }) => {
@@ -560,13 +565,13 @@ export default function CalendarPage() {
                 return (
                   <div
                     key={dateStr}
-                    className={`p-3 text-center border-r last:border-r-0 border-border ${
+                    className={`p-3 text-center border-r last:border-r-0 border-border/70 ${
                       isToday ? 'bg-primary/10' : ''
                     }`}
                   >
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
+                    <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
                     <p
-                      className={`text-sm font-extrabold mt-0.5 ${
+                      className={`text-xs font-semibold mt-0.5 tabular-nums ${
                         isToday ? 'text-primary' : 'text-foreground'
                       }`}
                     >
@@ -577,7 +582,7 @@ export default function CalendarPage() {
               })}
             </div>
 
-            <div className="grid grid-cols-7 divide-x divide-border min-h-[420px]">
+            <div className="grid grid-cols-7 divide-x divide-border/70 min-h-[420px]">
               {weekDays.map(({ dateStr }) => {
                 const dayEvents = [...filteredEvents]
                   .filter((e) => e.startDate.startsWith(dateStr))
@@ -595,36 +600,37 @@ export default function CalendarPage() {
                           e.stopPropagation();
                           handleOpenAddEventModal(dateStr);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-all"
-                        title="Add Event"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
+                        title={t('calendar.add_event')}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     {dayEvents.length === 0 ? (
-                      <p className="text-[10px] text-muted-foreground/50 italic text-center py-6">—</p>
+                      <p className="text-xs text-muted-foreground/40 text-center py-6">—</p>
                     ) : (
                       dayEvents.map((ev) => (
                         <div
                           key={ev.id}
+                          title={ev.title}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEvent(ev);
                           }}
-                          className={`p-2 rounded-lg text-[11px] font-semibold border space-y-1 cursor-pointer hover:scale-[1.01] transition-all ${getEventBadgeClass(
+                          className={`p-2 rounded-lg text-[11px] font-medium border space-y-1 cursor-pointer hover:opacity-90 ${getEventBadgeClass(
                             ev
                           )}`}
                         >
                           <div className="flex items-center gap-1.5">
                             {getEventIcon(ev)}
-                            <span className="truncate font-bold">{ev.title}</span>
+                            <span className="truncate font-semibold">{compactCalendarTitle(ev.title)}</span>
                           </div>
-                          <p className="text-[10px] opacity-80">
+                          <p className="text-[10px] opacity-80 tabular-nums">
                             {ev.allDay
-                              ? 'All Day'
+                              ? t('calendar.all_day')
                               : ev.startDate.includes('T')
                               ? ev.startDate.split('T')[1].slice(0, 5)
-                              : 'All Day'}
+                              : t('calendar.all_day')}
                           </p>
                         </div>
                       ))
@@ -639,150 +645,168 @@ export default function CalendarPage() {
 
       {/* DAY VIEW */}
       {viewMode === 'day' && (
-        <div className="bg-card border border-border rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" /> Daily Schedule Timeline
-            </h3>
-            <span className="text-xs text-muted-foreground font-medium">Standard Business Hours (08:00 - 20:00)</span>
-          </div>
-
+        <SectionCard
+          title={locale === 'mk' ? 'Дневен распоред' : 'Daily Schedule'}
+          subtitle="08:00 — 20:00"
+          icon={<Clock className="w-4 h-4" />}
+        >
           <div className="overflow-x-auto">
-            <div className="min-w-[600px] space-y-2">
-              {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map((time) => {
-                const curDateStr = toLocalDateStr(currentDate);
-                const matchingEvents = filteredEvents.filter(
-                  (e) => e.startDate.startsWith(curDateStr) && (e.startDate.includes(time) || e.allDay)
-                );
+            <div className="min-w-[540px] divide-y divide-border/60">
+              {['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map(
+                (time) => {
+                  const curDateStr = toLocalDateStr(currentDate);
+                  const matchingEvents = filteredEvents.filter(
+                    (e) => e.startDate.startsWith(curDateStr) && (e.startDate.includes(time) || e.allDay)
+                  );
 
-                return (
-                  <div key={time} className="flex items-start gap-4 py-2 border-b border-border/50 text-xs">
-                    <span className="font-bold text-muted-foreground w-16 text-right shrink-0">{time}</span>
-                    <div className="flex-1 min-h-[40px] bg-muted/20 rounded-lg border border-dashed border-border/60 p-2 flex flex-wrap gap-2">
-                      {matchingEvents.map((ev) => (
-                        <div
-                          key={ev.id}
-                          onClick={() => setSelectedEvent(ev)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-2 cursor-pointer shadow-2xs ${getEventBadgeClass(
-                            ev
-                          )}`}
-                        >
-                          {getEventIcon(ev)}
-                          <span>{ev.title}</span>
-                          {ev.allDay && <span className="text-[9px] uppercase font-bold opacity-75">(All Day)</span>}
-                        </div>
-                      ))}
+                  return (
+                    <div key={time} className="flex items-start gap-4 py-2.5 text-xs">
+                      <span className="font-mono text-[11px] text-muted-foreground w-14 text-right pt-1 shrink-0">
+                        {time}
+                      </span>
+                      <div className="flex-1 min-h-[36px] bg-muted/20 rounded-lg border border-dashed border-border/60 p-1.5 flex flex-wrap gap-2">
+                        {matchingEvents.map((ev) => (
+                          <div
+                            key={ev.id}
+                            onClick={() => setSelectedEvent(ev)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium border flex items-center gap-1.5 cursor-pointer ${getEventBadgeClass(
+                              ev
+                            )}`}
+                          >
+                            {getEventIcon(ev)}
+                            <span>{ev.title}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
           </div>
-        </div>
+        </SectionCard>
       )}
 
       {/* EVENT DETAILS MODAL */}
       {selectedEvent && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setSelectedEvent(null)}
           role="dialog"
           aria-modal="true"
           aria-label={selectedEvent.title}
         >
           <div
-            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5"
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between border-b border-border pb-3">
-              <div className="flex items-center gap-2">
-                <div className={`p-2 rounded-lg border ${getEventBadgeClass(selectedEvent)}`}>
+            <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <div className={`p-2 rounded-lg border shrink-0 ${getEventBadgeClass(selectedEvent)}`}>
                   {getEventIcon(selectedEvent)}
                 </div>
-                <div>
-                  <h3 className="font-bold text-base text-foreground leading-snug">{selectedEvent.title}</h3>
-                  <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border inline-block mt-0.5 ${getEventBadgeClass(selectedEvent)}`}>
-                    {selectedEvent.eventType}
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm text-foreground leading-snug">
+                    {selectedEvent.title}
+                  </h3>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium border inline-block mt-1 ${getEventBadgeClass(
+                      selectedEvent
+                    )}`}
+                  >
+                    {getCalendarEventTypeLabel(selectedEvent.eventType, locale)}
                   </span>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedEvent(null)}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
+                aria-label="Затвори"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center gap-2 text-foreground font-semibold">
-                <Clock className="w-4 h-4 text-primary shrink-0" />
+            <div className="space-y-2.5 text-xs">
+              <div className="flex items-center gap-2 text-foreground font-medium tabular-nums">
+                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span>
                   {formatDate(selectedEvent.startDate)}
-                  {selectedEvent.startDate.includes('T') ? ` ${selectedEvent.startDate.split('T')[1].slice(0, 5)}` : ''}
+                  {selectedEvent.startDate.includes('T')
+                    ? ` ${selectedEvent.startDate.split('T')[1].slice(0, 5)}`
+                    : ''}
                 </span>
                 {selectedEvent.endDate && (
                   <span>
-                    - {formatDate(selectedEvent.endDate)}
-                    {selectedEvent.endDate.includes('T') ? ` ${selectedEvent.endDate.split('T')[1].slice(0, 5)}` : ''}
+                    — {formatDate(selectedEvent.endDate)}
+                    {selectedEvent.endDate.includes('T')
+                      ? ` ${selectedEvent.endDate.split('T')[1].slice(0, 5)}`
+                      : ''}
                   </span>
                 )}
               </div>
 
               {selectedEvent.customer && (
-                <div className="flex items-center gap-2 text-foreground font-semibold">
-                  <Users className="w-4 h-4 text-primary shrink-0" />
+                <div className="flex items-center gap-2 text-foreground">
+                  <Users className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span>{selectedEvent.customer.companyName || selectedEvent.customer.name}</span>
                 </div>
               )}
 
               {selectedEvent.location && (
-                <div className="flex items-center gap-2 text-foreground font-semibold">
-                  <MapPin className="w-4 h-4 text-primary shrink-0" />
+                <div className="flex items-center gap-2 text-foreground">
+                  <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
                   <span>{selectedEvent.location}</span>
                 </div>
               )}
 
               {selectedEvent.description && (
-                <div className="p-3 bg-muted/40 rounded-xl border border-border space-y-1">
-                  <span className="font-bold text-[10px] text-muted-foreground uppercase">Description & Notes</span>
+                <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1">
+                  <span className="font-medium text-[11px] text-muted-foreground">
+                    {t('calendar.notes')}
+                  </span>
                   <p className="text-foreground leading-relaxed">{selectedEvent.description}</p>
                 </div>
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               {selectedEvent.projectId && (
                 <Link
                   href={`/projects/${selectedEvent.projectId}`}
-                  className="px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5"
+                  className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5"
                 >
-                  Go to Project <ExternalLink className="w-3.5 h-3.5" />
+                  <span>{locale === 'mk' ? 'Отвори Проект' : 'Open Project'}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               )}
 
               {selectedEvent.serviceTicketId && (
                 <Link
                   href={`/service/${selectedEvent.serviceTicketId}`}
-                  className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-500 text-white hover:bg-amber-600 flex items-center gap-1.5"
+                  className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5"
                 >
-                  Go to Ticket <ExternalLink className="w-3.5 h-3.5" />
+                  <span>{locale === 'mk' ? 'Отвори Тикет' : 'Open Ticket'}</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
               )}
 
               {!isSystemAutoEvent(selectedEvent) && (
                 <>
                   <button
+                    type="button"
                     onClick={() => handleOpenEditEventModal(selectedEvent)}
-                    className="px-3 py-2 text-xs font-semibold rounded-xl border border-border hover:bg-muted text-foreground"
+                    className="h-9 px-3 text-xs font-medium rounded-lg border border-border hover:bg-muted text-foreground cursor-pointer"
                   >
-                    Edit Event
+                    {locale === 'mk' ? 'Уреди' : 'Edit'}
                   </button>
                   <button
-                    onClick={() => handleDeleteEvent(selectedEvent.id)}
-                    className="px-3 py-2 text-xs font-semibold rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                    type="button"
+                    onClick={() => setEventIdToDelete(selectedEvent.id)}
+                    className="h-9 px-3 text-xs font-medium rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 cursor-pointer"
                   >
-                    Delete Event
+                    {locale === 'mk' ? 'Избриши' : 'Delete'}
                   </button>
                 </>
               )}
@@ -794,20 +818,20 @@ export default function CalendarPage() {
       {/* NEW / EDIT EVENT MODAL */}
       {isNewEventModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setIsNewEventModalOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label={editingEventId ? 'Уреди настан' : 'Нов настан'}
         >
           <div
-            className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+            className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-5 max-h-[92vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                {editingEventId ? t('calendar.modal_edit') : t('calendar.modal_create')}
+              <h3 className="font-semibold text-base text-foreground flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-primary" />
+                <span>{editingEventId ? t('calendar.modal_edit') : t('calendar.modal_create')}</span>
               </h3>
               <button
                 type="button"
@@ -820,21 +844,21 @@ export default function CalendarPage() {
             </div>
 
             <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">{t('calendar.event_title')}</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('calendar.event_title')}</label>
                 <input
                   type="text"
                   required
-                  placeholder={locale === 'mk' ? 'пр. Теренски увид / Монтажа' : 'e.g. Client Site Survey / Installation'}
+                  placeholder={locale === 'mk' ? 'пр. Теренски увид / Монтажа' : 'e.g. Site Survey'}
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-semibold"
+                  className={inputClass}
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">{t('calendar.category_type')}</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">{t('calendar.category_type')}</label>
                   <SearchableSelect
                     options={[
                       { value: 'MEETING', label: getCalendarEventTypeLabel('MEETING', locale) },
@@ -844,24 +868,24 @@ export default function CalendarPage() {
                     ]}
                     value={eventType}
                     onChange={(val) => setEventType(val as CalendarEventType)}
-                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background font-semibold"
+                    className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-medium"
                   />
                 </div>
 
-                <div>
-                  <label className="block font-semibold mb-1">{t('calendar.tag_client')}</label>
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">{t('calendar.tag_client')}</label>
                   <CustomerSelect
                     value={eventCustomerId}
                     onChange={(val) => setEventCustomerId(val)}
                     placeholder={locale === 'mk' ? '-- Избери Клиент --' : '-- Select Client --'}
                     allowClear
-                    clearLabel={locale === 'mk' ? '-- Без Клиент --' : '-- None / Internal --'}
+                    clearLabel={locale === 'mk' ? '-- Без Клиент --' : '-- None --'}
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">{t('calendar.link_project')}</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('calendar.link_project')}</label>
                 <ProjectSelect
                   value={eventProjectId}
                   onChange={(val, prj) => {
@@ -870,31 +894,31 @@ export default function CalendarPage() {
                       setEventCustomerId(prj.customerId);
                     }
                   }}
-                  placeholder={locale === 'mk' ? '-- Пребарај проект по PRJ- или клиент --' : '-- Search project --'}
+                  placeholder={locale === 'mk' ? '-- Пребарај проект --' : '-- Search project --'}
                   allowClear
-                  clearLabel={locale === 'mk' ? '-- Без поврзан проект --' : '-- No Project Linked --'}
+                  clearLabel={locale === 'mk' ? '-- Без поврзан проект --' : '-- None --'}
                 />
               </div>
 
-              <div className="space-y-2 pt-1 border-t border-border">
+              <div className="space-y-2.5 pt-2 border-t border-border">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-muted-foreground uppercase text-[10px]">
+                  <span className="font-medium text-muted-foreground">
                     {t('calendar.schedule_timeframe')}
                   </span>
-                  <label className="flex items-center gap-1.5 cursor-pointer font-semibold">
+                  <label className="flex items-center gap-1.5 cursor-pointer font-medium text-foreground">
                     <input
                       type="checkbox"
                       checked={eventAllDay}
                       onChange={(e) => setEventAllDay(e.target.checked)}
                       className="rounded accent-primary"
                     />
-                    {t('calendar.all_day')}
+                    <span>{t('calendar.all_day')}</span>
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.start_date')}</label>
+                  <div className="space-y-1">
+                    <label className="block font-medium text-muted-foreground">{t('calendar.start_date')}</label>
                     <input
                       type="date"
                       required
@@ -906,29 +930,29 @@ export default function CalendarPage() {
                           setEventEndDate(nextStart);
                         }
                       }}
-                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
+                      className={inputClass}
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.end_date')}</label>
+                  <div className="space-y-1">
+                    <label className="block font-medium text-muted-foreground">{t('calendar.end_date')}</label>
                     <input
                       type="date"
                       min={eventStartDate}
                       value={eventEndDate}
                       onChange={(e) => setEventEndDate(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
+                      className={inputClass}
                     />
                   </div>
 
                   {!eventAllDay && (
                     <>
-                      <div>
-                        <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.start_time')}</label>
+                      <div className="space-y-1">
+                        <label className="block font-medium text-muted-foreground">{t('calendar.start_time')}</label>
                         <select
                           value={TIME_SLOTS_24H.includes(eventStartTime) ? eventStartTime : '09:00'}
                           onChange={(e) => setEventStartTime(e.target.value)}
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-mono font-semibold"
+                          className={`${inputClass} font-mono`}
                         >
                           {!TIME_SLOTS_24H.includes(eventStartTime) && eventStartTime && (
                             <option value={eventStartTime}>{eventStartTime}</option>
@@ -940,12 +964,12 @@ export default function CalendarPage() {
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.end_time')}</label>
+                      <div className="space-y-1">
+                        <label className="block font-medium text-muted-foreground">{t('calendar.end_time')}</label>
                         <select
                           value={TIME_SLOTS_24H.includes(eventEndTime) ? eventEndTime : '10:00'}
                           onChange={(e) => setEventEndTime(e.target.value)}
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-mono font-semibold"
+                          className={`${inputClass} font-mono`}
                         >
                           {!TIME_SLOTS_24H.includes(eventEndTime) && eventEndTime && (
                             <option value={eventEndTime}>{eventEndTime}</option>
@@ -962,25 +986,25 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">{t('calendar.location')}</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('calendar.location')}</label>
                 <input
                   type="text"
                   placeholder={locale === 'mk' ? 'пр. Индустриска Зона Скопје' : 'e.g. Skopje Industrial Park'}
                   value={eventLocation}
                   onChange={(e) => setEventLocation(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-medium"
+                  className={inputClass}
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1">{t('calendar.notes')}</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('calendar.notes')}</label>
                 <textarea
                   rows={3}
-                  placeholder={locale === 'mk' ? 'Додадете забелешки или инструкции...' : 'Add notes or instructions...'}
+                  placeholder={locale === 'mk' ? 'Додадете забелешки или инструкции...' : 'Add notes...'}
                   value={eventDescription}
                   onChange={(e) => setEventDescription(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-medium"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
 
@@ -988,13 +1012,13 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setIsNewEventModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-border hover:bg-muted text-muted-foreground cursor-pointer"
+                  className="h-9 px-4 text-xs font-medium rounded-lg border border-border hover:bg-muted text-foreground cursor-pointer"
                 >
                   {t('calendar.cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm cursor-pointer"
+                  className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
                 >
                   {editingEventId ? t('calendar.save_changes') : t('calendar.create')}
                 </button>

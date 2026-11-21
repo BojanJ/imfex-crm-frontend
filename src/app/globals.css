@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --background: 215 28% 97%;
+  /* Light Theme — Crisp Cool Alabaster & IMFEX Cobalt */
+  --background: 214 32% 97%;
   --foreground: 222 47% 11%;
 
   --card: 0 0% 100%;
@@ -13,55 +14,56 @@
   --popover-foreground: 222 47% 11%;
 
   /* IMFEX Cobalt Electric Brand Color */
-  --primary: 217 91% 55%;
-  --primary-foreground: 210 40% 98%;
+  --primary: 217 91% 53%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 215 25% 90%;
-  --secondary-foreground: 222 47% 11%;
+  --secondary: 214 28% 93%;
+  --secondary-foreground: 222 47% 14%;
 
-  --muted: 215 20% 94%;
-  --muted-foreground: 215 16% 47%;
+  --muted: 214 26% 94%;
+  --muted-foreground: 215 16% 44%;
 
-  --accent: 217 91% 95%;
-  --accent-foreground: 217 91% 45%;
+  --accent: 217 91% 96%;
+  --accent-foreground: 217 91% 42%;
 
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive: 0 78% 55%;
+  --destructive-foreground: 0 0% 100%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 217 91% 55%;
+  --border: 214 24% 89%;
+  --input: 214 24% 87%;
+  --ring: 217 91% 53%;
 
   --radius: 0.625rem;
 }
 
 .dark {
+  /* Dark Theme — Deep Navy Canvas & IMFEX Cobalt */
   --background: 222 47% 7%;
   --foreground: 210 40% 98%;
 
-  --card: 222 47% 10%;
+  --card: 222 44% 10%;
   --card-foreground: 210 40% 98%;
 
-  --popover: 222 47% 10%;
+  --popover: 222 44% 11%;
   --popover-foreground: 210 40% 98%;
 
   --primary: 217 91% 60%;
   --primary-foreground: 222 47% 11%;
 
-  --secondary: 217 33% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 217 30% 16%;
+  --secondary-foreground: 210 40% 96%;
 
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted: 217 30% 15%;
+  --muted-foreground: 215 18% 64%;
 
-  --accent: 217 91% 20%;
-  --accent-foreground: 217 91% 75%;
+  --accent: 217 85% 18%;
+  --accent-foreground: 217 91% 76%;
 
-  --destructive: 0 63% 31%;
+  --destructive: 0 65% 42%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 33% 18%;
-  --input: 217 33% 18%;
+  --border: 217 26% 17%;
+  --input: 217 26% 19%;
   --ring: 217 91% 60%;
 }
 
@@ -69,39 +71,78 @@
   border-color: hsl(var(--border));
 }
 
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   min-height: 100vh;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Glassmorphism & Custom Scrollbar */
+/* Subtle surface elevation in Light Mode, crisp hairline in Dark Mode */
+.surface-card {
+  background-color: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+}
+
+.dark .surface-card {
+  box-shadow: none;
+}
+
+/* Glassmorphism */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid hsl(var(--border));
 }
 
 .dark .glass-panel {
   background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(30, 41, 59, 0.8);
+  border: 1px solid hsl(var(--border));
 }
 
-/* Custom Scrollbar */
+/* Tabular numbers for financial figures, KPIs, IDs */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Minimal Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(100, 116, 139, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(100, 116, 139, 0.45);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

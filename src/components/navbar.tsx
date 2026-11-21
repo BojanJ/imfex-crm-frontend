@@ -3,14 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useI18n, Locale } from '@/lib/i18n-context';
+import { useTheme } from '@/lib/theme-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { UserProfile } from '@/types';
-import {
-  Globe,
-  Menu,
-  LogOut,
-} from 'lucide-react';
-
+import { Globe, Menu, LogOut, Sun, Moon } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface NavbarProps {
@@ -19,6 +15,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
   const { locale, setLocale, t } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const storeVersion = useImfexStore();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
@@ -32,63 +29,82 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
   };
 
   const languageOptions = [
-    { value: 'mk', label: 'MK (МК)' },
+    { value: 'mk', label: 'МК' },
     { value: 'en', label: 'EN' },
   ];
 
+  const isDark = theme === 'dark';
+
   return (
-    <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
-      <div className="flex items-center gap-3">
-        {/* Mobile & Tablet Hamburger Toggle Button */}
+    <header className="h-14 border-b border-border bg-card/85 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile & Tablet Hamburger Toggle */}
         <button
           type="button"
           onClick={onMobileMenuToggle}
-          className="p-2 border border-border rounded-xl lg:hidden text-foreground hover:bg-muted transition-colors cursor-pointer"
-          title="Open Navigation"
+          className="p-2 rounded-lg border border-border lg:hidden text-foreground hover:bg-muted transition-colors cursor-pointer"
+          title="Отвори навигација"
           aria-label="Отвори навигација"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4" />
         </button>
 
         {/* Brand Logo */}
-        <Link href="/" className="font-extrabold text-xl tracking-tight text-primary flex items-center gap-2">
-          <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-lg text-sm font-black shadow-sm">
+        <Link href="/" className="flex items-center gap-2.5 min-w-0 group">
+          <span className="bg-primary text-primary-foreground px-2 py-0.5 rounded-md text-xs font-bold tracking-wider">
             IMFEX
           </span>
-          <span className="hidden sm:inline text-foreground text-sm font-semibold">
+          <span className="hidden sm:inline text-foreground/90 text-xs font-semibold tracking-tight truncate group-hover:text-foreground transition-colors">
             {t('app_title')}
           </span>
         </Link>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-4">
-        {/* Language Switcher (EN & MK) */}
-        <div className="flex items-center border border-border rounded-lg bg-card px-2 py-0.5 gap-1.5 text-xs font-medium min-w-[110px]">
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Theme Toggle (Light / Dark) */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="h-8 w-8 rounded-lg border border-border bg-background/70 hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center transition-colors cursor-pointer"
+          title={isDark ? 'Светла тема' : 'Темна тема'}
+          aria-label={isDark ? 'Светла тема' : 'Темна тема'}
+        >
+          {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Language Switcher (MK / EN) */}
+        <div className="flex items-center h-8 border border-border rounded-lg bg-background/70 px-2 gap-1 text-xs min-w-[78px]">
           <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <SearchableSelect
             options={languageOptions}
             value={locale}
             onChange={(val) => setLocale(val as Locale)}
-            className="border-0 bg-transparent py-0 px-1 text-xs font-bold text-foreground shadow-none"
-            searchPlaceholder="Language..."
+            className="border-0 bg-transparent py-0 px-0.5 text-xs font-semibold text-foreground shadow-none h-7"
+            searchPlaceholder="Јазик..."
           />
         </div>
 
         {/* User Profile & Sign-out */}
-        <div className="flex items-center gap-3 pl-3 border-l border-border">
-          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-bold text-xs text-primary uppercase">
+        <div className="flex items-center gap-2.5 pl-2.5 ml-0.5 border-l border-border">
+          <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center font-semibold text-[11px] text-primary uppercase shrink-0">
             {currentUser?.fullName ? currentUser.fullName.slice(0, 2) : 'IM'}
           </div>
-          <div className="hidden lg:block text-left text-xs">
-            <p className="font-semibold leading-none text-foreground">{currentUser?.fullName || ''}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{currentUser?.email || ''}</p>
+          <div className="hidden md:block text-left leading-tight">
+            <p className="text-xs font-medium text-foreground max-w-[140px] truncate">
+              {currentUser?.fullName || ''}
+            </p>
+            <p className="text-[11px] text-muted-foreground max-w-[140px] truncate">
+              {currentUser?.email || ''}
+            </p>
           </div>
           <button
+            type="button"
             onClick={handleSignOut}
-            className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+            className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-muted rounded-lg transition-colors cursor-pointer"
             title={t('nav.sign_out')}
+            aria-label={t('nav.sign_out')}
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

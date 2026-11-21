@@ -16,6 +16,12 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
+  PageHeader,
+  StatCard,
+  TabBar,
+  StatusBadge,
+} from '@/components/ui/page-primitives';
+import {
   Package,
   Plus,
   Layers,
@@ -379,136 +385,82 @@ export default function ProductsPage() {
     .map((acc) => acc.name);
 
   return (
-    <div className="space-y-5 pb-16">
-      {/* Header matching HTML specification */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5 bg-card p-6 rounded-2xl shadow-sm">
-        <div>
-          <small className="text-xs font-bold tracking-wider uppercase text-muted-foreground block">
-            IMFEX CRM / МАГАЦИН
-          </small>
-          <h1 className="font-extrabold text-2xl sm:text-3xl tracking-tight text-foreground mt-1">
-            Производи и залиха
-          </h1>
-          <span className="text-xs text-muted-foreground">
-            Интегриран каталог, конфигурација на артикли, магацински движења и нарачки по проект
-          </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          {isSuperAdmin && (
+    <div className="space-y-5 pb-12">
+      {/* Unified Minimal Page Header */}
+      <PageHeader
+        title="Производи и залиха"
+        subtitle="Интегриран каталог, конфигурација на артикли, магацински движења и нарачки по проект."
+        icon={<Package className="w-5 h-5" />}
+        actions={
+          isSuperAdmin ? (
             <>
               <button
+                type="button"
                 onClick={() => setShowCategoryModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg border border-border bg-secondary/60 text-foreground hover:bg-secondary transition-all cursor-pointer"
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Layers className="w-3.5 h-3.5 text-primary" /> Категории
+                <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Категории</span>
               </button>
               <button
+                type="button"
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all shadow-sm cursor-pointer"
+                className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Нов Артикл
+                <Plus className="w-4 h-4" />
+                <span>Нов Артикл</span>
               </button>
             </>
-          )}
-          <span className="border border-dashed border-border bg-muted/40 rounded-md px-2.5 py-1 text-muted-foreground text-[10px] font-bold uppercase tracking-wider select-none">
-            МАГАЦИН & CRM
-          </span>
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
 
-      {/* 3 KPI Summary Cards matching HTML (.cards) */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-          <small className="text-xs text-muted-foreground font-medium block">Вкупно артикли</small>
-          <strong className="block text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
-            {totalCount}
-          </strong>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-          <small className="text-xs text-muted-foreground font-medium block">Без залиха</small>
-          <strong className="block text-2xl sm:text-3xl font-extrabold text-rose-500 mt-2">
-            {zeroStockCount}
-          </strong>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-          <small className="text-xs text-muted-foreground font-medium block">По нарачка</small>
-          <strong className="block text-2xl sm:text-3xl font-extrabold text-sky-400 mt-2">
-            {customOrderCount}
-          </strong>
-        </div>
+      {/* Compact 3-Column KPI Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard
+          label="Вкупно артикли"
+          value={totalCount}
+          tone="primary"
+          icon={<Boxes className="w-4 h-4" />}
+        />
+        <StatCard
+          label="Без залиха"
+          value={zeroStockCount}
+          tone={zeroStockCount > 0 ? 'danger' : 'success'}
+          icon={<XCircle className="w-4 h-4" />}
+        />
+        <StatCard
+          label="По нарачка"
+          value={customOrderCount}
+          tone="neutral"
+          icon={<SlidersHorizontal className="w-4 h-4" />}
+        />
       </div>
 
-      {/* 4 Main Navigation Tabs matching HTML (.tabs) */}
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setActiveTab('catalog')}
-          className={`px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'catalog'
-              ? 'bg-primary text-primary-foreground shadow-sm brightness-110'
-              : 'bg-secondary text-secondary-foreground hover:brightness-110'
-          }`}
-        >
-          <Boxes className="w-4 h-4" />
-          <span>Каталог</span>
-        </button>
+      {/* Unified Horizontal Tab Bar */}
+      <TabBar
+        activeTab={activeTab}
+        onChange={(id) => setActiveTab(id as ActiveTab)}
+        tabs={[
+          { id: 'catalog', label: 'Каталог', count: products.length, icon: <Boxes className="w-3.5 h-3.5" /> },
+          { id: 'config', label: 'Конфигурација', icon: <Settings2 className="w-3.5 h-3.5" /> },
+          { id: 'moves', label: 'Движења', count: movements.length, icon: <History className="w-3.5 h-3.5" /> },
+          { id: 'projects', label: 'Проект / нарачка', icon: <Briefcase className="w-3.5 h-3.5" /> },
+        ]}
+      />
 
-        <button
-          onClick={() => setActiveTab('config')}
-          className={`px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'config'
-              ? 'bg-primary text-primary-foreground shadow-sm brightness-110'
-              : 'bg-secondary text-secondary-foreground hover:brightness-110'
-          }`}
-        >
-          <Settings2 className="w-4 h-4" />
-          <span>Конфигурација</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('moves')}
-          className={`px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'moves'
-              ? 'bg-primary text-primary-foreground shadow-sm brightness-110'
-              : 'bg-secondary text-secondary-foreground hover:brightness-110'
-          }`}
-        >
-          <History className="w-4 h-4" />
-          <span>Движења</span>
-          {movements.length > 0 && (
-            <span className="bg-background/30 px-1.5 py-0.5 rounded text-[10px] font-extrabold">
-              {movements.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('projects')}
-          className={`px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer flex items-center gap-2 ${
-            activeTab === 'projects'
-              ? 'bg-primary text-primary-foreground shadow-sm brightness-110'
-              : 'bg-secondary text-secondary-foreground hover:brightness-110'
-          }`}
-        >
-          <Briefcase className="w-4 h-4" />
-          <span>Проект / нарачка</span>
-        </button>
-      </div>
-
-      {/* Main Content Panel (.panel) */}
-      <section className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm">
+      {/* Main Content Panel */}
+      <section className="surface-card rounded-xl p-5 sm:p-6">
         {/* TAB 1: КАТАЛОГ */}
         {activeTab === 'catalog' && (
           <div className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-bold text-foreground">Каталог на производи</h2>
-
-            {/* Filters (.filters: 1fr 1.6fr) */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-              <div className="md:col-span-5">
+            {/* Compact Filter Row */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="sm:w-56 shrink-0">
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm rounded-lg border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary font-medium cursor-pointer"
+                  className="w-full h-9 px-3 py-0 leading-9 text-xs rounded-lg border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary font-medium cursor-pointer"
                 >
                   {uniqueCategoryNames.map((cat) => (
                     <option key={cat} value={cat}>
@@ -517,35 +469,35 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-7 relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-3 text-muted-foreground" />
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Пребарај по шифра или име"
+                  placeholder="Пребарај по шифра или име..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-xs sm:text-sm rounded-lg border border-border bg-background text-foreground outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
             </div>
 
             {/* Catalog Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs sm:text-sm">
+            <div className="overflow-x-auto -mx-5 sm:-mx-6">
+              <table className="w-full border-collapse text-left text-xs">
                 <thead>
-                  <tr className="border-b border-border text-muted-foreground text-xs">
-                    <th className="py-3 px-3 font-semibold">Шифра</th>
-                    <th className="py-3 px-3 font-semibold">Производ</th>
-                    <th className="py-3 px-3 font-semibold">Категорија</th>
-                    <th className="py-3 px-3 font-semibold">Физичка залиха</th>
-                    <th className="py-3 px-3 font-semibold">Резервирано</th>
-                    <th className="py-3 px-3 text-right font-semibold"></th>
+                  <tr className="bg-muted/40 border-y border-border text-muted-foreground text-[11px] font-medium">
+                    <th className="py-3 px-5">Шифра</th>
+                    <th className="py-3 px-4">Производ</th>
+                    <th className="py-3 px-4">Категорија</th>
+                    <th className="py-3 px-4">Физичка залиха</th>
+                    <th className="py-3 px-4">Резервирано</th>
+                    <th className="py-3 px-5 text-right">Акција</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border/70">
                   {filteredCatalog.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <td colSpan={6} className="py-10 text-center text-muted-foreground">
                         Не се пронајдени артикли за избраниот филтер.
                       </td>
                     </tr>
@@ -556,46 +508,38 @@ export default function ProductsPage() {
                       const stockQty = p.stockQuantity ?? 0;
                       const resQty = p.reservedQuantity ?? 0;
 
-                      let badgeClass = 'bg-sky-500/15 text-sky-400 border border-sky-500/30';
-                      if (!isCustom) {
-                        if (stockQty === 0) {
-                          badgeClass = 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
-                        } else if (stockQty <= 3) {
-                          badgeClass = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
-                        } else {
-                          badgeClass = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-                        }
-                      }
+                      const stockVariant = isCustom
+                        ? 'primary'
+                        : stockQty === 0
+                        ? 'danger'
+                        : stockQty <= 3
+                        ? 'warning'
+                        : 'success';
 
                       return (
                         <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="py-3 px-3 font-mono text-xs text-muted-foreground">
+                          <td className="py-3.5 px-5 font-mono text-xs text-muted-foreground whitespace-nowrap">
                             {p.code}
                           </td>
-                          <td className="py-3 px-3 font-bold text-foreground">
+                          <td className="py-3.5 px-4 font-medium text-foreground">
                             {p.name}
                           </td>
-                          <td className="py-3 px-3 text-muted-foreground">
+                          <td className="py-3.5 px-4 text-muted-foreground">
                             {catName}
                           </td>
-                          <td className="py-3 px-3">
-                            {isCustom ? (
-                              <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                                По нарачка
-                              </span>
-                            ) : (
-                              <span className={`inline-block rounded-md px-2.5 py-1 text-xs font-semibold ${badgeClass}`}>
-                                {stockQty} пар.
-                              </span>
-                            )}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <StatusBadge variant={stockVariant} dot>
+                              {isCustom ? 'По нарачка' : `${stockQty} пар.`}
+                            </StatusBadge>
                           </td>
-                          <td className="py-3 px-3 font-semibold text-foreground">
+                          <td className="py-3.5 px-4 font-medium text-foreground tabular-nums">
                             {resQty}
                           </td>
-                          <td className="py-3 px-3 text-right">
+                          <td className="py-3.5 px-5 text-right whitespace-nowrap">
                             <button
+                              type="button"
                               onClick={() => openProductConfig(p.id)}
-                              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground hover:brightness-110 transition-all cursor-pointer"
+                              className="h-7 px-3 rounded-md border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer"
                             >
                               Отвори
                             </button>

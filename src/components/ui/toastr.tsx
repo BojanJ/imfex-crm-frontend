@@ -75,44 +75,46 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
-      {/* Floating Toast Notification Container */}
-      <div className="fixed top-5 right-5 z-[999999] flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      <div className="fixed top-4 right-4 z-[999999] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0">
         {toasts.map((t) => {
           const isSuccess = t.type === 'success';
           const isError = t.type === 'error';
           const isWarning = t.type === 'warning';
 
+          const accentBorder = isSuccess
+            ? 'border-emerald-500/35'
+            : isError
+            ? 'border-rose-500/35'
+            : isWarning
+            ? 'border-amber-500/35'
+            : 'border-primary/35';
+
           return (
             <div
               key={t.id}
-              className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-2xl backdrop-blur-xl transition-all duration-300 ${
-                isSuccess
-                  ? 'bg-slate-900/95 border-emerald-500/50 text-emerald-50 shadow-emerald-950/20'
-                  : isError
-                  ? 'bg-slate-900/95 border-red-500/50 text-red-50 shadow-red-950/20'
-                  : isWarning
-                  ? 'bg-slate-900/95 border-amber-500/50 text-amber-50 shadow-amber-950/20'
-                  : 'bg-slate-900/95 border-blue-500/50 text-blue-50 shadow-blue-950/20'
-              }`}
+              className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border bg-card/95 backdrop-blur-md text-foreground shadow-lg transition-all duration-200 ${accentBorder}`}
             >
               <div className="shrink-0 mt-0.5">
-                {isSuccess && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-                {isError && <XCircle className="w-5 h-5 text-red-400" />}
-                {isWarning && <AlertTriangle className="w-5 h-5 text-amber-400" />}
-                {t.type === 'info' && <Info className="w-5 h-5 text-blue-400" />}
+                {isSuccess && <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                {isError && <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />}
+                {isWarning && <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />}
+                {t.type === 'info' && <Info className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-black tracking-wide uppercase leading-snug">{t.title}</h4>
-                {t.message && <p className="text-xs opacity-90 mt-0.5 font-medium leading-relaxed">{t.message}</p>}
+                <h4 className="text-xs font-semibold leading-snug text-foreground">{t.title}</h4>
+                {t.message && (
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{t.message}</p>
+                )}
               </div>
 
               <button
                 type="button"
                 onClick={() => removeToast(t.id)}
-                className="shrink-0 p-1 opacity-70 hover:opacity-100 rounded-lg hover:bg-white/10 transition-colors"
+                className="shrink-0 p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors cursor-pointer"
+                aria-label="Затвори известување"
               >
-                <X className="w-4 h-4 text-slate-300" />
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           );

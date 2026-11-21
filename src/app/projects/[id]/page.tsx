@@ -14,6 +14,9 @@ import {
 } from '@/types';
 import { imfexStore, useImfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
+import { getProjectStatusLabel, getUserRoleLabel } from '@/lib/enum-labels';
+import { PageHeader, SectionCard, StatusBadge } from '@/components/ui/page-primitives';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
@@ -114,7 +117,7 @@ function formatFileSize(bytes?: number): string {
 }
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const resolvedParams = use(params);
   const router = useRouter();
   const projectId = resolvedParams?.id;
@@ -647,56 +650,64 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="space-y-6 pb-24 text-xs">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/projects')}
-            className="p-2 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+    <div className="space-y-6 pb-20 text-xs">
+      {/* Unified Minimal Page Header */}
+      <PageHeader
+        backHref="/projects"
+        title={project.projectNumber}
+        badge={
+          <StatusBadge
+            variant={
+              status === 'COMPLETED' || status === 'CLOSED'
+                ? 'success'
+                : status === 'INSTALLATION'
+                ? 'warning'
+                : status === 'PROCUREMENT'
+                ? 'purple'
+                : 'primary'
+            }
+            dot
           >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <h1 className="font-extrabold text-lg flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-primary" />
-              <span>Управување со Проект {project.projectNumber}</span>
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {t('offers.offer_number')}: {project.offer?.offerNumber} • Клиент: {project.customer?.companyName || project.customer?.name}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {status !== 'CLOSED' && (
+            {getProjectStatusLabel(status, locale)}
+          </StatusBadge>
+        }
+        subtitle={`${project.customer?.companyName || project.customer?.name || 'Клиент'}${
+          project.offer?.offerNumber ? ` • ${t('offers.offer_number')}: ${project.offer.offerNumber}` : ''
+        }`}
+        actions={
+          <>
+            {status !== 'CLOSED' && (
+              <button
+                type="button"
+                onClick={() => handleSaveProject('CLOSED')}
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>{t('projects.close_project')}</span>
+              </button>
+            )}
             <button
-              onClick={() => handleSaveProject('CLOSED')}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-md cursor-pointer"
+              type="button"
+              onClick={() => handleSaveProject()}
+              className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <CheckCircle2 className="w-4 h-4" /> {t('projects.close_project')}
+              <Save className="w-3.5 h-3.5" />
+              <span>{t('projects.save_changes')}</span>
             </button>
-          )}
-          <button
-            onClick={() => handleSaveProject()}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
-          >
-            <Save className="w-4 h-4" /> {t('projects.save_changes')}
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="space-y-5 lg:sticky lg:top-20">
           {/* Card 1: Project Control */}
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-              <User className="w-4 h-4 text-primary" /> {t('projects.project_control')}
-            </h3>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.status')}</label>
+          <SectionCard
+            title={t('projects.project_control')}
+            icon={<User className="w-4 h-4" />}
+          >
+            <div className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('projects.status')}</label>
                 <SearchableSelect
                   options={[
                     { value: 'PLANNED', label: t('projects.planned') },
@@ -713,7 +724,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     setConfirmState({
                       isOpen: true,
                       title: 'Промена на Статус на Проект',
-                      message: `Дали сте сигурни дека сакате да го промените статусот на проектот „${project.projectNumber}“ од „${status}“ во „${nextSt}“?`,
+                      message: `Дали сте сигурни дека сакате да го промените статусот на проектот „${project.projectNumber}“ од „${getProjectStatusLabel(status, locale)}“ во „${getProjectStatusLabel(nextSt, locale)}“?`,
                       variant: 'warning',
                       confirmLabel: 'Потврди Промена',
                       onConfirm: () => {
@@ -723,354 +734,341 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       },
                     });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-extrabold text-primary outline-none"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium text-primary outline-none"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.responsible')}</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('projects.responsible')}</label>
                 <SearchableSelect
                   options={[
                     { value: '', label: '-- Избери Одговорно Лице --' },
                     ...profiles.map((p) => ({
                       value: p.id,
-                      label: `${p.fullName} (${p.role})`,
+                      label: `${p.fullName} (${getUserRoleLabel(p.role, locale)})`,
                     })),
                   ]}
                   value={responsibleUserId}
                   onChange={(val) => setResponsibleUserId(val)}
                   placeholder="-- Избери Одговорно Лице --"
                   searchPlaceholder="Пребарај лице..."
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-bold outline-none"
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium outline-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                  <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.start_date')}</label>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">{t('projects.start_date')}</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background outline-none font-medium"
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium"
                   />
                 </div>
-                <div>
-                  <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.target_deadline')}</label>
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">{t('projects.target_deadline')}</label>
                   <input
                     type="date"
                     value={targetDeliveryDate}
                     onChange={(e) => setTargetDeliveryDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background outline-none font-bold text-amber-600"
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium text-amber-700 dark:text-amber-400"
                   />
                 </div>
               </div>
             </div>
-          </div>
+          </SectionCard>
 
           {/* Card 2: Customer Summary */}
-          <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-2">
-              <Building2 className="w-4 h-4 text-primary" /> Податоци за Клиентот
-            </h3>
-            <p className="font-bold text-foreground">{project.customer?.companyName || project.customer?.name}</p>
-            <p className="text-muted-foreground">
-              {[project.customer?.email, project.customer?.phone].filter(Boolean).join(' • ') || '—'}
-            </p>
-          </div>
+          <SectionCard
+            title="Податоци за Клиентот"
+            icon={<Building2 className="w-4 h-4" />}
+          >
+            <div className="space-y-1">
+              <p className="font-semibold text-foreground text-sm">
+                {project.customer?.companyName || project.customer?.name}
+              </p>
+              <p className="text-muted-foreground">
+                {[project.customer?.email, project.customer?.phone].filter(Boolean).join(' • ') || '—'}
+              </p>
+            </div>
+          </SectionCard>
         </div>
 
-        <div className="lg:col-span-2 space-y-6">
-          {/* Card 2.5: 5-Step Warehouse & Order Flow (matching Products & Warehouse Flow) */}
-          <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                <Truck className="w-4 h-4 text-primary" /> Оперативен тек: Понуда → Аванс → Набавка → Магацин → Испратница
-              </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-                МАГАЦИН ПОВРЗАН
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-background/60 border border-border rounded-xl space-y-3">
-                <b className="text-xs font-bold text-foreground block">Понуди и аванс</b>
-                <p className="text-[11px] text-muted-foreground">
-                  Понуда V1 → теренско мерење → понуда V2 (финална). При прифаќање се резервираат достапните додатоци.
-                </p>
-                <div>
-                  <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
-                      project.acceptedAt || project.offerId
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {project.acceptedAt || project.offerId ? 'Финална понуда прифатена' : 'Чека прифаќање'}
-                  </span>
-                </div>
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    disabled={Boolean(project.acceptedAt || project.offerId)}
-                    onClick={() => {
-                      setConfirmState({
-                        isOpen: true,
-                        title: 'Прифати Финална Понуда',
-                        message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${project.projectNumber}“?`,
-                        variant: 'primary',
-                        confirmLabel: 'Потврди Понуда',
-                        onConfirm: () => {
-                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                          const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
-                          applyProjectData(updated);
-                        },
-                      });
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold disabled:opacity-50 cursor-pointer block"
-                  >
-                    1. Прифати финална понуда
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(project.advancePaid)}
-                    onClick={() => setShowAdvanceModal(true)}
-                    className="px-3.5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-extrabold hover:bg-emerald-700 disabled:opacity-50 cursor-pointer block"
-                  >
-                    2. Евидентирај уплата на аванс (со избор)
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4 bg-background/60 border border-border rounded-xl space-y-3">
-                <b className="text-xs font-bold text-foreground block">Набавка и магацин</b>
-                <div>
-                  <span
-                    className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-bold ${
-                      project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
-                      ? 'Вратата е нарачана'
-                      : 'Не е нарачана'}
-                  </span>
-                </div>
-                <div className="space-y-2 pt-1">
-                  <button
-                    type="button"
-                    disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
-                    onClick={() => {
-                      setConfirmState({
-                        isOpen: true,
-                        title: 'Нарачај кај Добавувач',
-                        message: `Дали сте сигурни дека сакате да го промените статусот во Нарачано кај добавувач за проектот „${project.projectNumber}“?`,
-                        variant: 'warning',
-                        confirmLabel: 'Потврди Нарачка',
-                        onConfirm: () => {
-                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                          const updated = imfexStore.projectStepOrderSupplier(project.id);
-                          if (updated) applyProjectData(updated);
-                        },
-                      });
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
-                  >
-                    3. Нарачај кај добавувач
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
-                    onClick={() => {
-                      setConfirmState({
-                        isOpen: true,
-                        title: 'Прими Врата во Магацин',
-                        message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${project.projectNumber}“?`,
-                        variant: 'success',
-                        confirmLabel: 'Потврди Прием',
-                        onConfirm: () => {
-                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                          const updated = imfexStore.projectStepReceiveWarehouse(project.id);
-                          if (updated) applyProjectData(updated);
-                        },
-                      });
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
-                  >
-                    4. Прими врата во магацин
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
-                    onClick={() => {
-                      setConfirmState({
-                        isOpen: true,
-                        title: 'Издај Испратница и Раздолжи Залиха',
-                        message: `Дали сте сигурни дека сакате да издадете испратница и да ја раздолжите залихата од магацин за проектот „${project.projectNumber}“?`,
-                        variant: 'warning',
-                        confirmLabel: 'Издај Испратница',
-                        onConfirm: () => {
-                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                          const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
-                          const draftNote = imfexStore.saveDispatchNote({
-                            id: `disp-${Date.now()}`,
-                            dispatchNumber: imfexStore.generateDispatchNumber(),
-                            status: 'DRAFT',
-                            customerId: project.customerId,
-                            customer: project.customer,
-                            projectId: project.id,
-                            offerId: project.offerId,
-                            issueDate: new Date().toISOString().split('T')[0],
-                            deliveryAddress: project.installationAddress || project.customer?.address,
-                            receivedBy: project.customer?.companyName || project.customer?.name,
-                            issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
-                            items: (offer?.items || []).map((it, i) => ({
-                              id: `di-${Date.now()}-${i}`,
-                              productId: it.productId,
-                              title: it.customTitle || 'Врата и опрема',
-                              quantity: Number(it.quantity || 1),
-                            })),
-                            stockDeducted: false,
-                            createdAt: new Date().toISOString(),
-                          });
-                          const issuedNote = imfexStore.confirmAndIssueDispatchNote(draftNote.id) || draftNote;
-                          const freshProj = imfexStore.getProjectById(project.id);
-                          if (freshProj) applyProjectData(freshProj);
-                          setPreviewDispatch(issuedNote);
-                        },
-                      });
-                    }}
-                    className="px-3.5 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 disabled:opacity-50 cursor-pointer block"
-                  >
-                    5. Издај испратница (PDF + Раздолжи залиха)
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/25 text-xs text-foreground">
-              <b>Состојба:</b>{' '}
-              {project.dispatchIssued
-                ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
-                : project.warehouseReceived || procurementStatus === 'DELIVERED'
-                ? 'Вратата е примена и поврзана со проектот.'
-                : project.supplierOrdered || procurementStatus === 'ORDERED'
-                ? 'Се чека пристигнување на вратата.'
-                : project.advancePaid
-                ? 'Авансот е платен — може да се нарача вратата.'
-                : 'Чека авансна уплата.'}
-            </div>
-          </div>
-
-          {/* Card 2.8: Real-Time Project Profitability & Invoices */}
-          {(() => {
-            const fin = imfexStore.getProjectFinancialSummary(project.id);
-            return (
-              <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-                  <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-emerald-500" />
-                    <span>Финансиски биланс и Добивка по Проект (Реално време)</span>
-                  </h3>
-                  <div className="flex flex-wrap items-center gap-2">
+        <div className="lg:col-span-2 space-y-5">
+          {/* Card 2.5: 5-Step Warehouse & Order Flow */}
+          <SectionCard
+            title="Оперативен тек"
+            subtitle="Понуда → Аванс → Набавка → Магацин → Испратница"
+            icon={<Truck className="w-4 h-4" />}
+            action={<StatusBadge variant="primary">Магацин поврзан</StatusBadge>}
+          >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-muted/25 border border-border/80 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">Понуди и аванс</span>
+                    <StatusBadge variant={project.acceptedAt || project.offerId ? 'success' : 'warning'}>
+                      {project.acceptedAt || project.offerId ? 'Прифатена' : 'Чека прифаќање'}
+                    </StatusBadge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Понуда → теренско мерење → финална потврда. При прифаќање се резервираат достапните додатоци.
+                  </p>
+                  <div className="space-y-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => setShowAdvanceModal(true)}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[11px] hover:bg-emerald-700 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Euro className="w-3.5 h-3.5" /> Евидентирај Аванс
-                    </button>
-                    <button
-                      type="button"
+                      disabled={Boolean(project.acceptedAt || project.offerId)}
                       onClick={() => {
                         setConfirmState({
                           isOpen: true,
-                          title: 'Издај Конечна Фактура',
-                          message: `Дали сте сигурни дека сакате да издадете Конечна Фактура (со автоматски одбиен аванс) за проектот „${project.projectNumber}“?`,
+                          title: 'Прифати Финална Понуда',
+                          message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${project.projectNumber}“?`,
                           variant: 'primary',
-                          confirmLabel: 'Издај Конечна Фактура',
+                          confirmLabel: 'Потврди Понуда',
                           onConfirm: () => {
                             setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                            const finalInv = imfexStore.createSalesInvoiceFromOfferOrProject({
-                              invoiceType: 'FINAL',
-                              projectId: project.id,
-                              offerId: project.offerId,
-                              customerId: project.customerId,
-                            });
-                            setPreviewInvoice(finalInv);
-                            toast.success(
-                              `Креирана Конечна Фактура ${finalInv.invoiceNumber}`,
-                              finalInv.advanceDeductedAmount > 0
-                                ? `Одбиен аванс: -€${finalInv.advanceDeductedAmount.toFixed(2)}`
-                                : 'Подготвена за печатење.'
-                            );
+                            const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
+                            applyProjectData(updated);
                           },
                         });
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:brightness-110 flex items-center gap-1 cursor-pointer"
+                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
                     >
-                      <FileText className="w-3.5 h-3.5" /> Издај Конечна Фактура (со одбиен аванс)
+                      1. Прифати финална понуда
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(project.advancePaid)}
+                      onClick={() => setShowAdvanceModal(true)}
+                      className="w-full h-8 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold disabled:opacity-45 cursor-pointer text-left transition-colors"
+                    >
+                      2. Евидентирај уплата на аванс
                     </button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div className="p-3 rounded-xl bg-background border border-border">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-                      Продажна вредност
-                    </span>
-                    <strong className="text-base font-black text-foreground mt-1 block">
-                      €{fin.agreedRevenue.toFixed(2)}
-                    </strong>
+                <div className="p-4 bg-muted/25 border border-border/80 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground">Набавка и магацин</span>
+                    <StatusBadge
+                      variant={
+                        project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
+                          ? 'success'
+                          : 'warning'
+                      }
+                    >
+                      {project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED'
+                        ? 'Нарачана'
+                        : 'Не е нарачана'}
+                    </StatusBadge>
                   </div>
-
-                  <div className="p-3 rounded-xl bg-background border border-border">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-                      Уплатено / Остаток
-                    </span>
-                    <strong className="text-base font-black text-emerald-500 mt-1 block">
-                      €{fin.paidByCustomer.toFixed(2)}
-                    </strong>
-                    <span className="text-[10px] text-muted-foreground">
-                      Долг: €{fin.remainingToPay.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-background border border-border">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-                      Набавка на стока
-                    </span>
-                    <strong className="text-base font-black text-sky-400 mt-1 block">
-                      €{fin.stockPurchaseCost.toFixed(2)}
-                    </strong>
-                    <span className="text-[10px] text-muted-foreground">
-                      {fin.hasActualStockInvoice ? 'Од влезна фактура' : 'Пресметана набавна'}
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-background border border-border">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground block">
-                      Трошоци на проект
-                    </span>
-                    <strong className="text-base font-black text-amber-500 mt-1 block">
-                      €{fin.directExpensesCost.toFixed(2)}
-                    </strong>
-                    <span className="text-[10px] text-muted-foreground">
-                      Гориво, монтажен материјал и режии
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                    <span className="text-[10px] font-extrabold uppercase text-emerald-400 block">
-                      Чиста Добивка (Маржа)
-                    </span>
-                    <strong className="text-base font-black text-emerald-400 mt-1 block">
-                      €{fin.netProfit.toFixed(2)} ({fin.marginPercent}%)
-                    </strong>
+                  <div className="space-y-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
+                      onClick={() => {
+                        setConfirmState({
+                          isOpen: true,
+                          title: 'Нарачај кај Добавувач',
+                          message: `Дали сте сигурни дека сакате да го промените статусот во Нарачано кај добавувач за проектот „${project.projectNumber}“?`,
+                          variant: 'warning',
+                          confirmLabel: 'Потврди Нарачка',
+                          onConfirm: () => {
+                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                            const updated = imfexStore.projectStepOrderSupplier(project.id);
+                            if (updated) applyProjectData(updated);
+                          },
+                        });
+                      }}
+                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                    >
+                      3. Нарачај кај добавувач
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
+                      onClick={() => {
+                        setConfirmState({
+                          isOpen: true,
+                          title: 'Прими Врата во Магацин',
+                          message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${project.projectNumber}“?`,
+                          variant: 'success',
+                          confirmLabel: 'Потврди Прием',
+                          onConfirm: () => {
+                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                            const updated = imfexStore.projectStepReceiveWarehouse(project.id);
+                            if (updated) applyProjectData(updated);
+                          },
+                        });
+                      }}
+                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                    >
+                      4. Прими врата во магацин
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
+                      onClick={() => {
+                        setConfirmState({
+                          isOpen: true,
+                          title: 'Издај Испратница и Раздолжи Залиха',
+                          message: `Дали сте сигурни дека сакате да издадете испратница и да ја раздолжите залихата од магацин за проектот „${project.projectNumber}“?`,
+                          variant: 'warning',
+                          confirmLabel: 'Издај Испратница',
+                          onConfirm: () => {
+                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                            const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
+                            const draftNote = imfexStore.saveDispatchNote({
+                              id: `disp-${Date.now()}`,
+                              dispatchNumber: imfexStore.generateDispatchNumber(),
+                              status: 'DRAFT',
+                              customerId: project.customerId,
+                              customer: project.customer,
+                              projectId: project.id,
+                              offerId: project.offerId,
+                              issueDate: new Date().toISOString().split('T')[0],
+                              deliveryAddress: project.installationAddress || project.customer?.address,
+                              receivedBy: project.customer?.companyName || project.customer?.name,
+                              issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
+                              items: (offer?.items || []).map((it, i) => ({
+                                id: `di-${Date.now()}-${i}`,
+                                productId: it.productId,
+                                title: it.customTitle || 'Врата и опрема',
+                                quantity: Number(it.quantity || 1),
+                              })),
+                              stockDeducted: false,
+                              createdAt: new Date().toISOString(),
+                            });
+                            const issuedNote = imfexStore.confirmAndIssueDispatchNote(draftNote.id) || draftNote;
+                            const freshProj = imfexStore.getProjectById(project.id);
+                            if (freshProj) applyProjectData(freshProj);
+                            setPreviewDispatch(issuedNote);
+                          },
+                        });
+                      }}
+                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                    >
+                      5. Издај испратница (PDF + залиха)
+                    </button>
                   </div>
                 </div>
               </div>
+
+              <div className="px-3.5 py-2.5 rounded-lg bg-primary/[0.06] border border-primary/20 text-xs text-foreground">
+                <span className="font-semibold text-primary">Состојба: </span>
+                {project.dispatchIssued
+                  ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
+                  : project.warehouseReceived || procurementStatus === 'DELIVERED'
+                  ? 'Вратата е примена и поврзана со проектот.'
+                  : project.supplierOrdered || procurementStatus === 'ORDERED'
+                  ? 'Се чека пристигнување на вратата.'
+                  : project.advancePaid
+                  ? 'Авансот е платен — може да се нарача вратата.'
+                  : 'Чека авансна уплата.'}
+              </div>
+            </div>
+          </SectionCard>
+
+          {/* Card 2.8: Project Financial Summary */}
+          {(() => {
+            const fin = imfexStore.getProjectFinancialSummary(project.id);
+            return (
+              <SectionCard
+                title="Финансиски биланс"
+                subtitle="Приходи, уплати, трошоци и маржа во реално време"
+                icon={<TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+                action={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfirmState({
+                        isOpen: true,
+                        title: 'Издај Конечна Фактура',
+                        message: `Дали сте сигурни дека сакате да издадете Конечна Фактура (со автоматски одбиен аванс) за проектот „${project.projectNumber}“?`,
+                        variant: 'primary',
+                        confirmLabel: 'Издај Конечна Фактура',
+                        onConfirm: () => {
+                          setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                          const finalInv = imfexStore.createSalesInvoiceFromOfferOrProject({
+                            invoiceType: 'FINAL',
+                            projectId: project.id,
+                            offerId: project.offerId,
+                            customerId: project.customerId,
+                          });
+                          setPreviewInvoice(finalInv);
+                          toast.success(
+                            `Креирана Конечна Фактура ${finalInv.invoiceNumber}`,
+                            finalInv.advanceDeductedAmount > 0
+                              ? `Одбиен аванс: -${formatCurrency(finalInv.advanceDeductedAmount)}`
+                              : 'Подготвена за печатење.'
+                          );
+                        },
+                      });
+                    }}
+                    className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Конечна Фактура</span>
+                  </button>
+                }
+              >
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 tabular-nums">
+                  <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground block">
+                      Продажба
+                    </span>
+                    <strong className="text-base font-semibold text-foreground block">
+                      {formatCurrency(fin.agreedRevenue)}
+                    </strong>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground block">
+                      Уплатено
+                    </span>
+                    <strong className="text-base font-semibold text-emerald-700 dark:text-emerald-400 block">
+                      {formatCurrency(fin.paidByCustomer)}
+                    </strong>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Долг: {formatCurrency(fin.remainingToPay)}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground block">
+                      Набавка
+                    </span>
+                    <strong className="text-base font-semibold text-foreground block">
+                      {formatCurrency(fin.stockPurchaseCost)}
+                    </strong>
+                    <span className="text-[11px] text-muted-foreground block">
+                      {fin.hasActualStockInvoice ? 'Влезна фактура' : 'Пресметана'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground block">
+                      Трошоци
+                    </span>
+                    <strong className="text-base font-semibold text-amber-700 dark:text-amber-400 block">
+                      {formatCurrency(fin.directExpensesCost)}
+                    </strong>
+                    <span className="text-[11px] text-muted-foreground block">
+                      Директни
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 space-y-1 col-span-2 sm:col-span-1">
+                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 block">
+                      Добивка ({fin.marginPercent}%)
+                    </span>
+                    <strong className="text-base font-semibold text-emerald-700 dark:text-emerald-400 block">
+                      {formatCurrency(fin.netProfit)}
+                    </strong>
+                  </div>
+                </div>
+              </SectionCard>
             );
           })()}
 

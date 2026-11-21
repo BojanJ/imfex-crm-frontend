@@ -16,6 +16,9 @@ import { ProductSelect, CustomerSelect } from '@/components/ui/entity-selectors'
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
+import { PageHeader, SectionCard } from '@/components/ui/page-primitives';
+import { getOfferStatusLabel, getServiceTypeLabel } from '@/lib/enum-labels';
+import { formatCurrency } from '@/lib/formatters';
 import {
   Plus,
   Trash2,
@@ -43,7 +46,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const searchParams = useSearchParams();
   const urlCustomerId = searchParams ? searchParams.get('customerId') : null;
   const urlProductId = searchParams ? searchParams.get('productId') : null;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   useImfexStore(); // Auto-subscribe to store updates
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -536,130 +539,157 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      {/* Top Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/offers')}
-            className="p-2 border border-border rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <h2 className="font-extrabold text-lg flex items-center gap-2">
-              <span>
-                {existingOffer
-                  ? `${t('builder.edit_offer')} ${existingOffer.offerNumber}`
-                  : t('builder.create_quote')}
-              </span>
-            </h2>
-            <p className="text-xs text-muted-foreground">{t('builder.subtitle')}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {(existingOffer || savedOfferForPdf) && (
+    <div className="space-y-6 pb-20">
+      {/* Unified Minimal Page Header */}
+      <PageHeader
+        backHref="/offers"
+        title={
+          existingOffer
+            ? `${t('builder.edit_offer')} ${existingOffer.offerNumber}`
+            : t('builder.create_quote')
+        }
+        subtitle={t('builder.subtitle')}
+        actions={
+          <>
+            {(existingOffer || savedOfferForPdf) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const saved = handleSaveOffer('ACCEPTED');
+                  setSavedOfferForPdf(saved);
+                  setIsAdvanceModalOpen(true);
+                }}
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <span>Аванс</span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => {
-                const saved = handleSaveOffer('ACCEPTED');
-                setSavedOfferForPdf(saved);
-                setIsAdvanceModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-all shadow-sm cursor-pointer"
+              onClick={() => setIsEmailModalOpen(true)}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
-              Евидентирај уплата на аванс
+              <Mail className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>{t('builder.send_email')}</span>
             </button>
-          )}
-          <button
-            onClick={() => setIsEmailModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm cursor-pointer"
-          >
-            <Mail className="w-4 h-4" /> {t('builder.send_email')}
-          </button>
-          <button
-            onClick={handlePreviewPdf}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm cursor-pointer"
-          >
-            <FileText className="w-4 h-4 text-blue-500" /> {t('builder.export_pdf')}
-          </button>
-          <button
-            onClick={handleSaveAndRedirect}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
-          >
-            <Save className="w-4 h-4" /> {t('builder.save_quote')}
-          </button>
-        </div>
-      </div>
+            <button
+              type="button"
+              onClick={handlePreviewPdf}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <FileText className="w-3.5 h-3.5 text-primary" />
+              <span>{t('builder.export_pdf')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAndRedirect}
+              className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>{t('builder.save_quote')}</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Customer Selection & Quote Metadata Box */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Customer Select Card */}
-        <div className="md:col-span-2 bg-card border border-border rounded-xl p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary" /> {t('builder.target_customer')}
-            </h3>
+        <SectionCard
+          className="lg:col-span-2"
+          title={t('builder.target_customer')}
+          icon={<Building2 className="w-4 h-4" />}
+          action={
             <button
+              type="button"
               onClick={() => setIsCustomerModalOpen(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
             >
-              <UserPlus className="w-3.5 h-3.5" /> {t('builder.new_customer')}
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>{t('builder.new_customer')}</span>
             </button>
-          </div>
-
+          }
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1">{t('builder.select_customer')}</label>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-medium text-muted-foreground">
+                {t('builder.select_customer')}
+              </label>
               <CustomerSelect
                 value={selectedCustomerId}
                 onChange={(val) => setSelectedCustomerId(val)}
                 customers={customers}
-                placeholder="Choose Client Account..."
-                searchPlaceholder="Search client by name, company, tax ID..."
+                placeholder={locale === 'mk' ? 'Изберете клиент...' : 'Choose Client Account...'}
+                searchPlaceholder={
+                  locale === 'mk'
+                    ? 'Пребарај по име, компанија, ЕДБ...'
+                    : 'Search client by name, company, tax ID...'
+                }
               />
             </div>
 
             {selectedCustomerObj && (
-              <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1 border border-border">
-                <p className="font-bold text-foreground">{selectedCustomerObj.companyName || selectedCustomerObj.name}</p>
-                {selectedCustomerObj.taxId && <p className="text-muted-foreground">VAT: {selectedCustomerObj.taxId}</p>}
-                <p className="text-muted-foreground">{selectedCustomerObj.email} • {selectedCustomerObj.phone}</p>
-                <p className="text-muted-foreground">{selectedCustomerObj.address}, {selectedCustomerObj.city}</p>
+              <div className="p-3 bg-muted/35 rounded-lg text-xs space-y-1 border border-border/80">
+                <p className="font-semibold text-foreground">
+                  {selectedCustomerObj.companyName || selectedCustomerObj.name}
+                </p>
+                {selectedCustomerObj.taxId && (
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    ЕДБ: {selectedCustomerObj.taxId}
+                  </p>
+                )}
+                {[selectedCustomerObj.email, selectedCustomerObj.phone].filter(Boolean).length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {[selectedCustomerObj.email, selectedCustomerObj.phone].filter(Boolean).join(' • ')}
+                  </p>
+                )}
+                {[selectedCustomerObj.address, selectedCustomerObj.city].filter(Boolean).length > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {[selectedCustomerObj.address, selectedCustomerObj.city].filter(Boolean).join(', ')}
+                  </p>
+                )}
               </div>
             )}
           </div>
-        </div>
+        </SectionCard>
 
         {/* Offer Settings Card */}
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-          <h3 className="font-bold text-sm text-foreground flex items-center gap-2 border-b border-border pb-3">
-            <Calculator className="w-4 h-4 text-primary" /> Status & Calculation Rules
-          </h3>
-
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold mb-1">Quote Status Workflow</label>
+        <SectionCard
+          title={locale === 'mk' ? 'Статус и Пресметка' : 'Status & Calculation'}
+          icon={<Calculator className="w-4 h-4" />}
+        >
+          <div className="space-y-3 text-xs">
+            <div className="space-y-1">
+              <label className="block font-medium text-muted-foreground">
+                {locale === 'mk' ? 'Статус на понуда' : 'Quote Status'}
+              </label>
               <SearchableSelect
                 options={[
-                  { value: 'DRAFT', label: 'DRAFT' },
-                  { value: 'SENT', label: 'SENT' },
-                  { value: 'ACCEPTED', label: 'ACCEPTED (Auto-Creates Project)' },
-                  { value: 'REJECTED', label: 'REJECTED' },
-                  { value: 'EXPIRED', label: 'EXPIRED' },
+                  { value: 'DRAFT', label: getOfferStatusLabel('DRAFT', locale) },
+                  { value: 'SENT', label: getOfferStatusLabel('SENT', locale) },
+                  {
+                    value: 'ACCEPTED',
+                    label:
+                      locale === 'mk'
+                        ? `${getOfferStatusLabel('ACCEPTED', locale)} (Креира проект)`
+                        : `${getOfferStatusLabel('ACCEPTED', locale)} (Creates project)`,
+                  },
+                  { value: 'REJECTED', label: getOfferStatusLabel('REJECTED', locale) },
+                  { value: 'EXPIRED', label: getOfferStatusLabel('EXPIRED', locale) },
                 ]}
                 value={status}
                 onChange={(val) => {
                   const newSt = val as OfferStatus;
                   if (newSt === status) return;
+                  const fromLabel = getOfferStatusLabel(status, locale);
+                  const toLabel = getOfferStatusLabel(newSt, locale);
                   setConfirmState({
                     isOpen: true,
                     title: 'Промена на Статус на Понуда',
                     message:
                       newSt === 'ACCEPTED'
-                        ? `Дали сте сигурни дека сакате да го промените статусот на понудата во „ACCEPTED“? При зачувување автоматски ќе се генерира Оперативен Проект.`
-                        : `Дали сте сигурни дека сакате да го промените статусот на понудата од „${status}“ во „${newSt}“?`,
+                        ? `Дали сте сигурни дека сакате да го промените статусот на понудата во „${toLabel}“? При зачувување автоматски ќе се генерира Оперативен Проект.`
+                        : `Дали сте сигурни дека сакате да го промените статусот на понудата од „${fromLabel}“ во „${toLabel}“?`,
                     variant: newSt === 'REJECTED' ? 'danger' : 'warning',
                     confirmLabel: 'Потврди Промена',
                     onConfirm: () => {
@@ -671,14 +701,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     },
                   });
                 }}
-                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-bold text-primary outline-none"
+                className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-medium text-primary outline-none"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1 flex items-center gap-1">
-                  <Percent className="w-3 h-3 text-muted-foreground" /> Discount (%)
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground flex items-center gap-1">
+                  <Percent className="w-3 h-3" /> {t('offers.discount')} (%)
                 </label>
                 <input
                   type="number"
@@ -687,44 +717,48 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   max="100"
                   value={discountRate}
                   onChange={(e) => setDiscountRate(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-bold text-emerald-600 outline-none"
+                  className="w-full h-9 px-3 text-xs rounded-lg border border-border bg-background font-semibold text-emerald-700 dark:text-emerald-400 tabular-nums outline-none focus:border-primary"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold mb-1">Tax Rate (%)</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('offers.tax_rate')}</label>
                 <input
                   type="number"
                   step="0.5"
                   value={taxRate}
                   onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background font-bold outline-none"
+                  className="w-full h-9 px-3 text-xs rounded-lg border border-border bg-background font-semibold text-foreground tabular-nums outline-none focus:border-primary"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold mb-1">Issue Date</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">
+                  {locale === 'mk' ? 'Датум' : 'Issue Date'}
+                </label>
                 <input
                   type="date"
                   value={offerDate}
                   onChange={(e) => setOfferDate(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                  className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">Quote Validity Date</label>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">
+                  {locale === 'mk' ? 'Важи до' : 'Valid Until'}
+                </label>
                 <input
                   type="date"
                   value={validUntil}
                   onChange={(e) => setValidUntil(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                  className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
                 />
               </div>
             </div>
           </div>
-        </div>
+        </SectionCard>
       </div>
 
       {/* Dynamic Line Items Builder */}
@@ -784,7 +818,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           }`}
                         >
                           {checked ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                          {service}
+                          {getServiceTypeLabel(service, locale)}
                         </button>
                       );
                     })}
@@ -1267,48 +1301,50 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         </div>
       </div>
 
-      {/* Sticky Bottom Quote Summary Bar (pinned inside main, never overlapping sidebar) */}
-      <div className="sticky bottom-0 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 py-4 bg-card/95 backdrop-blur-md border-t border-border shadow-2xl rounded-t-xl">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs">
+      {/* Clean Sticky Bottom Quote Summary Bar */}
+      <div className="sticky bottom-3 z-20 surface-card bg-card/95 backdrop-blur-md rounded-xl px-5 py-3.5 shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-5 text-xs tabular-nums">
             <div>
-              <span className="text-muted-foreground block text-[10px] uppercase font-bold">Subtotal</span>
-              <span className="font-bold text-sm">€{Number(subtotal || 0).toFixed(2)}</span>
+              <span className="text-muted-foreground block text-[11px]">{t('offers.subtotal')}</span>
+              <span className="font-semibold text-sm text-foreground">{formatCurrency(subtotal)}</span>
             </div>
             {discountRate > 0 && (
               <div>
-                <span className="text-muted-foreground block text-[10px] uppercase font-bold text-emerald-600">Discount ({discountRate}%)</span>
-                <span className="font-bold text-sm text-emerald-600">-€{Number(discountAmount || 0).toFixed(2)}</span>
+                <span className="text-emerald-700 dark:text-emerald-400 block text-[11px]">
+                  {t('offers.discount')} ({discountRate}%)
+                </span>
+                <span className="font-semibold text-sm text-emerald-700 dark:text-emerald-400">
+                  -{formatCurrency(discountAmount)}
+                </span>
               </div>
             )}
             <div>
-              <span className="text-muted-foreground block text-[10px] uppercase font-bold">VAT ({taxRate}%)</span>
-              <span className="font-bold text-sm text-muted-foreground">€{Number(taxAmount || 0).toFixed(2)}</span>
+              <span className="text-muted-foreground block text-[11px]">ДДВ ({taxRate}%)</span>
+              <span className="font-semibold text-sm text-muted-foreground">{formatCurrency(taxAmount)}</span>
             </div>
             <div className="pl-4 border-l border-border">
-              <span className="text-muted-foreground block text-[10px] uppercase font-extrabold text-primary">Grand Total</span>
-              <span className="font-black text-xl text-primary">€{Number(totalAmount || 0).toFixed(2)}</span>
+              <span className="text-primary block text-[11px] font-medium">{t('offers.total')}</span>
+              <span className="font-semibold text-lg text-primary">{formatCurrency(totalAmount)}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => setIsEmailModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm cursor-pointer"
-            >
-              <Mail className="w-4 h-4" /> {t('builder.send_email')}
-            </button>
-            <button
+              type="button"
               onClick={handlePreviewPdf}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm cursor-pointer"
+              className="h-9 px-3.5 text-xs font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <FileText className="w-4 h-4 text-blue-500" /> {t('builder.export_pdf')}
+              <FileText className="w-3.5 h-3.5 text-primary" />
+              <span>{t('builder.export_pdf')}</span>
             </button>
             <button
+              type="button"
               onClick={handleSaveAndRedirect}
-              className="flex items-center gap-1.5 px-6 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
+              className="h-9 px-5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Save className="w-4 h-4" /> {t('builder.save_quote')}
+              <Save className="w-3.5 h-3.5" />
+              <span>{t('builder.save_quote')}</span>
             </button>
           </div>
         </div>

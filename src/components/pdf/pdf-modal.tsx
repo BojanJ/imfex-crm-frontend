@@ -97,12 +97,12 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 print:p-0 print:static print:bg-white"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-xs p-4 print:p-0 print:static print:bg-white"
       role="dialog"
       aria-modal="true"
       aria-label={`PDF преглед ${offer.offerNumber}`}
     >
-      <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none print:max-w-none">
+      <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden print:h-auto print:border-none print:shadow-none print:max-w-none">
         {/* Modal Header (Hidden on Print) */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-border bg-muted/40 print:hidden gap-4">
           <div className="flex items-center gap-3">

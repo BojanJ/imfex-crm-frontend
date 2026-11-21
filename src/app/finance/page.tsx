@@ -32,10 +32,18 @@ import {
   CustomerSelect,
 } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
+import {
+  PageHeader,
+  StatCard,
+  TabBar,
+  FilterBar,
+  StatusBadge,
+} from '@/components/ui/page-primitives';
 import {
   Landmark,
   ShoppingCart,
@@ -60,6 +68,15 @@ import {
 } from 'lucide-react';
 
 type FinanceTab = 'purchases' | 'invoices' | 'dispatches' | 'payments' | 'partners';
+
+const EXPENSE_CATEGORY_SHORT: Record<ExpenseCategory, string> = {
+  ГОРИВО: 'Гориво',
+  ПОТРОШЕН_МАТЕРИЈАЛ: 'Материјал',
+  СТРУЈА_ТЕЛЕФОН_КИРИЈА: 'Режии',
+  ТРАНСПОРТ_И_ЦАРИНА: 'Транспорт',
+  АЛАТ_И_ОПРЕМА: 'Алат и опрема',
+  ОСТАНАТО: 'Останато',
+};
 
 const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   ГОРИВО: 'Гориво и возила (Бензин / Дизел)',
@@ -708,239 +725,163 @@ function FinancePageContent() {
   }
 
   return (
-    <div className="space-y-6 pb-20 text-xs">
-      {/* Header */}
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
-        <div>
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-            IMFEX ФИНАНСИИ, МАГАЦИН & НАБАВКИ
-          </span>
-          <h1 className="font-extrabold text-2xl sm:text-3xl tracking-tight text-foreground mt-2 flex items-center gap-2.5">
-            <Landmark className="w-7 h-7 text-primary" />
-            <span>Финансии и Набавки</span>
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Целосен финансиски преглед: Влезни фактури (Стока за залиха и оперативни трошоци), Излезни фактури, Аванси, Испратници и Уплати.
-          </p>
-        </div>
+    <div className="space-y-6 pb-16 text-xs">
+      {/* Unified Minimal Page Header */}
+      <PageHeader
+        title="Финансии и Набавки"
+        subtitle="Влезни и излезни фактури, аванси, испратници, уплати и добавувачи."
+        icon={<Landmark className="w-5 h-5" />}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setAdvanceTargetProject(projects[0] || null);
+                setAdvanceTargetOffer(offers[0] || null);
+                setShowAdvanceModal(true);
+              }}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Euro className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Аванс</span>
+            </button>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              setAdvanceTargetProject(projects[0] || null);
-              setAdvanceTargetOffer(offers[0] || null);
-              setShowAdvanceModal(true);
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 shadow-sm cursor-pointer"
-          >
-            <Euro className="w-4 h-4" /> Евидентирај Уплата на Аванс
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowSalesInvoiceModal(true)}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <FileText className="w-3.5 h-3.5 text-primary" />
+              <span>Излезна</span>
+            </button>
 
-          <button
-            onClick={() => setShowPurchaseModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-extrabold hover:brightness-110 shadow-sm cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Влезна Фактура / Трошок
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowDispatchModal(true)}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Truck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Испратница</span>
+            </button>
 
-          <button
-            onClick={() => setShowSalesInvoiceModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-secondary text-secondary-foreground font-bold hover:bg-muted cursor-pointer"
-          >
-            <FileText className="w-4 h-4 text-primary" /> Излезна Фактура
-          </button>
+            <button
+              type="button"
+              onClick={() => setShowPurchaseModal(true)}
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Влезна / Трошок</span>
+            </button>
+          </>
+        }
+      />
 
-          <button
-            onClick={() => setShowDispatchModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border bg-card text-foreground font-bold hover:bg-muted cursor-pointer"
-          >
-            <Truck className="w-4 h-4 text-amber-500" /> Нова Испратница
-          </button>
-        </div>
-      </header>
-
-      {/* 4 Financial KPI Cards */}
+      {/* Calm 4-Column Financial KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="font-bold uppercase text-[10px]">Наплатени средства (Влез)</span>
-            <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
-          </div>
-          <p className="text-2xl font-black text-emerald-500">€{totalPaymentsIn.toFixed(2)}</p>
-          <p className="text-[11px] text-muted-foreground">
-            За наплата по фактури: <strong className="text-foreground">€{totalOpenReceivables.toFixed(2)}</strong>
-          </p>
-        </div>
+        <StatCard
+          label="Наплатени средства"
+          value={formatCurrency(totalPaymentsIn)}
+          tone="success"
+          icon={<ArrowDownLeft className="w-4 h-4" />}
+          helper={
+            <>
+              <span>За наплата:</span>
+              <strong className="text-foreground tabular-nums">{formatCurrency(totalOpenReceivables)}</strong>
+            </>
+          }
+        />
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="font-bold uppercase text-[10px]">Набавка на Стока (За залиха)</span>
-            <Boxes className="w-4 h-4 text-sky-400" />
-          </div>
-          <p className="text-2xl font-black text-foreground">€{totalStockPurchases.toFixed(2)}</p>
-          <p className="text-[11px] text-muted-foreground">
-            Врати, мотори, шини и резервни делови
-          </p>
-        </div>
+        <StatCard
+          label="Набавка на стока"
+          value={formatCurrency(totalStockPurchases)}
+          tone="primary"
+          icon={<Boxes className="w-4 h-4" />}
+          helper="Врати, мотори, шини и делови"
+        />
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="font-bold uppercase text-[10px]">Оперативни Трошоци</span>
-            <Fuel className="w-4 h-4 text-amber-500" />
-          </div>
-          <p className="text-2xl font-black text-amber-500">€{totalOperationalExpenses.toFixed(2)}</p>
-          <p className="text-[11px] text-muted-foreground">
-            Гориво, монтажен материјал, режии и услуги
-          </p>
-        </div>
+        <StatCard
+          label="Оперативни трошоци"
+          value={formatCurrency(totalOperationalExpenses)}
+          tone="warning"
+          icon={<Fuel className="w-4 h-4" />}
+          helper="Гориво, материјал и режии"
+        />
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="font-bold uppercase text-[10px]">Нето Биланс (Прилив - Трошок)</span>
-            <Sparkles className="w-4 h-4 text-primary" />
-          </div>
-          <p className={`text-2xl font-black ${netCashBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-            €{netCashBalance.toFixed(2)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Активен финансиски преглед на фирмата
-          </p>
-        </div>
+        <StatCard
+          label="Нето биланс"
+          value={
+            <span className={netCashBalance >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
+              {formatCurrency(netCashBalance)}
+            </span>
+          }
+          tone={netCashBalance >= 0 ? 'success' : 'danger'}
+          icon={<Sparkles className="w-4 h-4" />}
+          helper="Прилив минус одлив"
+        />
       </div>
 
-      {/* Main Sub-Tabs Navigation */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-3 rounded-xl border border-border">
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setActiveTab('purchases')}
-            className={`px-4 py-2.5 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'purchases'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary/70 text-secondary-foreground hover:bg-secondary'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>1. Набавки и Трошоци ({purchases.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('invoices')}
-            className={`px-4 py-2.5 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'invoices'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary/70 text-secondary-foreground hover:bg-secondary'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>2. Излезни Фактури и Аванси ({salesInvoices.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('dispatches')}
-            className={`px-4 py-2.5 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'dispatches'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary/70 text-secondary-foreground hover:bg-secondary'
-            }`}
-          >
-            <Truck className="w-4 h-4" />
-            <span>3. Испратници — Излез од залиха ({dispatches.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('payments')}
-            className={`px-4 py-2.5 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'payments'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary/70 text-secondary-foreground hover:bg-secondary'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>4. Уплати и Трансакции ({payments.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('partners')}
-            className={`px-4 py-2.5 rounded-lg text-xs font-extrabold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'partners'
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-secondary/70 text-secondary-foreground hover:bg-secondary'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>5. Партнери и Добавувачи ({partnersList.length})</span>
-          </button>
-        </div>
-
-        {/* Search input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Пребарај документ, партнер, производ..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border bg-background text-xs outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-      </div>
+      {/* Unified Horizontal Tab Bar */}
+      <TabBar
+        activeTab={activeTab}
+        onChange={(id) => setActiveTab(id as FinanceTab)}
+        tabs={[
+          { id: 'purchases', label: 'Набавки и Трошоци', count: purchases.length, icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+          { id: 'invoices', label: 'Излезни Фактури', count: salesInvoices.length, icon: <FileText className="w-3.5 h-3.5" /> },
+          { id: 'dispatches', label: 'Испратници', count: dispatches.length, icon: <Truck className="w-3.5 h-3.5" /> },
+          { id: 'payments', label: 'Уплати', count: payments.length, icon: <CreditCard className="w-3.5 h-3.5" /> },
+          { id: 'partners', label: 'Партнери', count: partnersList.length, icon: <Building2 className="w-3.5 h-3.5" /> },
+        ]}
+      />
 
       {/* ===================================================================== */}
       {/* TAB 1: НАБАВКИ И ТРОШОЦИ (ВЛЕЗ ВО ФИРМАТА)                            */}
       {/* ===================================================================== */}
       {activeTab === 'purchases' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-muted-foreground uppercase text-[10px]">Филтер по тип:</span>
-              {[
-                { key: 'ALL', label: 'Сите влезни документи' },
-                { key: 'STOCK', label: 'Стока (Влегува во залиха)' },
-                { key: 'EXPENSE', label: 'Оперативни трошоци (Гориво, режии, материјал)' },
-                { key: 'PENDING_RECEIPT', label: 'Чека прием во магацин' },
-              ].map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setPurchaseFilter(f.key as any)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    purchaseFilter === f.key
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+          <FilterBar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Пребарај документ, добавувач или ставка..."
+          >
+            {[
+              { key: 'ALL', label: 'Сите' },
+              { key: 'STOCK', label: 'Стока (Залиха)' },
+              { key: 'EXPENSE', label: 'Трошоци' },
+              { key: 'PENDING_RECEIPT', label: 'Чека прием' },
+            ].map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setPurchaseFilter(f.key as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  purchaseFilter === f.key
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </FilterBar>
 
-            <button
-              onClick={() => setShowPurchaseModal(true)}
-              className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Внеси Влезна Фактура / Набавка / Трошок
-            </button>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+          <div className="surface-card rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[950px]">
-                <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>
-                    <th className="p-4">Влезен Бр. / Датум</th>
-                    <th className="p-4">Добавувач / Партнер</th>
-                    <th className="p-4">Ставки (Стока за залиха наспроти Трошок)</th>
-                    <th className="p-4">Проект</th>
-                    <th className="p-4">Магацински Статус</th>
-                    <th className="p-4">Плаќање</th>
-                    <th className="p-4 text-right">Вкупно со ДДВ</th>
-                    <th className="p-4 text-center">Акции</th>
+                    <th className="px-4 py-3 whitespace-nowrap">Документ</th>
+                    <th className="px-3 py-3">Добавувач</th>
+                    <th className="px-3 py-3">Ставки</th>
+                    <th className="px-3 py-3 whitespace-nowrap">Статус</th>
+                    <th className="px-3 py-3 text-right whitespace-nowrap">Вкупно</th>
+                    <th className="px-4 py-3 text-right whitespace-nowrap">Акции</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border/70">
                   {filteredPurchases.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-10 text-center text-muted-foreground">
-                        Нема евидентирани влезни фактури или трошоци. Кликнете на <strong>„+ Внеси Влезна Фактура / Набавка / Трошок“</strong> за да внесете стока од добавувач (пр. Doors Impex) или сметка за гориво/материјал.
+                      <td colSpan={6} className="p-10 text-center text-muted-foreground">
+                        Нема евидентирани влезни фактури или трошоци.
                       </td>
                     </tr>
                   ) : (
@@ -952,83 +893,77 @@ function FinancePageContent() {
                       const linkedProj = pinv.projectId ? projects.find((p) => p.id === pinv.projectId) : undefined;
 
                       return (
-                        <tr key={pinv.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="p-4">
-                            <p className="font-extrabold text-primary">{pinv.internalNumber}</p>
+                        <tr key={pinv.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3.5 whitespace-nowrap align-top">
+                            <p className="font-mono font-semibold text-primary">{pinv.internalNumber}</p>
+                            <p className="text-[11px] text-muted-foreground">{formatDate(pinv.issueDate)}</p>
                             {pinv.supplierInvoiceNumber && (
                               <p className="text-[10px] font-mono text-muted-foreground">
-                                Ф-ра бр: {pinv.supplierInvoiceNumber}
+                                #{pinv.supplierInvoiceNumber}
                               </p>
                             )}
-                            <p className="text-[10px] text-muted-foreground">{formatDate(pinv.issueDate)}</p>
                           </td>
-                          <td className="p-4 font-bold text-foreground">{pinv.supplierName}</td>
-                          <td className="p-4 space-y-1">
+
+                          <td className="px-3 py-3.5 align-top">
+                            <p className="font-medium text-foreground">{pinv.supplierName}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {linkedProj ? linkedProj.projectNumber : 'Општ / Магацин'}
+                            </p>
+                          </td>
+
+                          <td className="px-3 py-3.5 space-y-1.5 align-top max-w-xs">
                             {pinv.items.map((item) => (
-                              <div key={item.id} className="flex items-center gap-2">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
-                                    item.itemType === 'STOCK'
-                                      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
-                                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                  }`}
-                                >
-                                  {item.itemType === 'STOCK' ? 'СТОКА / ЗАЛИХА' : `ТРОШОК: ${item.expenseCategory || 'ОПШТ'}`}
+                              <div key={item.id} className="flex items-center gap-1.5 flex-wrap">
+                                <StatusBadge variant={item.itemType === 'STOCK' ? 'primary' : 'warning'}>
+                                  {item.itemType === 'STOCK'
+                                    ? 'Стока'
+                                    : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || 'Трошок'}
+                                </StatusBadge>
+                                <span className="text-foreground font-medium truncate">
+                                  {item.quantity}× {item.title}
                                 </span>
-                                <span className="font-semibold text-foreground">
-                                  {item.quantity}x {item.title} (€{Number(item.unitCost).toFixed(2)})
+                                <span className="text-muted-foreground tabular-nums text-[11px]">
+                                  ({formatCurrency(item.unitCost)})
                                 </span>
                               </div>
                             ))}
                           </td>
-                          <td className="p-4">
-                            {linkedProj ? (
-                              <span className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary font-bold text-[10px]">
-                                {linkedProj.projectNumber}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground text-[10px]">Општ / Магацин</span>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            {hasStock ? (
-                              hasUnreceivedStock ? (
-                                <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 font-extrabold text-[10px]">
-                                  ЧЕКА ПРИЕМ ВО МАГАЦИН
-                                </span>
-                              ) : (
-                                <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-extrabold text-[10px]">
-                                  ✓ ПРИМЕНО ВО ЗАЛИХА
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-muted-foreground text-[10px]">Директен трошок (не влегува во залиха)</span>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                                pinv.status === 'PAID'
-                                  ? 'bg-emerald-500/15 text-emerald-400'
+
+                          <td className="px-3 py-3.5 align-top whitespace-nowrap">
+                            <div className="flex flex-col items-start gap-1">
+                              <StatusBadge
+                                variant={
+                                  pinv.status === 'PAID'
+                                    ? 'success'
+                                    : pinv.status === 'DRAFT'
+                                    ? 'purple'
+                                    : 'danger'
+                                }
+                                dot
+                              >
+                                {pinv.status === 'PAID'
+                                  ? 'Платено'
                                   : pinv.status === 'DRAFT'
-                                  ? 'bg-purple-500/15 text-purple-400'
-                                  : 'bg-rose-500/15 text-rose-400'
-                              }`}
-                            >
-                              {pinv.status === 'PAID'
-                                ? 'ПЛАТЕНО'
-                                : pinv.status === 'DRAFT'
-                                ? 'НАЦРТ ЗА НАРАЧКА'
-                                : 'ФАКТУРИРАНО (ЗА ПЛАЌАЊЕ)'}
-                            </span>
+                                  ? 'Нацрт'
+                                  : 'За плаќање'}
+                              </StatusBadge>
+                              {hasStock && (
+                                <StatusBadge variant={hasUnreceivedStock ? 'warning' : 'success'}>
+                                  {hasUnreceivedStock ? 'Чека прием' : 'Примено'}
+                                </StatusBadge>
+                              )}
+                            </div>
                           </td>
-                          <td className="p-4 text-right font-black text-sm text-foreground">
-                            €{Number(pinv.totalAmount || 0).toFixed(2)}
+
+                          <td className="px-3 py-3.5 text-right font-semibold text-sm text-foreground tabular-nums whitespace-nowrap align-top">
+                            {formatCurrency(pinv.totalAmount)}
                           </td>
-                          <td className="p-4">
-                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap align-top">
+                            <div className="inline-flex items-center justify-end gap-1">
                               {hasUnreceivedStock && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setConfirmState({
                                       isOpen: true,
@@ -1047,25 +982,28 @@ function FinancePageContent() {
                                       },
                                     });
                                   }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 cursor-pointer flex items-center gap-1"
-                                  title="Потврди прием и внеси во залиха"
+                                  className="h-7 px-2.5 rounded-md bg-emerald-600 text-white font-medium text-[11px] hover:bg-emerald-700 cursor-pointer inline-flex items-center gap-1"
+                                  title="Потврди прием во залиха"
                                 >
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Прими во Залиха
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>Прими</span>
                                 </button>
                               )}
 
                               {hasStock && (
                                 <button
+                                  type="button"
                                   onClick={() => handleCreateSalesInvoiceFromPurchase(pinv)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary border border-primary/30 font-bold text-[10px] hover:bg-primary hover:text-primary-foreground cursor-pointer"
-                                  title="Креирај излезна фактура од оваа набавена стока"
+                                  className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer transition-colors"
+                                  title="Креирај излезна фактура од оваа набавка"
                                 >
-                                  → Прави Излезна Фактура
+                                  Фактурирај
                                 </button>
                               )}
 
                               {pinv.status !== 'PAID' && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setPayDirection('OUT');
                                     setPayPurchaseInvoiceId(pinv.id);
@@ -1076,13 +1014,14 @@ function FinancePageContent() {
                                     );
                                     setShowPaymentModal(true);
                                   }}
-                                  className="px-2.5 py-1.5 rounded-lg bg-secondary text-secondary-foreground font-bold text-[10px] hover:bg-muted cursor-pointer"
+                                  className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer transition-colors"
                                 >
                                   Плати
                                 </button>
                               )}
 
                               <button
+                                type="button"
                                 onClick={() => {
                                   setConfirmState({
                                     isOpen: true,
@@ -1097,7 +1036,9 @@ function FinancePageContent() {
                                     },
                                   });
                                 }}
-                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                                className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
+                                title="Избриши"
+                                aria-label="Избриши"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>

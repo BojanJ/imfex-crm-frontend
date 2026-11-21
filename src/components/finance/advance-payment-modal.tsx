@@ -259,12 +259,12 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-label="Евидентирај уплата на аванс"
     >
-      <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 text-xs max-h-[92vh] overflow-y-auto">
+      <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-xl space-y-5 text-xs max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-500">
