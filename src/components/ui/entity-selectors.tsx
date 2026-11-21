@@ -441,12 +441,12 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
         },
         {
           value: 'SUPPLIER:Железарија Профи',
-          label: 'Железарија Профи (Штрафчиња / Материјал)',
+          label: 'Железарија Профи (Монтажен материјал)',
           sublabel: 'Потрошен материјал за монтажа',
           badge: 'МАТЕРИЈАЛ',
           badgeColor: 'bg-orange-500/10 text-orange-400 border border-orange-500/20',
           isActive: true,
-          keywords: ['Железарија', 'штрафови', 'материјал', 'профи'],
+          keywords: ['Железарија', 'монтажен', 'материјал', 'профи'],
         }
       );
     }
@@ -469,144 +469,6 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
       clearLabel={clearLabel}
       disabled={disabled}
       emptyMessage="Нема пронајдено клиенти"
-    />
-  );
-};
-
-// ============================================================================
-// 5. UNIFIED ENTITY SELECT (Комбинирано пребарување низ Проекти, Производи, Понуди, Клиенти)
-// ============================================================================
-
-export type UnifiedEntityType = 'project' | 'product' | 'offer' | 'customer';
-
-export interface UnifiedEntitySelectProps {
-  entities?: UnifiedEntityType[];
-  value: string;
-  onChange: (value: string, entityType: UnifiedEntityType, entity: any) => void;
-  placeholder?: string;
-  searchPlaceholder?: string;
-  className?: string;
-  onlyActive?: boolean;
-  allowClear?: boolean;
-  clearLabel?: string;
-  disabled?: boolean;
-}
-
-export const UnifiedEntitySelect: React.FC<UnifiedEntitySelectProps> = ({
-  entities = ['project', 'product', 'offer', 'customer'],
-  value,
-  onChange,
-  placeholder = 'Пребарај низ проекти, понуди, производи, клиенти...',
-  searchPlaceholder = 'Внеси код (PRJ-, OFF-, PRD-), клиент, назив...',
-  className = '',
-  onlyActive = false,
-  allowClear = false,
-  clearLabel = '-- Без избор --',
-  disabled = false,
-}) => {
-  useImfexStore();
-  const projects = imfexStore.getProjects();
-  const products = imfexStore.getProducts();
-  const offers = imfexStore.getOffers();
-  const customers = imfexStore.getCustomers();
-
-  const options: SearchableSelectOption[] = useMemo(() => {
-    const list: SearchableSelectOption[] = [];
-
-    if (entities.includes('project')) {
-      projects.forEach((p) => {
-        const custName = p.customer?.companyName || p.customer?.name || 'Клиент';
-        list.push({
-          value: `project:${p.id}`,
-          code: p.projectNumber,
-          label: `${custName} (${PROJECT_STATUS_LABELS[p.status] || p.status})`,
-          customerName: custName,
-          sublabel: `Проект • ${p.installationAddress || 'Без адреса'}`,
-          badge: 'ПРОЕКТ',
-          badgeColor: 'bg-blue-500/10 text-blue-500 border border-blue-500/20',
-          isActive: p.status !== 'COMPLETED' && p.status !== 'CLOSED',
-          keywords: [p.projectNumber, custName, p.installationAddress || '', 'проект', 'project'],
-        });
-      });
-    }
-
-    if (entities.includes('offer')) {
-      offers.forEach((o) => {
-        const custName = o.customer?.companyName || o.customer?.name || 'Клиент';
-        list.push({
-          value: `offer:${o.id}`,
-          code: o.offerNumber,
-          label: `${custName} (€${Number(o.totalAmount || 0).toFixed(2)})`,
-          customerName: custName,
-          sublabel: `Понуда • Статус: ${OFFER_STATUS_LABELS[o.status] || o.status}`,
-          badge: 'ПОНУДА',
-          badgeColor: 'bg-amber-500/10 text-amber-500 border border-amber-500/20',
-          isActive: o.status !== 'REJECTED' && o.status !== 'EXPIRED',
-          keywords: [o.offerNumber, custName, `${o.totalAmount}`, 'понуда', 'offer'],
-        });
-      });
-    }
-
-    if (entities.includes('product')) {
-      products.forEach((prod) => {
-        list.push({
-          value: `product:${prod.id}`,
-          code: prod.code,
-          label: prod.name,
-          sublabel: `Производ • Залиха: ${prod.stockQuantity ?? 0} • ${prod.category?.name || 'Општо'}`,
-          badge: 'ПРОИЗВОД',
-          badgeColor: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20',
-          isActive: prod.isActive !== false,
-          keywords: [prod.code, prod.name, prod.category?.name || '', 'производ', 'продукт', 'product'],
-        });
-      });
-    }
-
-    if (entities.includes('customer')) {
-      customers.forEach((c) => {
-        const name = c.companyName || c.name;
-        list.push({
-          value: `customer:${c.id}`,
-          code: c.taxId ? `ЕДБ:${c.taxId}` : undefined,
-          label: `${name} (${c.customerType})`,
-          sublabel: `Клиент • ${[c.city, c.phone].filter(Boolean).join(' • ')}`,
-          badge: 'КЛИЕНТ',
-          badgeColor: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20',
-          isActive: true,
-          keywords: [name, c.taxId || '', c.phone || '', c.city || '', 'клиент', 'customer'],
-        });
-      });
-    }
-
-    return list;
-  }, [entities, projects, products, offers, customers]);
-
-  return (
-    <SearchableSelect
-      options={options}
-      value={value}
-      onChange={(rawVal) => {
-        if (!rawVal) {
-          onChange('', 'project', null);
-          return;
-        }
-        const [type, id] = rawVal.split(':') as [UnifiedEntityType, string];
-        let entityObj: any = null;
-        if (type === 'project') entityObj = projects.find((p) => p.id === id);
-        if (type === 'offer') entityObj = offers.find((o) => o.id === id);
-        if (type === 'product') entityObj = products.find((p) => p.id === id);
-        if (type === 'customer') entityObj = customers.find((c) => c.id === id);
-        onChange(id, type, entityObj);
-      }}
-      placeholder={placeholder}
-      searchPlaceholder={searchPlaceholder}
-      className={className}
-      allowClear={allowClear}
-      clearLabel={clearLabel}
-      showActiveToggle={true}
-      defaultActiveOnly={onlyActive}
-      disabled={disabled}
-      emptyMessage="Нема пронајдено резултати"
     />
   );
 };

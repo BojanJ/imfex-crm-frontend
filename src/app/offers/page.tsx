@@ -6,6 +6,8 @@ import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
+import { getOfferStatusLabel } from '@/lib/enum-labels';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
@@ -26,7 +28,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 
 export default function OffersPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storeVersion = useImfexStore(); // Auto-subscribe to live store updates from Supabase REST API
 
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -162,13 +164,13 @@ export default function OffersPage() {
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 statusFilter === st
                   ? 'bg-primary text-primary-foreground shadow-sm'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
-              {st}
+              {getOfferStatusLabel(st, locale)}
             </button>
           ))}
         </div>
@@ -224,17 +226,17 @@ export default function OffersPage() {
                   <div className="text-[10px] text-muted-foreground space-y-0.5 bg-muted/30 p-2 rounded-lg border border-border">
                     {Number(offer.discountRate || 0) > 0 && (
                       <p className="text-emerald-600 font-bold">
-                        {t('offers.discount')}: {Number(offer.discountRate)}% (-€{Number(offer.discountAmount || 0).toFixed(2)})
+                        {t('offers.discount')}: {Number(offer.discountRate)}% (-{formatCurrency(offer.discountAmount)})
                       </p>
                     )}
-                    <p>ДДВ ({Number(offer.taxRate || 18)}%): €{Number(offer.taxAmount || 0).toFixed(2)}</p>
+                    <p>ДДВ ({Number(offer.taxRate ?? 18)}%): {formatCurrency(offer.taxAmount)}</p>
                   </div>
 
                   <div className="flex justify-between items-center pt-2">
                     <div className="text-left">
                       <span className="text-[10px] text-muted-foreground block font-semibold uppercase">{t('offers.total')}</span>
                       <span className="font-black text-foreground">
-                        €{Number(offer.totalAmount || 0).toFixed(2)}
+                        {formatCurrency(offer.totalAmount)}
                       </span>
                     </div>
 
@@ -328,13 +330,13 @@ export default function OffersPage() {
                       <td className="p-4 text-muted-foreground">
                         {Number(offer.discountRate || 0) > 0 && (
                           <span className="block text-[10px] text-emerald-600 font-bold">
-                            {t('offers.discount')}: {Number(offer.discountRate)}% (-€{Number(offer.discountAmount || 0).toFixed(2)})
+                            {t('offers.discount')}: {Number(offer.discountRate)}% (-{formatCurrency(offer.discountAmount)})
                           </span>
                         )}
-                        <span>ДДВ ({Number(offer.taxRate || 18)}%): €{Number(offer.taxAmount || 0).toFixed(2)}</span>
+                        <span>ДДВ ({Number(offer.taxRate ?? 18)}%): {formatCurrency(offer.taxAmount)}</span>
                       </td>
                       <td className="p-4 text-right font-black text-base text-foreground">
-                        €{Number(offer.totalAmount || 0).toFixed(2)}
+                        {formatCurrency(offer.totalAmount)}
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">

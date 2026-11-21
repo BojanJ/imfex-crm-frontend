@@ -506,7 +506,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: recipientEmail || selectedCustomerObj?.email || 'nabavki@logistika.mk',
+          to: recipientEmail.trim() || selectedCustomerObj?.email || '',
           customerName: selectedCustomerObj?.name || 'Клиент',
           offerNumber: saved.offerNumber,
           totalAmount: totalAmount,
@@ -548,11 +548,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           </button>
           <div>
             <h2 className="font-extrabold text-lg flex items-center gap-2">
-              <span>{existingOffer ? `Edit Offer ${existingOffer.offerNumber}` : 'Create Interactive Offer Quote'}</span>
+              <span>
+                {existingOffer
+                  ? `${t('builder.edit_offer')} ${existingOffer.offerNumber}`
+                  : t('builder.create_quote')}
+              </span>
             </h2>
-            <p className="text-xs text-muted-foreground">
-              Sales workflow 4.1: Custom specifications, discounts, VAT totals & auto-project creation.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('builder.subtitle')}</p>
           </div>
         </div>
 
@@ -572,21 +574,21 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           )}
           <button
             onClick={() => setIsEmailModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm cursor-pointer"
           >
-            <Mail className="w-4 h-4" /> Send Email
+            <Mail className="w-4 h-4" /> {t('builder.send_email')}
           </button>
           <button
             onClick={handlePreviewPdf}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm cursor-pointer"
           >
-            <FileText className="w-4 h-4 text-blue-500" /> Export PDF
+            <FileText className="w-4 h-4 text-blue-500" /> {t('builder.export_pdf')}
           </button>
           <button
             onClick={handleSaveAndRedirect}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
           >
-            <Save className="w-4 h-4" /> Save Offer
+            <Save className="w-4 h-4" /> {t('builder.save_quote')}
           </button>
         </div>
       </div>
@@ -597,19 +599,19 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         <div className="md:col-span-2 bg-card border border-border rounded-xl p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-border pb-3">
             <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-primary" /> Target Customer Selection
+              <Building2 className="w-4 h-4 text-primary" /> {t('builder.target_customer')}
             </h3>
             <button
               onClick={() => setIsCustomerModalOpen(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline cursor-pointer"
             >
-              <UserPlus className="w-3.5 h-3.5" /> + New Customer
+              <UserPlus className="w-3.5 h-3.5" /> {t('builder.new_customer')}
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold mb-1">Choose Client Account</label>
+              <label className="block text-xs font-semibold mb-1">{t('builder.select_customer')}</label>
               <CustomerSelect
                 value={selectedCustomerId}
                 onChange={(val) => setSelectedCustomerId(val)}
@@ -777,7 +779,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           onClick={() => handleToggleServiceType(idx, service)}
                           className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition-all ${
                             checked
-                              ? 'bg-primary text-primary-foreground font-bold shadow-xs'
+                              ? 'bg-primary text-primary-foreground font-bold shadow-sm'
                               : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
@@ -1292,21 +1294,21 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsEmailModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all shadow-sm cursor-pointer"
             >
-              <Mail className="w-4 h-4" /> Send Email
+              <Mail className="w-4 h-4" /> {t('builder.send_email')}
             </button>
             <button
               onClick={handlePreviewPdf}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl border border-border bg-card hover:bg-muted text-foreground transition-all shadow-sm cursor-pointer"
             >
-              <FileText className="w-4 h-4 text-blue-500" /> Export PDF
+              <FileText className="w-4 h-4 text-blue-500" /> {t('builder.export_pdf')}
             </button>
             <button
               onClick={handleSaveAndRedirect}
-              className="flex items-center gap-1.5 px-6 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md"
+              className="flex items-center gap-1.5 px-6 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
             >
-              <Save className="w-4 h-4" /> Save Quote
+              <Save className="w-4 h-4" /> {t('builder.save_quote')}
             </button>
           </div>
         </div>
@@ -1360,7 +1362,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     required
                     value={recipientEmail}
                     onChange={(e) => setRecipientEmail(e.target.value)}
-                    placeholder="nabavki@logistika.mk"
+                    placeholder="client@company.com"
                     className="w-full px-3 py-2 rounded-xl border border-border bg-background outline-none font-bold focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -1370,7 +1372,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   <input
                     type="text"
                     readOnly
-                    value={`Комерцијална Понуда ${existingOffer?.offerNumber || 'OFF-2026-0001'} - ИМФЕКС ЕКСПОРТ-ИМПОРТ`}
+                    value={`Комерцијална Понуда ${existingOffer?.offerNumber || `OFF-${new Date().getFullYear()}-0001`} - ${imfexStore.getCompanySettings().companyName}`}
                     className="w-full px-3 py-2 rounded-xl border border-border bg-muted text-muted-foreground outline-none font-bold cursor-not-allowed"
                   />
                 </div>

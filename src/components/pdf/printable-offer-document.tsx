@@ -3,6 +3,9 @@
 import React from 'react';
 import { Offer, Product } from '@/types';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
+import { getServiceTypeLabel } from '@/lib/enum-labels';
+import { imfexStore } from '@/lib/store';
 
 interface PrintableOfferDocumentProps {
   offer: Offer;
@@ -15,10 +18,22 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
   products = [],
   containerId = 'printable-offer-document',
 }) => {
+  const company = imfexStore.getCompanySettings();
+  const advancePercent = Math.min(100, Math.max(0, Number(company.defaultAdvancePercent ?? 50)));
+  const balancePercent = Math.max(0, 100 - advancePercent);
+  const currentYear = new Date().getFullYear();
+
   const customerName = offer.customer?.companyName || offer.customer?.name || 'Почитуван Клиент';
-  const customerCity = offer.customer?.city || 'Скопје';
-  const customerPhone = offer.customer?.phone || '+389 70 123 456';
-  const customerEmail = offer.customer?.email || 'client@imfex.com';
+  const customerCity = offer.customer?.city || '';
+  const customerPhone = offer.customer?.phone || '';
+  const customerEmail = offer.customer?.email || '';
+  const customerContactLine = [
+    customerCity ? `📍 ${customerCity}` : '',
+    customerPhone ? `📞 ${customerPhone}` : '',
+    customerEmail ? `✉️ ${customerEmail}` : '',
+  ]
+    .filter(Boolean)
+    .join('  |  ');
 
   const dateCreated = formatDate(offer.createdAt, formatDate(new Date()));
 
@@ -72,7 +87,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               <p className="text-sm font-black text-white font-mono mt-0.5">{offer.offerNumber}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md border border-white/15 p-3 rounded-xl text-center">
-              <p className="text-[9px] font-bold text-slate-400 uppercase">ДА ТУМ</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase">ДАТУМ</p>
               <p className="text-sm font-black text-white font-mono mt-0.5">{dateCreated}</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md border border-white/15 p-3 rounded-xl text-center">
@@ -100,14 +115,14 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
           <div>
             <p className="text-[10px] font-extrabold text-blue-600 uppercase tracking-wider">ПОДГОТВЕНО ЗА</p>
             <p className="text-base font-black text-slate-900 mt-0.5">{customerName}</p>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              📍 {customerCity} &nbsp;|&nbsp; 📞 {customerPhone} &nbsp;|&nbsp; ✉️ {customerEmail}
-            </p>
+            {customerContactLine && (
+              <p className="text-xs text-slate-500 font-medium mt-0.5">{customerContactLine}</p>
+            )}
           </div>
           <div className="text-right border-l border-slate-200 pl-4">
             <p className="text-[10px] font-bold text-slate-400 uppercase">ПОДГОТВЕНО ОД</p>
-            <p className="text-xs font-black text-slate-900">IMFEX CRM Sales Team</p>
-            <p className="text-[10px] font-semibold text-slate-500">Sales Consultant</p>
+            <p className="text-xs font-black text-slate-900">{company.companyName}</p>
+            <p className="text-[10px] font-semibold text-slate-500">Продажен Тим</p>
           </div>
         </div>
       </div>
@@ -123,7 +138,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               <div className="w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center">
                 iF
               </div>
-              <span className="font-black text-sm tracking-wider text-slate-900">IMFEX GROUP</span>
+              <span className="font-black text-sm tracking-wider text-slate-900">{company.companyName}</span>
             </div>
             <span className="font-bold text-xs text-slate-500 font-mono">ПОНУДА {offer.offerNumber}</span>
           </div>
@@ -190,7 +205,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                   <div className="flex gap-1.5 flex-wrap">
                     {item.serviceTypes.map((st) => (
                       <span key={st} className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-2 py-0.5 rounded">
-                        {st}
+                        {getServiceTypeLabel(st, 'mk')}
                       </span>
                     ))}
                   </div>
@@ -245,7 +260,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               <div className="w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center">
                 iF
               </div>
-              <span className="font-black text-sm tracking-wider text-slate-900">IMFEX GROUP</span>
+              <span className="font-black text-sm tracking-wider text-slate-900">{company.companyName}</span>
             </div>
             <span className="font-bold text-xs text-slate-500 font-mono">ПОНУДА {offer.offerNumber}</span>
           </div>
@@ -302,14 +317,14 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                         <div className="flex gap-1 mt-1">
                           {item.serviceTypes.map((st) => (
                             <span key={st} className="bg-slate-100 text-slate-700 text-[9px] font-extrabold px-1.5 py-0.5 rounded border border-slate-200">
-                              {st}
+                              {getServiceTypeLabel(st, 'mk')}
                             </span>
                           ))}
                         </div>
                       </td>
                       <td className="p-3 text-center font-extrabold text-slate-800">{item.quantity}</td>
-                      <td className="p-3 text-right font-medium text-slate-700">€{Number(item.unitPrice || 0).toFixed(2)}</td>
-                      <td className="p-3 text-right font-black text-slate-900">€{Number(item.totalPrice || 0).toFixed(2)}</td>
+                      <td className="p-3 text-right font-medium text-slate-700">{formatCurrency(item.unitPrice)}</td>
+                      <td className="p-3 text-right font-black text-slate-900">{formatCurrency(item.totalPrice)}</td>
                     </tr>
                   );
                 })}
@@ -321,17 +336,17 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
           <div className="flex flex-col items-end space-y-1 text-xs pt-2">
             <div className="flex justify-between w-64 text-slate-600 font-bold">
               <span>Меѓузбир:</span>
-              <span>€{Number(offer.subtotal || 0).toFixed(2)}</span>
+              <span>{formatCurrency(offer.subtotal)}</span>
             </div>
             {Number(offer.discountAmount || 0) > 0 && (
               <div className="flex justify-between w-64 text-rose-600 font-bold">
                 <span>Попуст ({Number(offer.discountRate || 0)}%):</span>
-                <span>−€{Number(offer.discountAmount || 0).toFixed(2)}</span>
+                <span>−{formatCurrency(offer.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between w-64 text-slate-600 font-bold">
               <span>ДДВ ({offer.taxRate ?? 18}%):</span>
-              <span>€{Number(offer.taxAmount || 0).toFixed(2)}</span>
+              <span>{formatCurrency(offer.taxAmount)}</span>
             </div>
           </div>
 
@@ -339,7 +354,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
           <div className="bg-[#0b1329] text-white p-6 rounded-2xl flex items-center justify-between shadow-xl my-4">
             <span className="text-xl font-black tracking-wider uppercase">ВКУПНО:</span>
             <span className="text-3xl font-black font-mono tracking-tight text-white">
-              €{Number(offer.totalAmount || 0).toFixed(2)}
+              {formatCurrency(offer.totalAmount)}
             </span>
           </div>
 
@@ -349,8 +364,8 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
             <div className="grid grid-cols-3 gap-3 text-xs">
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">НАЧИН НА ПЛАЌАЊЕ</p>
-                <p className="font-black text-slate-900 mt-1">50% аванс</p>
-                <p className="text-[10px] text-slate-500 font-semibold">50% пред испорака</p>
+                <p className="font-black text-slate-900 mt-1">{advancePercent}% аванс</p>
+                <p className="text-[10px] text-slate-500 font-semibold">{balancePercent}% пред испорака</p>
               </div>
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">РОК НА ИСПОРАКА</p>
@@ -392,7 +407,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               <div className="w-8 h-8 rounded-lg bg-slate-900 text-white font-black text-xs flex items-center justify-center">
                 iF
               </div>
-              <span className="font-black text-sm tracking-wider text-slate-900">IMFEX GROUP</span>
+              <span className="font-black text-sm tracking-wider text-slate-900">{company.companyName}</span>
             </div>
             <span className="font-bold text-xs text-slate-500 font-mono">ПОНУДА {offer.offerNumber}</span>
           </div>
@@ -453,7 +468,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
               </div>
               <div className="border-b border-slate-300 pb-2">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">ДАТУМ</p>
-                <p className="font-bold text-slate-900 mt-1">__ . __ . 2026</p>
+                <p className="font-bold text-slate-900 mt-1">__ . __ . {currentYear}</p>
               </div>
               <div className="border-b border-slate-300 pb-2">
                 <p className="text-[10px] font-bold text-slate-400 uppercase">ПОТПИС</p>
@@ -469,11 +484,15 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
                 <div className="w-6 h-6 rounded bg-white text-slate-900 font-black text-[10px] flex items-center justify-center">
                   iF
                 </div>
-                <span className="font-black text-sm tracking-wider text-white">IMFEX GROUP</span>
+                <span className="font-black text-sm tracking-wider text-white">{company.companyName}</span>
               </div>
-              <p className="text-[11px] text-slate-300">📍 Ул. Качанички Пат бб, Скопје</p>
-              <p className="text-[11px] text-slate-300">📞 Тел: +389 2 3123 456 &nbsp;|&nbsp; ✉️ info@imfex.com</p>
-              <p className="text-[11px] text-blue-400 font-bold">🌐 Web: www.imfexgroup.mk</p>
+              <p className="text-[11px] text-slate-300">📍 {company.address}</p>
+              <p className="text-[11px] text-slate-300">
+                📞 Тел: {company.phone} &nbsp;|&nbsp; ✉️ {company.email}
+              </p>
+              {company.taxId && (
+                <p className="text-[11px] text-blue-300 font-semibold">ЕДБ: {company.taxId}</p>
+              )}
             </div>
 
             <div className="bg-white/10 border border-white/20 p-3 rounded-xl text-center space-y-1">

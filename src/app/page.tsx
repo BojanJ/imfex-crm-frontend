@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency } from '@/lib/formatters';
+import { getOfferStatusLabel, getProjectStatusLabel, getServicePriorityLabel } from '@/lib/enum-labels';
 import { Offer, Customer, Project, ServiceTicket } from '@/types';
 import {
   TrendingUp,
@@ -26,7 +28,7 @@ import { PdfModal } from '@/components/pdf/pdf-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 
 export default function DashboardPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -117,7 +119,7 @@ export default function DashboardPage() {
               <Euro className="w-5 h-5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-foreground">€{totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-black text-foreground">{formatCurrency(totalRevenue)}</p>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
             <TrendingUp className="w-3.5 h-3.5" /> {t('dashboard.pipeline_growth')}
           </p>
@@ -209,7 +211,7 @@ export default function DashboardPage() {
                     <span className="text-primary shrink-0">{prj.projectNumber}</span>
                     <span className="text-foreground truncate">{prj.customer?.companyName || prj.customer?.name}</span>
                     <span className="text-[10px] uppercase bg-primary/10 text-primary px-2 py-0.5 rounded font-black shrink-0">
-                      {prj.status}
+                      {getProjectStatusLabel(prj.status, locale)}
                     </span>
                   </div>
 
@@ -256,7 +258,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between font-extrabold">
                     <span className="text-red-600 dark:text-red-400">{st.ticketNumber}</span>
                     <span className="text-[9px] uppercase bg-red-500 text-white px-2 py-0.5 rounded font-black">
-                      {st.priority}
+                      {getServicePriorityLabel(st.priority, locale)}
                     </span>
                   </div>
                   <p className="font-semibold text-foreground truncate">{st.defectDescription}</p>
@@ -283,7 +285,7 @@ export default function DashboardPage() {
         {/* Mobile Cards View */}
         <div className="grid grid-cols-1 gap-4 md:hidden">
           {offers.map((offer) => (
-            <div key={offer.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-3 shadow-xs">
+            <div key={offer.id} className="p-4 bg-muted/20 border border-border rounded-xl space-y-3 shadow-sm">
               <div className="flex justify-between items-center">
                 <span className="font-extrabold text-primary text-xs">{offer.offerNumber}</span>
                 <span
@@ -295,18 +297,20 @@ export default function DashboardPage() {
                       : 'bg-amber-500/10 text-amber-500'
                   }`}
                 >
-                  {offer.status}
+                  {getOfferStatusLabel(offer.status, locale)}
                 </span>
               </div>
               <div className="space-y-1">
                 <p className="font-bold text-foreground">
-                  {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+                  {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                 </p>
-                <p className="text-muted-foreground text-[10px]">{offer.items.length} line item(s)</p>
+                <p className="text-muted-foreground text-[10px]">
+                  {offer.items.length} {t('offers.items').toLowerCase()}
+                </p>
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-border">
                 <span className="font-black text-foreground">
-                  €{Number(offer.totalAmount).toFixed(2)}
+                  {formatCurrency(offer.totalAmount)}
                 </span>
                 <button
                   onClick={() => setSelectedOfferForPdf(offer)}
@@ -338,9 +342,11 @@ export default function DashboardPage() {
                   <tr key={offer.id} className="hover:bg-muted/20 transition-colors">
                     <td className="p-3.5 font-extrabold text-primary">{offer.offerNumber}</td>
                     <td className="p-3.5 font-semibold text-foreground">
-                      {offer.customer?.companyName || offer.customer?.name || 'Customer'}
+                      {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                     </td>
-                    <td className="p-3.5 text-muted-foreground">{offer.items.length} line item(s)</td>
+                    <td className="p-3.5 text-muted-foreground">
+                      {offer.items.length} {t('offers.items').toLowerCase()}
+                    </td>
                     <td className="p-3.5">
                       <span
                         className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
@@ -351,11 +357,11 @@ export default function DashboardPage() {
                             : 'bg-amber-500/10 text-amber-500'
                         }`}
                       >
-                        {offer.status}
+                        {getOfferStatusLabel(offer.status, locale)}
                       </span>
                     </td>
                     <td className="p-3.5 text-right font-black text-foreground">
-                      €{Number(offer.totalAmount).toFixed(2)}
+                      {formatCurrency(offer.totalAmount)}
                     </td>
                     <td className="p-3.5 text-center">
                       <button

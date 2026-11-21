@@ -147,7 +147,7 @@ export default function ProjectsPage() {
             <button
               onClick={() => setViewMode('KANBAN')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'KANBAN' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                viewMode === 'KANBAN' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
               {t('projects.pipeline_board')}
@@ -155,7 +155,7 @@ export default function ProjectsPage() {
             <button
               onClick={() => setViewMode('TABLE')}
               className={`px-3 py-1.5 rounded-lg transition-all ${
-                viewMode === 'TABLE' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                viewMode === 'TABLE' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
               {t('projects.list_view')}
@@ -255,7 +255,7 @@ export default function ProjectsPage() {
                             draggable
                             onDragStart={(e) => handleDragStart(e, prj.id)}
                             onDragEnd={handleDragEnd}
-                            className={`bg-card border hover:border-primary rounded-xl p-3 shadow-xs space-y-2.5 transition-all group cursor-grab active:cursor-grabbing ${
+                            className={`bg-card border hover:border-primary rounded-xl p-3 shadow-sm space-y-2.5 transition-all group cursor-grab active:cursor-grabbing ${
                               isDragging
                                 ? 'opacity-40 scale-95 border-primary border-dashed'
                                 : 'border-border'

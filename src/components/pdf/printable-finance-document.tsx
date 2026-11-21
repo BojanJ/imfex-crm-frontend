@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { SalesInvoice, DispatchNote } from '@/types';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
 import { formatDate } from '@/lib/date-format';
+import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { imfexStore } from '@/lib/store';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 import { Download, Printer, X, FileText, Loader2, Truck } from 'lucide-react';
@@ -13,6 +14,7 @@ interface PrintableInvoiceProps {
 }
 
 export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice }) => {
+  const company = imfexStore.getCompanySettings();
   const typeTitle =
     invoice.invoiceType === 'PROFORMA'
       ? 'ПРО-ФАКТУРА'
@@ -56,14 +58,21 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                   iF
                 </div>
                 <div>
-                  <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">IMFEX GROUP ДООЕЛ</h1>
+                  <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">{company.companyName}</h1>
                   <p className="text-[11px] font-bold text-slate-500">ПРОИЗВОДСТВО, ПРОДАЖБА И МОНТАЖА НА ВРАТИ И АВТОМАТИКА</p>
                 </div>
               </div>
               <div className="text-[11px] text-slate-600 pt-2 space-y-0.5">
-                <p>Ул. Индустриска Зона бр. 12, 1000 Скопје, Северна Македонија</p>
-                <p>ЕДБ: <strong>MK4080012345678</strong> &nbsp;|&nbsp; Жиро сметка: <strong>300000001234567 (Комерцијална Банка)</strong></p>
-                <p>Е-пошта: finance@imfex.mk &nbsp;|&nbsp; Тел: +389 70 200 300</p>
+                <p>{company.address}</p>
+                <p>
+                  ЕДБ: <strong>{company.taxId || '—'}</strong>
+                  {company.bankAccount ? (
+                    <>
+                      {' '}&nbsp;|&nbsp; Жиро сметка: <strong>{company.bankAccount}</strong>
+                    </>
+                  ) : null}
+                </p>
+                <p>Е-пошта: {company.email} &nbsp;|&nbsp; Тел: {company.phone}</p>
               </div>
             </div>
 
@@ -157,10 +166,10 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                     </td>
                     <td className="p-3 text-center font-bold text-slate-800">{item.quantity}</td>
                     <td className="p-3 text-right font-medium text-slate-700">
-                      €{Number(item.unitPrice || 0).toFixed(2)}
+                      {formatCurrency(item.unitPrice)}
                     </td>
                     <td className="p-3 text-right font-black text-slate-900">
-                      €{Number(item.totalPrice || 0).toFixed(2)}
+                      {formatCurrency(item.totalPrice)}
                     </td>
                   </tr>
                 ))}
@@ -173,21 +182,21 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
             <div className="w-80 space-y-1.5 border border-slate-200 rounded-xl p-4 bg-slate-50">
               <div className="flex justify-between text-slate-600 font-semibold">
                 <span>Меѓузбир (Основица):</span>
-                <span>€{Number(invoice.subtotal || 0).toFixed(2)}</span>
+                <span>{formatCurrency(invoice.subtotal)}</span>
               </div>
               {Number(invoice.discountAmount || 0) > 0 && (
                 <div className="flex justify-between text-emerald-700 font-bold">
                   <span>Попуст ({invoice.discountRate}%):</span>
-                  <span>-€{Number(invoice.discountAmount || 0).toFixed(2)}</span>
+                  <span>-{formatCurrency(invoice.discountAmount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-slate-600 font-semibold">
                 <span>Пресметан ДДВ ({invoice.taxRate}%):</span>
-                <span>€{Number(invoice.taxAmount || 0).toFixed(2)}</span>
+                <span>{formatCurrency(invoice.taxAmount)}</span>
               </div>
               <div className="flex justify-between text-slate-900 font-black border-t border-slate-200 pt-1.5">
                 <span>Вкупна вредност со ДДВ:</span>
-                <span>€{Number(invoice.grossTotalAmount || invoice.totalAmount || 0).toFixed(2)}</span>
+                <span>{formatCurrency(invoice.grossTotalAmount || invoice.totalAmount)}</span>
               </div>
 
               {invoice.invoiceType === 'FINAL' && Number(invoice.advanceDeductedAmount || 0) > 0 && (
@@ -196,15 +205,15 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                     <span>
                       Минус платен аванс ({invoice.linkedAdvanceInvoiceNumber || 'Аванс'}):
                     </span>
-                    <span>-€{Number(invoice.advanceDeductedAmount).toFixed(2)}</span>
+                    <span>-{formatCurrency(invoice.advanceDeductedAmount)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-500">
                     <span>Преостаната основица за ДДВ:</span>
-                    <span>€{netPayable.toFixed(2)}</span>
+                    <span>{formatCurrency(netPayable)}</span>
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-500">
                     <span>Преостанат ДДВ за уплата ({invoice.taxRate}%):</span>
-                    <span>€{vatPayable.toFixed(2)}</span>
+                    <span>{formatCurrency(vatPayable)}</span>
                   </div>
                 </>
               )}
@@ -220,11 +229,11 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                   : 'ВКУПНО ЗА ПЛАЌАЊЕ:'}
               </span>
               <span className="text-[11px] text-slate-300">
-                Во денарска противвредност по среден курс на НБРСМ (1 € = 61.50 МКД: {(Number(invoice.totalAmount || 0) * 61.5).toLocaleString('mk-MK', { minimumFractionDigits: 2 })} МКД)
+                Во денарска противвредност по среден курс на НБРСМ (1 € = 61.50 МКД: {formatMkd(Number(invoice.totalAmount || 0) * 61.5)})
               </span>
             </div>
             <span className="text-2xl font-black font-mono">
-              €{Number(invoice.totalAmount || 0).toFixed(2)}
+              {formatCurrency(invoice.totalAmount)}
             </span>
           </div>
 
@@ -241,7 +250,7 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
           <div className="grid grid-cols-2 gap-12 text-xs pt-6">
             <div className="border-t border-slate-400 pt-2 text-center">
               <p className="font-bold text-slate-700">Фактурирал / Овластено лице</p>
-              <p className="text-[10px] text-slate-400">IMFEX GROUP ДООЕЛ (Печат и потпис)</p>
+              <p className="text-[10px] text-slate-400">{company.companyName} (Печат и потпис)</p>
             </div>
             <div className="border-t border-slate-400 pt-2 text-center">
               <p className="font-bold text-slate-700">Примил за купувачот</p>
@@ -264,6 +273,7 @@ interface PrintableDispatchProps {
 }
 
 export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispatch }) => {
+  const company = imfexStore.getCompanySettings();
   const customerName = dispatch.customer?.companyName || dispatch.customer?.name || 'Клиент';
   const deliveryAddr =
     dispatch.deliveryAddress ||
@@ -285,7 +295,7 @@ export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispat
                   iF
                 </div>
                 <div>
-                  <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">IMFEX GROUP — МАГАЦИН</h1>
+                  <h1 className="text-xl font-black tracking-wider text-slate-900 uppercase">{company.companyName} — МАГАЦИН</h1>
                   <p className="text-[11px] font-bold text-slate-500">ДОКУМЕНТ ЗА ФИЗИЧКИ ИЗЛЕЗ И ИСПОРАКА НА СТОКА</p>
                 </div>
               </div>
@@ -371,7 +381,7 @@ export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispat
           <div className="grid grid-cols-2 gap-12 text-xs pt-6">
             <div className="border-t border-slate-400 pt-2 text-center">
               <p className="font-bold text-slate-700">Издал од магацин / Монтер</p>
-              <p className="text-[10px] text-slate-400">{dispatch.issuedBy || 'IMFEX GROUP'}</p>
+              <p className="text-[10px] text-slate-400">{dispatch.issuedBy || company.companyName}</p>
             </div>
             <div className="border-t border-slate-400 pt-2 text-center">
               <p className="font-bold text-slate-700">Примил (Купувач / Овластено лице)</p>
@@ -380,7 +390,7 @@ export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispat
           </div>
 
           <div className="flex justify-between items-center border-t border-slate-200 pt-3 text-[10px] text-slate-400">
-            <span>IMFEX GROUP — Магацинско работење и логистика</span>
+            <span>{company.companyName} — Магацинско работење и логистика</span>
             <span>Испратница: {dispatch.dispatchNumber}</span>
           </div>
         </div>

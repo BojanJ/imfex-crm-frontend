@@ -63,7 +63,7 @@ type FinanceTab = 'purchases' | 'invoices' | 'dispatches' | 'payments' | 'partne
 
 const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   ГОРИВО: 'Гориво и возила (Бензин / Дизел)',
-  ПОТРОШЕН_МАТЕРИЈАЛ: 'Потрошен ситен материјал (Штрафчиња, типли, силикон)',
+  ПОТРОШЕН_МАТЕРИЈАЛ: 'Потрошен монтажен материјал (сврзни елементи, типли, силикон)',
   СТРУЈА_ТЕЛЕФОН_КИРИЈА: 'Режиски трошоци (Струја, телефон, интернет, кирија)',
   ТРАНСПОРТ_И_ЦАРИНА: 'Транспорт, шпедиција и царина',
   АЛАТ_И_ОПРЕМА: 'Алат и работна опрема',
@@ -710,7 +710,7 @@ function FinancePageContent() {
   return (
     <div className="space-y-6 pb-20 text-xs">
       {/* Header */}
-      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-xs">
+      <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-card p-6 rounded-2xl border border-border shadow-sm">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary/10 px-2.5 py-1 rounded-full">
             IMFEX ФИНАНСИИ, МАГАЦИН & НАБАВКИ
@@ -720,7 +720,7 @@ function FinancePageContent() {
             <span>Финансии и Набавки</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Сè што влегува и излегува од фирмата: Влезни фактури (Стока за залиха и Трошоци од гориво до штрафче), Излезни фактури, Аванси, Испратници и Уплати.
+            Целосен финансиски преглед: Влезни фактури (Стока за залиха и оперативни трошоци), Излезни фактури, Аванси, Испратници и Уплати.
           </p>
         </div>
 
@@ -761,7 +761,7 @@ function FinancePageContent() {
 
       {/* 4 Financial KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="font-bold uppercase text-[10px]">Наплатени средства (Влез)</span>
             <ArrowDownLeft className="w-4 h-4 text-emerald-500" />
@@ -772,7 +772,7 @@ function FinancePageContent() {
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="font-bold uppercase text-[10px]">Набавка на Стока (За залиха)</span>
             <Boxes className="w-4 h-4 text-sky-400" />
@@ -783,18 +783,18 @@ function FinancePageContent() {
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="font-bold uppercase text-[10px]">Оперативни Трошоци</span>
             <Fuel className="w-4 h-4 text-amber-500" />
           </div>
           <p className="text-2xl font-black text-amber-500">€{totalOperationalExpenses.toFixed(2)}</p>
           <p className="text-[11px] text-muted-foreground">
-            Гориво, штрафчиња, струја, ситен материјал
+            Гориво, монтажен материјал, режии и услуги
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-5 space-y-1.5 shadow-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="font-bold uppercase text-[10px]">Нето Биланс (Прилив - Трошок)</span>
             <Sparkles className="w-4 h-4 text-primary" />
@@ -896,7 +896,7 @@ function FinancePageContent() {
               {[
                 { key: 'ALL', label: 'Сите влезни документи' },
                 { key: 'STOCK', label: 'Стока (Влегува во залиха)' },
-                { key: 'EXPENSE', label: 'Трошоци (Гориво, струја, штрафчиња)' },
+                { key: 'EXPENSE', label: 'Оперативни трошоци (Гориво, режии, материјал)' },
                 { key: 'PENDING_RECEIPT', label: 'Чека прием во магацин' },
               ].map((f) => (
                 <button
@@ -921,7 +921,7 @@ function FinancePageContent() {
             </button>
           </div>
 
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[950px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
@@ -1158,7 +1158,7 @@ function FinancePageContent() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[950px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
@@ -1319,7 +1319,7 @@ function FinancePageContent() {
             </button>
           </div>
 
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[900px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
@@ -1466,7 +1466,7 @@ function FinancePageContent() {
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left min-w-[850px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
@@ -1583,7 +1583,7 @@ function FinancePageContent() {
               const isSupplier = partnerPurchases.length > 0 || partner.customerType === 'PARTNER';
 
               return (
-                <div key={partner.id} className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-xs">
+                <div key={partner.id} className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-extrabold text-[10px] uppercase whitespace-nowrap">
@@ -1634,7 +1634,7 @@ function FinancePageContent() {
                   <span>Внеси Влезна Фактура / Набавка на Стока / Трошок</span>
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Секоја ставка може да биде <strong>СТОКА</strong> (влегува во залиха со набавна цена) или <strong>ТРОШОК</strong> (гориво, струја, штрафчиња).
+                  Секоја ставка може да биде <strong>СТОКА</strong> (влегува во залиха со набавна цена) или <strong>ТРОШОК</strong> (гориво, режии, потрошен материјал).
                 </p>
               </div>
               <button
@@ -1662,7 +1662,7 @@ function FinancePageContent() {
                     <option value="Doors Impex" />
                     <option value="Макпетрол (Гориво)" />
                     <option value="ЕВН Македонија" />
-                    <option value="Железарија Профи (Штрафчиња / Материјал)" />
+                    <option value="Железарија Профи (Монтажен материјал)" />
                     {partnersList.map((p) => (
                       <option key={p.id} value={p.companyName || p.name} />
                     ))}
@@ -1739,7 +1739,7 @@ function FinancePageContent() {
                       }
                       className="px-3 py-1.5 rounded-lg bg-amber-500/15 text-amber-400 font-bold hover:bg-amber-500/25 cursor-pointer"
                     >
-                      + Додај Трошок (Гориво / Штрафче / Сметка)
+                      + Додај Трошок (Гориво / Материјал / Сметка)
                     </button>
                   </div>
                 </div>
@@ -1831,7 +1831,7 @@ function FinancePageContent() {
                               type="text"
                               value={item.title}
                               onChange={(e) => handleUpdatePItem(idx, { title: e.target.value })}
-                              placeholder="пр. Дизел гориво / Штрафчиња"
+                              placeholder="пр. Дизел гориво / Монтажен материјал"
                               className="w-full px-2.5 py-2 rounded-lg border border-border bg-card font-semibold outline-none"
                             />
                           </div>
@@ -1973,7 +1973,7 @@ function FinancePageContent() {
                       Веднаш евидентирај дека сметката е ПЛАТЕНА
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      Се запишува во Уплати и Трансакции (пр. за готовински сметки за гориво или штрафчиња).
+                      Се запишува во Уплати и Трансакции (пр. за готовински сметки за гориво или потрошен материјал).
                     </span>
                   </div>
                 </label>

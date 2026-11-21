@@ -6,7 +6,8 @@ import { Offer, Product } from '@/types';
 import { formatDate } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
 import { generateMultiPagePdf } from '@/lib/pdf-generator';
-import { getApiUrl, authFetch } from '@/lib/store';
+import { getApiUrl, authFetch } from '@/lib/api';
+import { useI18n } from '@/lib/i18n-context';
 import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 
@@ -18,6 +19,7 @@ interface PdfModalProps {
 }
 
 export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, products = [] }) => {
+  const { t } = useI18n();
   const [isClient, setIsClient] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
@@ -109,10 +111,10 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
             </div>
             <div>
               <h3 className="font-bold text-lg leading-none">
-                IMFEX Document Export - {offer.offerNumber}
+                {t('pdf_modal.title')} — {offer.offerNumber}
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                Customer: {offer.customer?.companyName || offer.customer?.name || 'Customer'} • Valid until: {resolvedValidUntil}
+                {t('pdf_modal.customer')}: {offer.customer?.companyName || offer.customer?.name || t('pdf_modal.customer')} • {t('pdf_modal.valid_until')}: {resolvedValidUntil}
               </p>
             </div>
           </div>
@@ -124,7 +126,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
             >
               <Printer className="w-4 h-4 text-slate-500" />
-              Print
+              {t('pdf_modal.print')}
             </button>
 
             {/* Email Quote Button */}
@@ -134,7 +136,11 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
             >
               <Mail className="w-4 h-4 text-blue-500" />
-              {emailStatus === 'sending' ? 'Sending...' : emailStatus === 'sent' ? 'Sent to Customer!' : 'Email Quote'}
+              {emailStatus === 'sending'
+                ? t('pdf_modal.sending')
+                : emailStatus === 'sent'
+                ? t('pdf_modal.sent')
+                : t('pdf_modal.email_quote')}
             </button>
 
             {/* PDF Download Button */}
@@ -146,12 +152,12 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
               {isGeneratingPdf ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating PDF...
+                  {t('pdf_modal.generating')}
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  Download PDF
+                  {t('pdf_modal.download_pdf')}
                 </>
               )}
             </button>
@@ -171,7 +177,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
         {emailStatus === 'sent' && (
           <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium print:hidden">
             <CheckCircle2 className="w-4 h-4" />
-            Phase 2 Email Pipeline Ready: PDF Buffer successfully attached and dispatched to {offer.customer?.email || 'customer email'}.
+            {t('pdf_modal.email_sent_banner')} {offer.customer?.email || '—'}.
           </div>
         )}
 

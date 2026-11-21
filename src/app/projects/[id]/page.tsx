@@ -1057,7 +1057,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       €{fin.directExpensesCost.toFixed(2)}
                     </strong>
                     <span className="text-[10px] text-muted-foreground">
-                      Гориво, штрафчиња, ситно
+                      Гориво, монтажен материјал и режии
                     </span>
                   </div>
 
@@ -1332,7 +1332,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                       onClick={() => setFileFilter(tab.key)}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                         fileFilter === tab.key
-                          ? 'bg-primary text-primary-foreground shadow-xs'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                     >
@@ -1498,7 +1498,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       {/* Attachment Preview Modal (Images & PDF) */}
       {previewAttachment && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setPreviewAttachment(null)}
           role="dialog"
           aria-modal="true"

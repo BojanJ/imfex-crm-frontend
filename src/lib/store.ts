@@ -33,6 +33,9 @@ import {
 } from '@/types';
 import { formatDate } from './date-format';
 import { toast } from '@/components/ui/toastr';
+import { getApiUrl, getAuthToken, authFetch, registerUnauthorizedHandler } from './api';
+
+export { getApiUrl, getAuthToken, authFetch };
 
 export function generateTempPassword(length = 12): string {
   const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -70,36 +73,6 @@ export function generateTempPassword(length = 12): string {
   }
   return chars.join('');
 }
-
-export const getApiUrl = () => {
-  return process.env.NEXT_PUBLIC_API_URL || 'https://imfex-crm-backend.onrender.com';
-};
-
-export const getAuthToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem('imfex_auth_token');
-};
-
-export const authFetch = async (input: string, init: RequestInit = {}): Promise<Response> => {
-  const headers = new Headers(init.headers);
-  const token = getAuthToken();
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-  const res = await fetch(input, { ...init, headers });
-  if (
-    res.status === 401 &&
-    typeof window !== 'undefined' &&
-    !input.includes('/api/auth/login') &&
-    !input.includes('/api/auth/change-password')
-  ) {
-    imfexStore.logout();
-    if (window.location.pathname !== '/login') {
-      window.location.replace('/login');
-    }
-  }
-  return res;
-};
 
 class ImfexStore {
   private categories: ProductCategory[] = [];
@@ -1918,13 +1891,14 @@ class ImfexStore {
   projectStepRecordAdvance(projectId: string): Project | undefined {
     const prj = this.getProjectById(projectId);
     if (!prj || prj.advancePaid) return prj;
+    const advPct = this.companySettings.defaultAdvancePercent || 50;
     const updated: Project = {
       ...prj,
       advancePaid: true,
       advancePaidAt: new Date().toISOString(),
-      procurementNotes: `${prj.procurementNotes || ''}\n[УПЛАТА] Евидентиран аванс 70% (${formatDate(new Date())})`.trim(),
+      procurementNotes: `${prj.procurementNotes || ''}\n[УПЛАТА] Евидентиран аванс ${advPct}% (${formatDate(new Date())})`.trim(),
     };
-    this.addInventoryMovement('УПЛАТА', `Евидентиран аванс 70% за проект ${prj.projectNumber}`, { projectId: prj.id });
+    this.addInventoryMovement('УПЛАТА', `Евидентиран аванс ${advPct}% за проект ${prj.projectNumber}`, { projectId: prj.id });
     return this.saveProject(updated);
   }
 
@@ -3216,6 +3190,7 @@ class ImfexStore {
 }
 
 export const imfexStore = new ImfexStore();
+registerUnauthorizedHandler(() => imfexStore.logout());
 
 export function useImfexStore(): number {
   const [tick, setTick] = useState(() => imfexStore.getVersion());

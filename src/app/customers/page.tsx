@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { Customer, Offer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-format';
+import { getCustomerTypeLabel } from '@/lib/enum-labels';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import {
@@ -34,7 +35,7 @@ import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 export default function CustomersPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storeVersion = useImfexStore(); // Auto-subscribe to live store updates
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -176,7 +177,7 @@ export default function CustomersPage() {
                       </div>
                       <div className="min-w-0">
                         <span className="text-[9px] font-extrabold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          {customer.customerType}
+                          {getCustomerTypeLabel(customer.customerType, locale)}
                         </span>
                         <h3 className="font-bold text-sm leading-tight text-foreground mt-1 truncate">
                           {customer.companyName || customer.name}

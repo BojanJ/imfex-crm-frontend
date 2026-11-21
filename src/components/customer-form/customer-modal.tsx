@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { Customer, CustomerType } from '@/types';
 import { imfexStore } from '@/lib/store';
-import { X, Building2, User, UserCheck, ShieldCheck } from 'lucide-react';
+import { useI18n } from '@/lib/i18n-context';
+import { getCustomerTypeLabel } from '@/lib/enum-labels';
+import { X, Building2, User } from 'lucide-react';
 import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 
@@ -20,6 +22,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   customerToEdit,
   onSaveSuccess,
 }) => {
+  const { t, locale } = useI18n();
   const [customerType, setCustomerType] = useState<CustomerType>('COMPANY');
   const [name, setName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -121,17 +124,17 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base">
-                {customerToEdit ? 'Edit Customer Record' : 'Add New Customer'}
+                {customerToEdit ? t('customer_modal.edit_title') : t('customer_modal.add_title')}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Configure client metadata & billing specifics for quote generation.
+                {t('customer_modal.subtitle')}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Затвори"
+            aria-label={t('customer_modal.cancel')}
             className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -143,15 +146,15 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           {/* Customer Type Selector */}
           <div>
             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-              Customer Classification
+              {t('customer_modal.classification')}
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {(['COMPANY', 'PARTNER', 'INDIVIDUAL', 'OTHER'] as CustomerType[]).map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setCustomerType(type)}
-                  className={`py-2 px-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-all ${
+                  className={`py-2 px-2 rounded-lg border text-xs font-semibold flex flex-col items-center gap-1 transition-all cursor-pointer ${
                     customerType === type
                       ? 'border-primary bg-primary/10 text-primary shadow-sm'
                       : 'border-border bg-card text-muted-foreground hover:bg-muted'
@@ -162,7 +165,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                   ) : (
                     <Building2 className="w-4 h-4" />
                   )}
-                  {type}
+                  <span className="text-[11px]">{getCustomerTypeLabel(type, locale)}</span>
                 </button>
               ))}
             </div>
@@ -172,24 +175,24 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           {customerType === 'INDIVIDUAL' ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold mb-1">First Name *</label>
+                <label className="block text-xs font-semibold mb-1">{t('customer_modal.first_name')}</label>
                 <input
                   type="text"
                   required
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="e.g. Alexander"
+                  placeholder="пр. Александар"
                   className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold mb-1">Last Name *</label>
+                <label className="block text-xs font-semibold mb-1">{t('customer_modal.last_name')}</label>
                 <input
                   type="text"
                   required
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  placeholder="e.g. Wright"
+                  placeholder="пр. Петровски"
                   className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -197,34 +200,34 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold mb-1">Company Name *</label>
+                <label className="block text-xs font-semibold mb-1">{t('customer_modal.company_name')}</label>
                 <input
                   type="text"
                   required
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Logistics Hub Europe GmbH"
+                  placeholder="пр. Логистика Плус ДООЕЛ"
                   className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1">VAT / Tax ID (EDB)</label>
+                  <label className="block text-xs font-semibold mb-1">{t('customer_modal.tax_id')}</label>
                   <input
                     type="text"
                     value={taxId}
                     onChange={(e) => setTaxId(e.target.value)}
-                    placeholder="e.g. DE812345678"
+                    placeholder="пр. MK4030012345678"
                     className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Contact Person</label>
+                  <label className="block text-xs font-semibold mb-1">{t('customer_modal.contact_person')}</label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Hans Mueller (Procurement Manager)"
+                    placeholder="пр. Марко Стојановски"
                     className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -235,7 +238,7 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
           {/* Shared Fields */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold mb-1">Email Address</label>
+              <label className="block text-xs font-semibold mb-1">{t('customer_modal.email')}</label>
               <input
                 type="email"
                 value={email}
@@ -245,12 +248,12 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">Phone Number</label>
+              <label className="block text-xs font-semibold mb-1">{t('customer_modal.phone')}</label>
               <input
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="+49 89 1234567"
+                placeholder="+389 70 123 456"
                 className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -258,34 +261,34 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold mb-1">Billing / Shipping Address</label>
+              <label className="block text-xs font-semibold mb-1">{t('customer_modal.address')}</label>
               <input
                 type="text"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="Industriestrasse 42"
+                placeholder="Ул. Индустриска бр. 12"
                 className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1">City & Country</label>
+              <label className="block text-xs font-semibold mb-1">{t('customer_modal.city')}</label>
               <input
                 type="text"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                placeholder="Munich, Germany"
+                placeholder="Скопје"
                 className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold mb-1">Account Notes / Special Requirements</label>
+            <label className="block text-xs font-semibold mb-1">{t('customer_modal.notes')}</label>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Requires 18% standard VAT breakdown. Key account."
+              placeholder="..."
               className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary resize-none"
             />
           </div>
@@ -295,15 +298,15 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted transition-colors cursor-pointer"
             >
-              Cancel
+              {t('customer_modal.cancel')}
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
+              className="px-5 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
             >
-              {customerToEdit ? 'Update Customer' : 'Save Customer'}
+              {customerToEdit ? t('customer_modal.update') : t('customer_modal.save')}
             </button>
           </div>
         </form>

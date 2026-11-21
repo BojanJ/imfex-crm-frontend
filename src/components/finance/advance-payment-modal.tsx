@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Offer, Project, ProjectStatus, PaymentMethod, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { formatCurrency } from '@/lib/formatters';
+import { getOfferStatusLabel, getProjectStatusLabel } from '@/lib/enum-labels';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
@@ -59,14 +61,18 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
     (activeProject?.offerId ? imfexStore.getOfferById(activeProject.offerId) : activeProject?.offer) ||
     null;
 
+  const companySettings = imfexStore.getCompanySettings();
+  const defaultAdvancePct = Math.min(100, Math.max(0, Number(companySettings.defaultAdvancePercent ?? 50)));
   const totalAmount = Number(resolvedOffer?.totalAmount || 0);
-  const defaultAdvance = Math.round(totalAmount * 0.7 * 100) / 100;
+  const defaultAdvance = Math.round(((totalAmount * defaultAdvancePct) / 100) * 100) / 100;
 
-  const [percentage, setPercentage] = useState<string>('70');
+  const [percentage, setPercentage] = useState<string>(String(defaultAdvancePct));
   const [amount, setAmount] = useState<number>(defaultAdvance);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [method, setMethod] = useState<PaymentMethod>('BANK');
-  const [bankAccount, setBankAccount] = useState<string>('Комерцијална Банка — Ж-сметка');
+  const [bankAccount, setBankAccount] = useState<string>(
+    companySettings.bankAccount || 'Комерцијална Банка — Ж-сметка'
+  );
   const [createAdvanceInvoice, setCreateAdvanceInvoice] = useState<boolean>(true);
   const [nextAction, setNextAction] = useState<'PROCUREMENT_AND_DRAFT' | 'CUSTOM_STATUS' | 'ONLY_RECORD'>(
     'PROCUREMENT_AND_DRAFT'
@@ -92,8 +98,9 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
         (initOffId ? imfexStore.getOfferById(initOffId) : undefined) ||
         project?.offer;
       const baseTot = Number(initOfferObj?.totalAmount || 0);
-      setPercentage('70');
-      setAmount(Math.round(baseTot * 0.7 * 100) / 100);
+      const pct = Math.min(100, Math.max(0, Number(imfexStore.getCompanySettings().defaultAdvancePercent ?? 50)));
+      setPercentage(String(pct));
+      setAmount(Math.round(((baseTot * pct) / 100) * 100) / 100);
       setDate(new Date().toISOString().split('T')[0]);
       setIsConfirmOpen(false);
     }
@@ -118,7 +125,7 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
       setSelectedOfferId(offId);
       const offObj = offId ? imfexStore.getOfferById(offId) : proj?.offer;
       const newTotal = Number(offObj?.totalAmount || 0);
-      const pctNum = parseFloat(percentage) || 70;
+      const pctNum = parseFloat(percentage) || defaultAdvancePct;
       setAmount(Math.round(((newTotal * pctNum) / 100) * 100) / 100);
     } else if (targetVal.startsWith('OFFER:')) {
       const oId = targetVal.replace('OFFER:', '');
@@ -127,7 +134,7 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
       setSelectedOfferId(oId);
       setSelectedProjectId(linkedProj?.id || '');
       const newTotal = Number(offObj?.totalAmount || 0);
-      const pctNum = parseFloat(percentage) || 70;
+      const pctNum = parseFloat(percentage) || defaultAdvancePct;
       setAmount(Math.round(((newTotal * pctNum) / 100) * 100) / 100);
     }
   };
@@ -149,9 +156,9 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
         code: p.projectNumber,
         label: `${custName}${off ? ` (${off.offerNumber})` : ''}`,
         customerName: custName,
-        badge: p.status,
+        badge: getProjectStatusLabel(p.status, 'mk'),
         isActive: isProjActive,
-        sublabel: `Проект • Статус: ${p.status}${off ? ` • Вкупно по понуда: €${Number(off.totalAmount || 0).toFixed(2)}` : ''}`,
+        sublabel: `Проект • Статус: ${getProjectStatusLabel(p.status, 'mk')}${off ? ` • Вкупно по понуда: ${formatCurrency(off.totalAmount)}` : ''}`,
         keywords: [p.projectNumber, custName, cust?.taxId || '', off?.offerNumber || '', 'проект'],
       };
     }),
@@ -163,11 +170,11 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
       return {
         value: `OFFER:${o.id}`,
         code: o.offerNumber,
-        label: `${custName} (€${Number(o.totalAmount || 0).toFixed(2)})`,
+        label: `${custName} (${formatCurrency(o.totalAmount)})`,
         customerName: custName,
-        badge: o.status,
+        badge: getOfferStatusLabel(o.status, 'mk'),
         isActive: isOffActive,
-        sublabel: `Понуда • Статус: ${o.status}${linkedProj ? ` • Поврзан проект: ${linkedProj.projectNumber}` : ' • Нема проект'}`,
+        sublabel: `Понуда • Статус: ${getOfferStatusLabel(o.status, 'mk')}${linkedProj ? ` • Поврзан проект: ${linkedProj.projectNumber}` : ' • Нема проект'}`,
         keywords: [o.offerNumber, custName, cust?.taxId || '', `${o.totalAmount}`, 'понуда'],
       };
     }),

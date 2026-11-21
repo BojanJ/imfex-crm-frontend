@@ -252,7 +252,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                 }
               : { position: 'absolute', zIndex: 99999 }
           }
-          className="max-h-80 rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col animate-in fade-in-50 zoom-in-95 duration-100"
+          className="max-h-80 rounded-xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col transition-all duration-150"
         >
           {/* Search Box */}
           <div className="p-2 border-b border-border bg-muted/40 sticky top-0 z-10 space-y-1.5">
@@ -286,7 +286,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     onClick={() => setActiveOnly(false)}
                     className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
                       !activeOnly
-                        ? 'bg-background text-foreground shadow-xs'
+                        ? 'bg-background text-foreground shadow-sm'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -297,7 +297,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     onClick={() => setActiveOnly(true)}
                     className={`px-2 py-0.5 rounded font-bold transition-colors cursor-pointer ${
                       activeOnly
-                        ? 'bg-primary text-primary-foreground shadow-xs'
+                        ? 'bg-primary text-primary-foreground shadow-sm'
                         : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
@@ -353,7 +353,7 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
                     aria-selected={isSelected}
                     className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center justify-between transition-all cursor-pointer border ${
                       isSelected
-                        ? 'bg-primary/10 border-primary/30 text-primary font-bold shadow-xs'
+                        ? 'bg-primary/10 border-primary/30 text-primary font-bold shadow-sm'
                         : 'border-transparent text-foreground hover:bg-muted/70'
                     } ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >

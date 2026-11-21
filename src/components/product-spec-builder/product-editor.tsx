@@ -356,7 +356,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const selectedKeyObj = specificationKeys.find((k) => k.id === selectedSpecId);
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-6 shadow-xs space-y-6">
+    <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-6">
       {/* Product Header */}
       <div className="border-b border-border pb-4">
         {isEditing ? (
@@ -539,7 +539,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 onClick={() => setActiveTab('models')}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   activeTab === 'models'
-                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -550,7 +550,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 onClick={() => setActiveTab('specs')}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   activeTab === 'specs'
-                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -596,7 +596,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 <span>{t('products.add_model')}</span>
@@ -682,7 +682,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               <button
                 type="submit"
                 disabled={isSaving}
-                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                 <span>{t('products.add_spec')}</span>
@@ -706,7 +706,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                     onClick={() => setSelectedSpecId(key.id)}
                     className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
                       selectedSpecId === key.id
-                        ? 'border-primary bg-primary/10 font-bold text-primary shadow-xs'
+                        ? 'border-primary bg-primary/10 font-bold text-primary shadow-sm'
                         : 'border-border bg-card hover:bg-muted text-foreground'
                     }`}
                   >
@@ -814,7 +814,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       <button
                         type="submit"
                         disabled={isSaving}
-                        className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                        className="flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-sm cursor-pointer disabled:opacity-50"
                       >
                         {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                         <span>{t('products.add_option')}</span>

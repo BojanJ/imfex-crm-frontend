@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="mk" className="dark">
       <body className="bg-background text-foreground antialiased min-h-screen">
         <I18nProvider>
           <ToastProvider>

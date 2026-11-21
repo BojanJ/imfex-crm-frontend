@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore, generateTempPassword } from '@/lib/store';
+import { getUserRoleLabel } from '@/lib/enum-labels';
 import { UserProfile, UserRole } from '@/types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
@@ -31,7 +32,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 
 export default function SettingsPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const storeVersion = useImfexStore();
   const isSuperAdmin = imfexStore.getCurrentRole() === 'SUPER_ADMIN';
   const currentUser = imfexStore.getCurrentUser();
@@ -105,6 +106,10 @@ export default function SettingsPage() {
   const [companyTaxId, setCompanyTaxId] = useState(initialCompany.taxId);
   const [companyEmail, setCompanyEmail] = useState(initialCompany.email);
   const [companyPhone, setCompanyPhone] = useState(initialCompany.phone);
+  const [companyBankAccount, setCompanyBankAccount] = useState(initialCompany.bankAccount || '');
+  const [companyDefaultAdvance, setCompanyDefaultAdvance] = useState(
+    String(initialCompany.defaultAdvancePercent ?? 50)
+  );
   const [savedSuccess, setSavedSuccess] = useState(false);
   const companyHydratedRef = React.useRef(false);
 
@@ -122,6 +127,8 @@ export default function SettingsPage() {
       setCompanyTaxId(cs.taxId);
       setCompanyEmail(cs.email);
       setCompanyPhone(cs.phone);
+      setCompanyBankAccount(cs.bankAccount || '');
+      setCompanyDefaultAdvance(String(cs.defaultAdvancePercent ?? 50));
     }
   }, [storeVersion]);
 
@@ -222,14 +229,18 @@ export default function SettingsPage() {
 
   const handleSaveCompanySettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedAdvance = Math.min(100, Math.max(0, Math.round(Number(companyDefaultAdvance) || 50)));
     const saved = await imfexStore.saveCompanySettings({
       companyName: companyName.trim(),
       address: companyAddress.trim(),
       taxId: companyTaxId.trim(),
       email: companyEmail.trim(),
       phone: companyPhone.trim(),
+      bankAccount: companyBankAccount.trim() || undefined,
+      defaultAdvancePercent: parsedAdvance,
     });
     if (saved) {
+      setCompanyDefaultAdvance(String(saved.defaultAdvancePercent ?? parsedAdvance));
       setSavedSuccess(true);
       toast.success('Податоците за компанијата се зачувани!');
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -264,7 +275,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActiveTab('USERS')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === 'USERS' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                  activeTab === 'USERS' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
                 }`}
               >
                 <Users className="w-4 h-4 shrink-0" /> {t('users.title')}
@@ -273,7 +284,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActiveTab('COMPANY')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                  activeTab === 'COMPANY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+                  activeTab === 'COMPANY' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
                 }`}
               >
                 <Building2 className="w-4 h-4 shrink-0" /> {t('settings.company_details')}
@@ -284,10 +295,10 @@ export default function SettingsPage() {
             type="button"
             onClick={() => setActiveTab('SECURITY')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'SECURITY' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground'
+              activeTab === 'SECURITY' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 shrink-0" /> Безбедност
+            <ShieldCheck className="w-4 h-4 shrink-0" /> {t('settings.security_tab')}
           </button>
         </div>
       </div>
@@ -357,7 +368,7 @@ export default function SettingsPage() {
                               : 'bg-muted text-foreground'
                           }`}
                         >
-                          {usr.role === 'SUPER_ADMIN' ? 'Супер Администратор' : 'Продажен Агент'}
+                          {getUserRoleLabel(usr.role, locale)}
                         </span>
                       </td>
                       <td className="p-4 whitespace-nowrap">
@@ -467,6 +478,31 @@ export default function SettingsPage() {
               onChange={(e) => setCompanyAddress(e.target.value)}
               className="w-full px-3 py-1.5 rounded-lg border border-border bg-background outline-none"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-semibold mb-1">{t('settings.bank_account')}</label>
+              <input
+                type="text"
+                value={companyBankAccount}
+                onChange={(e) => setCompanyBankAccount(e.target.value)}
+                placeholder="пр. 300000001234567 (Комерцијална Банка)"
+                className="w-full px-3 py-1.5 rounded-lg border border-border bg-background outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1">{t('settings.default_advance')}</label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={companyDefaultAdvance}
+                onChange={(e) => setCompanyDefaultAdvance(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-border bg-background outline-none font-bold"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end pt-2">

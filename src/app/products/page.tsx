@@ -381,7 +381,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-5 pb-16">
       {/* Header matching HTML specification */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5 bg-card p-6 rounded-2xl shadow-xs">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5 bg-card p-6 rounded-2xl shadow-sm">
         <div>
           <small className="text-xs font-bold tracking-wider uppercase text-muted-foreground block">
             IMFEX CRM / МАГАЦИН
@@ -419,19 +419,19 @@ export default function ProductsPage() {
 
       {/* 3 KPI Summary Cards matching HTML (.cards) */}
       <div className="grid grid-cols-3 gap-3 sm:gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
           <small className="text-xs text-muted-foreground font-medium block">Вкупно артикли</small>
           <strong className="block text-2xl sm:text-3xl font-extrabold text-foreground mt-2">
             {totalCount}
           </strong>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
           <small className="text-xs text-muted-foreground font-medium block">Без залиха</small>
           <strong className="block text-2xl sm:text-3xl font-extrabold text-rose-500 mt-2">
             {zeroStockCount}
           </strong>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-xs">
+        <div className="bg-card border border-border rounded-xl p-4 sm:p-5 shadow-sm">
           <small className="text-xs text-muted-foreground font-medium block">По нарачка</small>
           <strong className="block text-2xl sm:text-3xl font-extrabold text-sky-400 mt-2">
             {customOrderCount}
@@ -496,7 +496,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Main Content Panel (.panel) */}
-      <section className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-xs">
+      <section className="bg-card border border-border rounded-xl p-5 sm:p-6 shadow-sm">
         {/* TAB 1: КАТАЛОГ */}
         {activeTab === 'catalog' && (
           <div className="space-y-4">
@@ -943,7 +943,7 @@ export default function ProductsPage() {
                         disabled={!isAccepted || isPaid}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
                       >
-                        2. Евидентирај аванс 70%
+                        2. Евидентирај аванс {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
                       </button>
                     </div>
                   </div>
@@ -1266,7 +1266,7 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
             type="submit"
             className="px-4 py-2 font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all shadow-md"
           >
-            Додади
+            Додај
           </button>
         </form>
 

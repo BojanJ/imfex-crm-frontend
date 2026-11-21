@@ -8,6 +8,8 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
+import { TIME_SLOTS_24H } from '@/lib/formatters';
+import { getCalendarEventTypeLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 import {
@@ -33,7 +35,7 @@ import {
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 
 export default function CalendarPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   useImfexStore(); // Auto-subscribe to store updates
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -215,23 +217,33 @@ export default function CalendarPage() {
     return days;
   }, [currentDate]);
 
+  const weekdayLabels = useMemo(
+    () =>
+      locale === 'mk'
+        ? ['Пон', 'Вто', 'Сре', 'Чет', 'Пет', 'Саб', 'Нед']
+        : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    [locale]
+  );
+
   // Helpers for 7-day Week Grid (Monday - Sunday)
   const weekDays = useMemo(() => {
     const start = new Date(currentDate);
     const offset = start.getDay() === 0 ? 6 : start.getDay() - 1;
     start.setDate(start.getDate() - offset);
-    const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start);
       d.setDate(start.getDate() + i);
-      return { date: d, label: labels[i], dateStr: toLocalDateStr(d) };
+      return { date: d, label: weekdayLabels[i], dateStr: toLocalDateStr(d) };
     });
-  }, [currentDate]);
+  }, [currentDate, weekdayLabels]);
 
   // Format Header Title
   const formattedHeaderTitle = useMemo(() => {
     if (viewMode === 'month') {
-      return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      return currentDate.toLocaleDateString(locale === 'mk' ? 'mk-MK' : 'en-US', {
+        month: 'long',
+        year: 'numeric',
+      });
     } else if (viewMode === 'week') {
       const start = new Date(currentDate);
       const day = start.getDay() === 0 ? 6 : start.getDay() - 1;
@@ -242,9 +254,9 @@ export default function CalendarPage() {
     } else if (viewMode === 'day') {
       return formatDate(currentDate);
     } else {
-      return 'Agenda Overview';
+      return t('calendar.agenda_overview');
     }
-  }, [currentDate, viewMode]);
+  }, [currentDate, viewMode, locale, t]);
 
   // Color helper for badges
   const getEventBadgeClass = (event: CalendarEvent) => {
@@ -283,7 +295,7 @@ export default function CalendarPage() {
             <span>{t('nav.calendar')}</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Unified schedule for commercial projects, field service tickets, and custom events.
+            {t('calendar.subtitle')}
           </p>
         </div>
 
@@ -291,7 +303,7 @@ export default function CalendarPage() {
           onClick={() => handleOpenAddEventModal()}
           className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all shadow-md cursor-pointer"
         >
-          <Plus className="w-4 h-4" /> Add Event
+          <Plus className="w-4 h-4" /> {t('calendar.add_event')}
         </button>
       </div>
 
@@ -304,7 +316,7 @@ export default function CalendarPage() {
               type="button"
               onClick={handlePrev}
               className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Previous"
+              title="Претходен"
               aria-label="Претходен период"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -313,7 +325,7 @@ export default function CalendarPage() {
               type="button"
               onClick={handleNext}
               className="p-1.5 rounded-lg border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              title="Next"
+              title="Следен"
               aria-label="Следен период"
             >
               <ChevronRight className="w-4 h-4" />
@@ -325,10 +337,10 @@ export default function CalendarPage() {
             onClick={handleToday}
             className="px-3 py-1.5 text-xs font-bold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors cursor-pointer"
           >
-            Today
+            {t('calendar.today')}
           </button>
 
-          <h2 className="font-extrabold text-base text-foreground tracking-tight">
+          <h2 className="font-extrabold text-base text-foreground tracking-tight capitalize">
             {formattedHeaderTitle}
           </h2>
         </div>
@@ -338,24 +350,17 @@ export default function CalendarPage() {
           {/* Category Filter Pills */}
           <div className="flex items-center gap-1 flex-wrap">
             <Filter className="w-3.5 h-3.5 text-muted-foreground" />
-            {[
-              { id: 'ALL', label: 'All' },
-              { id: 'PROJECT', label: 'Projects' },
-              { id: 'SERVICE', label: 'Service' },
-              { id: 'MEETING', label: 'Meetings' },
-              { id: 'INSTALLATION', label: 'Installations' },
-              { id: 'MAINTENANCE', label: 'Maintenance' },
-            ].map((f) => (
+            {(['ALL', 'PROJECT', 'SERVICE', 'MEETING', 'INSTALLATION', 'MAINTENANCE'] as const).map((fid) => (
               <button
-                key={f.id}
-                onClick={() => setFilterType(f.id)}
-                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors ${
-                  filterType === f.id
+                key={fid}
+                onClick={() => setFilterType(fid)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer ${
+                  filterType === fid
                     ? 'bg-primary/10 text-primary font-bold'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
-                {f.label}
+                {getCalendarEventTypeLabel(fid, locale)}
               </button>
             ))}
           </div>
@@ -366,13 +371,13 @@ export default function CalendarPage() {
               <button
                 key={v}
                 onClick={() => setViewMode(v)}
-                className={`px-3 py-1 rounded-lg capitalize transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
                   viewMode === v
-                    ? 'bg-card text-foreground font-bold shadow-xs'
+                    ? 'bg-card text-foreground font-bold shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {v}
+                {t(`calendar.${v}`)}
               </button>
             ))}
           </div>
@@ -384,13 +389,9 @@ export default function CalendarPage() {
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
           {/* Weekday Headers */}
           <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-bold text-muted-foreground py-2.5 uppercase tracking-wider">
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span>Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
-            <span>Sun</span>
+            {weekdayLabels.map((lbl) => (
+              <span key={lbl}>{lbl}</span>
+            ))}
           </div>
 
           {/* Grid Cells */}
@@ -806,12 +807,12 @@ export default function CalendarPage() {
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
-                {editingEventId ? 'Edit Calendar Appointment' : 'Create New Calendar Appointment'}
+                {editingEventId ? t('calendar.modal_edit') : t('calendar.modal_create')}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsNewEventModalOpen(false)}
-                aria-label="Затвори"
+                aria-label={t('calendar.cancel')}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -820,11 +821,11 @@ export default function CalendarPage() {
 
             <form onSubmit={handleSaveEvent} className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Event Title *</label>
+                <label className="block font-semibold mb-1">{t('calendar.event_title')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Client Site Survey / Installation Meeting"
+                  placeholder={locale === 'mk' ? 'пр. Теренски увид / Монтажа' : 'e.g. Client Site Survey / Installation'}
                   value={eventTitle}
                   onChange={(e) => setEventTitle(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-semibold"
@@ -833,13 +834,13 @@ export default function CalendarPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Category / Type</label>
+                  <label className="block font-semibold mb-1">{t('calendar.category_type')}</label>
                   <SearchableSelect
                     options={[
-                      { value: 'MEETING', label: 'Commercial Meeting' },
-                      { value: 'INSTALLATION', label: 'Field Installation' },
-                      { value: 'MAINTENANCE', label: 'Inspection / Maintenance' },
-                      { value: 'EVENT', label: 'General Task' },
+                      { value: 'MEETING', label: getCalendarEventTypeLabel('MEETING', locale) },
+                      { value: 'INSTALLATION', label: getCalendarEventTypeLabel('INSTALLATION', locale) },
+                      { value: 'MAINTENANCE', label: getCalendarEventTypeLabel('MAINTENANCE', locale) },
+                      { value: 'EVENT', label: getCalendarEventTypeLabel('EVENT', locale) },
                     ]}
                     value={eventType}
                     onChange={(val) => setEventType(val as CalendarEventType)}
@@ -848,19 +849,19 @@ export default function CalendarPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-1">Tag Client Account</label>
+                  <label className="block font-semibold mb-1">{t('calendar.tag_client')}</label>
                   <CustomerSelect
                     value={eventCustomerId}
                     onChange={(val) => setEventCustomerId(val)}
-                    placeholder="-- Select Client --"
+                    placeholder={locale === 'mk' ? '-- Избери Клиент --' : '-- Select Client --'}
                     allowClear
-                    clearLabel="-- None / Internal --"
+                    clearLabel={locale === 'mk' ? '-- Без Клиент --' : '-- None / Internal --'}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Link with Project (Optional)</label>
+                <label className="block font-semibold mb-1">{t('calendar.link_project')}</label>
                 <ProjectSelect
                   value={eventProjectId}
                   onChange={(val, prj) => {
@@ -869,15 +870,17 @@ export default function CalendarPage() {
                       setEventCustomerId(prj.customerId);
                     }
                   }}
-                  placeholder="-- Search project by PRJ- or client --"
+                  placeholder={locale === 'mk' ? '-- Пребарај проект по PRJ- или клиент --' : '-- Search project --'}
                   allowClear
-                  clearLabel="-- No Project Linked --"
+                  clearLabel={locale === 'mk' ? '-- Без поврзан проект --' : '-- No Project Linked --'}
                 />
               </div>
 
               <div className="space-y-2 pt-1 border-t border-border">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-muted-foreground uppercase text-[10px]">Schedule Timeframe</span>
+                  <span className="font-bold text-muted-foreground uppercase text-[10px]">
+                    {t('calendar.schedule_timeframe')}
+                  </span>
                   <label className="flex items-center gap-1.5 cursor-pointer font-semibold">
                     <input
                       type="checkbox"
@@ -885,13 +888,13 @@ export default function CalendarPage() {
                       onChange={(e) => setEventAllDay(e.target.checked)}
                       className="rounded accent-primary"
                     />
-                    All Day Event
+                    {t('calendar.all_day')}
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-semibold mb-1 text-muted-foreground">Start Date *</label>
+                    <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.start_date')}</label>
                     <input
                       type="date"
                       required
@@ -908,7 +911,7 @@ export default function CalendarPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1 text-muted-foreground">End Date</label>
+                    <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.end_date')}</label>
                     <input
                       type="date"
                       min={eventStartDate}
@@ -921,22 +924,38 @@ export default function CalendarPage() {
                   {!eventAllDay && (
                     <>
                       <div>
-                        <label className="block font-semibold mb-1 text-muted-foreground">Start Time</label>
-                        <input
-                          type="time"
-                          value={eventStartTime}
+                        <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.start_time')}</label>
+                        <select
+                          value={TIME_SLOTS_24H.includes(eventStartTime) ? eventStartTime : '09:00'}
                           onChange={(e) => setEventStartTime(e.target.value)}
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
-                        />
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-mono font-semibold"
+                        >
+                          {!TIME_SLOTS_24H.includes(eventStartTime) && eventStartTime && (
+                            <option value={eventStartTime}>{eventStartTime}</option>
+                          )}
+                          {TIME_SLOTS_24H.map((slot) => (
+                            <option key={slot} value={slot}>
+                              {slot}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                       <div>
-                        <label className="block font-semibold mb-1 text-muted-foreground">End Time</label>
-                        <input
-                          type="time"
-                          value={eventEndTime}
+                        <label className="block font-semibold mb-1 text-muted-foreground">{t('calendar.end_time')}</label>
+                        <select
+                          value={TIME_SLOTS_24H.includes(eventEndTime) ? eventEndTime : '10:00'}
                           onChange={(e) => setEventEndTime(e.target.value)}
-                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-semibold"
-                        />
+                          className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-mono font-semibold"
+                        >
+                          {!TIME_SLOTS_24H.includes(eventEndTime) && eventEndTime && (
+                            <option value={eventEndTime}>{eventEndTime}</option>
+                          )}
+                          {TIME_SLOTS_24H.map((slot) => (
+                            <option key={slot} value={slot}>
+                              {slot}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </>
                   )}
@@ -944,10 +963,10 @@ export default function CalendarPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Location / Address</label>
+                <label className="block font-semibold mb-1">{t('calendar.location')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Skopje Industrial Park, Bldg 4"
+                  placeholder={locale === 'mk' ? 'пр. Индустриска Зона Скопје' : 'e.g. Skopje Industrial Park'}
                   value={eventLocation}
                   onChange={(e) => setEventLocation(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs rounded-xl border border-border bg-background outline-none font-medium"
@@ -955,10 +974,10 @@ export default function CalendarPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Notes / Description</label>
+                <label className="block font-semibold mb-1">{t('calendar.notes')}</label>
                 <textarea
                   rows={3}
-                  placeholder="Add meeting agenda or installation instructions..."
+                  placeholder={locale === 'mk' ? 'Додадете забелешки или инструкции...' : 'Add notes or instructions...'}
                   value={eventDescription}
                   onChange={(e) => setEventDescription(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background outline-none font-medium"
@@ -969,15 +988,15 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setIsNewEventModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-border hover:bg-muted text-muted-foreground"
+                  className="px-4 py-2 text-xs font-semibold rounded-xl border border-border hover:bg-muted text-muted-foreground cursor-pointer"
                 >
-                  Cancel
+                  {t('calendar.cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                  className="px-5 py-2 text-xs font-bold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm cursor-pointer"
                 >
-                  {editingEventId ? 'Save Changes' : 'Create Event'}
+                  {editingEventId ? t('calendar.save_changes') : t('calendar.create')}
                 </button>
               </div>
             </form>

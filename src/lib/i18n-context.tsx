@@ -34,6 +34,12 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = locale;
+    }
+  }, [locale]);
+
   const setLocale = (l: Locale) => {
     setLocaleState(l);
     localStorage.setItem('imfex_locale', l);
