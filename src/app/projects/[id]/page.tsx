@@ -15,6 +15,9 @@ import {
 import { imfexStore, useImfexStore } from '@/lib/store';
 import {
   useProjectQuery,
+  useProjectNotesQuery,
+  useAddProjectNoteMutation,
+  useDeleteProjectNoteMutation,
   useProfilesQuery,
   useOffersQuery,
   useSalesInvoicesQuery,
@@ -22,11 +25,13 @@ import {
   usePaymentsQuery,
   useProductsQuery,
 } from '@/lib/queries';
-import { formatDate } from '@/lib/date-format';
+import { computeProjectFinancialSummary } from '@/lib/selectors';
+import { formatDate, formatDateTime } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getProjectStatusLabel, getUserRoleLabel } from '@/lib/enum-labels';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui/page-primitives';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
@@ -43,6 +48,8 @@ import {
   PenTool,
   Building2,
   Loader2,
+  MessageSquare,
+  Send,
   Euro,
   FileText,
   TrendingUp,
@@ -132,13 +139,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const projectId = resolvedParams?.id;
   useImfexStore(); // Subscribe to multi-step workflow mutations (advance payment, dispatch, attachments)
   const projectQuery = useProjectQuery(projectId);
+  const projectNotesQuery = useProjectNotesQuery(projectId);
+  const addNoteMutation = useAddProjectNoteMutation(projectId || '');
+  const deleteNoteMutation = useDeleteProjectNoteMutation(projectId || '');
   const profilesQuery = useProfilesQuery();
-  // Ensure financial & catalog queries are loaded so Financial Summary never displays €0.00 (FE-16)
-  useOffersQuery();
-  useSalesInvoicesQuery();
-  usePurchaseInvoicesQuery();
-  usePaymentsQuery();
-  useProductsQuery();
+  // Pure TanStack Query feeds for Financial Summary (IMP-08 / FE-16)
+  const offersQuery = useOffersQuery();
+  const salesInvoicesQuery = useSalesInvoicesQuery();
+  const purchaseInvoicesQuery = usePurchaseInvoicesQuery();
+  const paymentsQuery = usePaymentsQuery();
+  const productsQuery = useProductsQuery();
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const currentUser = imfexStore.getCurrentUser();
 
   const [project, setProject] = useState<Project | null>(null);
   const profiles: UserProfile[] = profilesQuery.data ?? imfexStore.getProfiles();
@@ -751,20 +763,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
                   <label className="block font-medium text-muted-foreground">{t('projects.start_date')}</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium"
+                    onChange={(val) => setStartDate(val)}
+                    ariaLabel={t('projects.start_date')}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium text-xs"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="block font-medium text-muted-foreground">{t('projects.target_deadline')}</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={targetDeliveryDate}
-                    onChange={(e) => setTargetDeliveryDate(e.target.value)}
-                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium text-amber-700 dark:text-amber-400"
+                    onChange={(val) => setTargetDeliveryDate(val)}
+                    ariaLabel={t('projects.target_deadline')}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background outline-none font-medium text-xs text-amber-700 dark:text-amber-400"
                   />
                 </div>
               </div>
@@ -962,9 +974,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </SectionCard>
 
-          {/* Card 2.8: Project Financial Summary */}
+          {/* Card 2.8: Project Financial Summary (Pure TanStack Query Selector — IMP-08) */}
           {(() => {
-            const fin = imfexStore.getProjectFinancialSummary(project.id, project);
+            const fin = computeProjectFinancialSummary({
+              project,
+              offers: offersQuery.data ?? imfexStore.getOffers(),
+              salesInvoices: salesInvoicesQuery.data ?? imfexStore.getSalesInvoices(),
+              purchaseInvoices: purchaseInvoicesQuery.data ?? imfexStore.getPurchaseInvoices(),
+              payments: paymentsQuery.data ?? imfexStore.getPayments(),
+              products: productsQuery.data ?? imfexStore.getProducts(),
+            });
             return (
               <SectionCard
                 title="Финансиски биланс"
@@ -1088,11 +1107,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
               <div>
                 <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.actual_delivery')}</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={actualDeliveryDate}
-                  onChange={(e) => setActualDeliveryDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold"
+                  onChange={(val) => setActualDeliveryDate(val)}
+                  ariaLabel={t('projects.actual_delivery')}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-xs"
                 />
               </div>
             </div>
@@ -1128,11 +1147,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
               <div>
                 <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.installation_date')}</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={installationDate}
-                  onChange={(e) => setInstallationDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-orange-600"
+                  onChange={(val) => setInstallationDate(val)}
+                  ariaLabel={t('projects.installation_date')}
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold text-xs text-orange-600"
                 />
               </div>
             </div>
@@ -1460,6 +1479,135 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               );
             })()}
           </div>
+
+          {/* Card 6: Internal Project Comments & Activity Timeline (IMP-10) */}
+          <SectionCard
+            title={t('projects.notes_title')}
+            subtitle={t('projects.notes_subtitle')}
+            icon={<MessageSquare className="w-4 h-4 text-primary" />}
+          >
+            <div className="space-y-4">
+              {/* Milestone Chips */}
+              <div className="flex flex-wrap gap-2">
+                {project.createdAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted/50 border border-border text-[11px] text-muted-foreground tabular-nums">
+                    <CheckCircle2 className="w-3 h-3 text-primary" />
+                    <span>{t('projects.milestone_created')}:</span>
+                    <strong className="text-foreground">{formatDate(project.createdAt)}</strong>
+                  </span>
+                )}
+                {project.acceptedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-400 tabular-nums">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{t('projects.milestone_accepted')}:</span>
+                    <strong>{formatDate(project.acceptedAt)}</strong>
+                  </span>
+                )}
+                {project.supplierOrderedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/20 text-[11px] text-primary tabular-nums">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{t('projects.milestone_ordered')}:</span>
+                    <strong>{formatDate(project.supplierOrderedAt)}</strong>
+                  </span>
+                )}
+                {project.warehouseReceivedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-400 tabular-nums">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{t('projects.milestone_delivered')}:</span>
+                    <strong>{formatDate(project.warehouseReceivedAt)}</strong>
+                  </span>
+                )}
+                {project.dispatchIssuedAt && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-700 dark:text-emerald-400 tabular-nums">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>{t('projects.milestone_dispatched')}:</span>
+                    <strong>{formatDate(project.dispatchIssuedAt)}</strong>
+                  </span>
+                )}
+              </div>
+
+              {/* Add Internal Note Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const content = newNoteContent.trim();
+                  if (!content) return;
+                  addNoteMutation.mutate(content, {
+                    onSuccess: () => {
+                      setNewNoteContent('');
+                    },
+                  });
+                }}
+                className="flex flex-col sm:flex-row gap-2"
+              >
+                <input
+                  type="text"
+                  value={newNoteContent}
+                  onChange={(e) => setNewNoteContent(e.target.value)}
+                  placeholder={t('projects.notes_placeholder')}
+                  maxLength={2000}
+                  className="flex-1 h-9 px-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-xs"
+                />
+                <button
+                  type="submit"
+                  disabled={addNoteMutation.isPending || !newNoteContent.trim()}
+                  className="h-9 px-4 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{addNoteMutation.isPending ? t('projects.notes_adding') : t('projects.notes_add_btn')}</span>
+                </button>
+              </form>
+
+              {/* Notes Feed */}
+              <div className="space-y-2.5">
+                {projectNotesQuery.isPending ? (
+                  <div className="py-4 text-center text-muted-foreground text-xs">
+                    <Loader2 className="w-4 h-4 animate-spin inline mr-1.5" />
+                  </div>
+                ) : (projectNotesQuery.data || []).length === 0 ? (
+                  <div className="p-4 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                    {t('projects.notes_empty')}
+                  </div>
+                ) : (
+                  (projectNotesQuery.data || []).map((note) => {
+                    const canDelete =
+                      currentUser?.role === 'SUPER_ADMIN' ||
+                      (note.authorId && currentUser?.id === note.authorId);
+                    return (
+                      <div
+                        key={note.id}
+                        className="p-3.5 rounded-xl border border-border bg-muted/20 flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-foreground">{note.authorName}</span>
+                            <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                              {formatDateTime(note.createdAt)}
+                            </span>
+                          </div>
+                          <p className="text-foreground/90 whitespace-pre-wrap break-words leading-relaxed">
+                            {note.content}
+                          </p>
+                        </div>
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={() => deleteNoteMutation.mutate(note.id)}
+                            disabled={deleteNoteMutation.isPending}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer shrink-0"
+                            title={t('projects.notes_delete')}
+                            aria-label={t('projects.notes_delete')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </SectionCard>
         </div>
       </div>
 

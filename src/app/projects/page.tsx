@@ -220,15 +220,15 @@ export default function ProjectsPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-[11px] text-muted-foreground">
-              Повлечете картичка во друга колона за да го промените статусот на проектот.
+              {t('projects.kanban_hint')}
             </p>
             <div className="inline-flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => scrollKanban('left')}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                aria-label="Скролај лево"
-                title="Скролај лево"
+                aria-label={t('projects.scroll_left')}
+                title={t('projects.scroll_left')}
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
               </button>
@@ -236,8 +236,8 @@ export default function ProjectsPage() {
                 type="button"
                 onClick={() => scrollKanban('right')}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                aria-label="Скролај десно"
-                title="Скролај десно"
+                aria-label={t('projects.scroll_right')}
+                title={t('projects.scroll_right')}
               >
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
@@ -283,7 +283,7 @@ export default function ProjectsPage() {
                             : 'border-border/70 text-muted-foreground/70'
                         }`}
                       >
-                        {isDropTarget ? 'Пушти тука' : 'Нема проекти'}
+                        {isDropTarget ? t('projects.drop_here') : t('projects.no_projects')}
                       </div>
                     ) : (
                       colProjects.map((prj) => {
@@ -349,7 +349,7 @@ export default function ProjectsPage() {
         <div className="space-y-4">
           <div className="surface-card rounded-xl p-3.5 space-y-2.5 hidden md:block">
             <p className="text-[11px] font-medium text-muted-foreground">
-              Повлечете ред од табелата врз статус за промена:
+              {t('projects.table_drag_hint')}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
               {statuses.map((st) => {
@@ -385,7 +385,7 @@ export default function ProjectsPage() {
             {/* Mobile Stacked Cards */}
             <div className="divide-y divide-border md:hidden">
               {filtered.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">Нема пронајдено проекти.</div>
+                <div className="p-8 text-center text-muted-foreground">{t('projects.no_projects_found')}</div>
               ) : (
                 filtered.map((p) => (
                   <div key={p.id} className="p-4 space-y-3">
@@ -419,7 +419,7 @@ export default function ProjectsPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1 truncate">
                         <User className="w-3 h-3 shrink-0" />
-                        <span>{p.responsibleUser?.fullName || 'Недоделено'}</span>
+                        <span>{p.responsibleUser?.fullName || t('projects.unassigned')}</span>
                       </span>
                       <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium tabular-nums">
                         <Calendar className="w-3 h-3 shrink-0" />
@@ -484,7 +484,7 @@ export default function ProjectsPage() {
                           {p.customer?.companyName || p.customer?.name}
                         </td>
                         <td className="px-4 py-3.5 text-muted-foreground">
-                          {p.responsibleUser?.fullName || 'Недоделено'}
+                          {p.responsibleUser?.fullName || t('projects.unassigned')}
                         </td>
                         <td className="px-4 py-3.5">
                           <select

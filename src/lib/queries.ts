@@ -262,15 +262,6 @@ export function useCompanySettingsQuery() {
   });
 }
 
-export function useAuditLogsQuery(enabled = true, limit = 50) {
-  return useQuery({
-    queryKey: queryKeys.auditLogs(limit),
-    queryFn: () => apiClient.auditLogs.list(limit),
-    enabled: enabled && isAuthed(),
-    staleTime: 15_000,
-  });
-}
-
 // =========================================================================
 // MUTATIONS WITH OPTIMISTIC UPDATES & ROLLBACK
 // =========================================================================
@@ -514,5 +505,64 @@ export function useUpdateCompanySettingsMutation() {
       imfexStore.syncCollectionFromQuery('companySettings', saved);
       void qc.invalidateQueries({ queryKey: queryKeys.companySettings });
     },
+  });
+}
+
+// =========================================================================
+// PROJECT NOTES / TIMELINE (IMP-10)
+// =========================================================================
+
+export function useProjectNotesQuery(projectId?: string) {
+  return useQuery({
+    queryKey: queryKeys.projectNotes(projectId || ''),
+    queryFn: () => apiClient.projects.listNotes(projectId!),
+    enabled: Boolean(projectId) && isAuthed(),
+  });
+}
+
+export function useAddProjectNoteMutation(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) => apiClient.projects.addNote(projectId, content),
+    onError: (err) => {
+      toast.error('Грешка при зачувување на коментар', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.projectNotes(projectId) });
+    },
+  });
+}
+
+export function useDeleteProjectNoteMutation(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (noteId: string) => apiClient.projects.deleteNote(projectId, noteId),
+    onError: (err) => {
+      toast.error('Коментарот не може да се избрише', err instanceof ApiError ? err.message : undefined);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.projectNotes(projectId) });
+    },
+  });
+}
+
+// =========================================================================
+// AUDIT LOGS (IMP-09, SUPER_ADMIN only)
+// =========================================================================
+
+export function useAuditLogsQuery(
+  params: {
+    limit?: number;
+    offset?: number;
+    action?: string;
+    entityType?: string;
+    search?: string;
+  },
+  enabled = true
+) {
+  return useQuery({
+    queryKey: queryKeys.auditLogs(params),
+    queryFn: () => apiClient.auditLogs.query(params),
+    enabled: enabled && isAuthed(),
   });
 }

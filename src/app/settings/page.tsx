@@ -4,10 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore, generateTempPassword } from '@/lib/store';
 import {
+  useAuditLogsQuery,
   useCompanySettingsQuery,
   useProfilesQuery,
   useUpdateCompanySettingsMutation,
 } from '@/lib/queries';
+import { formatDateTime } from '@/lib/date-format';
 import { getUserRoleLabel } from '@/lib/enum-labels';
 import { UserProfile, UserRole } from '@/types';
 import { SearchableSelect } from '@/components/ui/searchable-select';
@@ -31,6 +33,10 @@ import {
   EyeOff,
   Loader2,
   X,
+  ClipboardList,
+  Search,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -43,7 +49,7 @@ import {
   TabItem,
 } from '@/components/ui/page-primitives';
 
-type SettingsTab = 'USERS' | 'COMPANY' | 'SECURITY' | 'MAINTENANCE';
+type SettingsTab = 'USERS' | 'COMPANY' | 'SECURITY' | 'AUDIT' | 'MAINTENANCE';
 
 export default function SettingsPage() {
   const { t, locale } = useI18n();
@@ -274,17 +280,32 @@ export default function SettingsPage() {
   });
   useEscapeKey(showAddUserModal, () => setShowAddUserModal(false));
 
+  // Audit Log viewer state (IMP-09, SUPER_ADMIN only)
+  const AUDIT_PAGE_SIZE = 25;
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditEntityFilter, setAuditEntityFilter] = useState('ALL');
+  const [auditPage, setAuditPage] = useState(0);
+  const auditQuery = useAuditLogsQuery(
+    {
+      limit: AUDIT_PAGE_SIZE,
+      offset: auditPage * AUDIT_PAGE_SIZE,
+      entityType: auditEntityFilter,
+      search: auditSearch,
+    },
+    isSuperAdmin && activeTab === 'AUDIT'
+  );
+
   const tabs: TabItem[] = isSuperAdmin
     ? [
         {
           id: 'USERS',
-          label: locale === 'mk' ? 'Корисници' : 'Users',
+          label: t('settings.tab_users'),
           count: profilesQuery.isPending && profiles.length === 0 ? undefined : profiles.length,
           icon: <Users className="w-3.5 h-3.5" />,
         },
         {
           id: 'COMPANY',
-          label: locale === 'mk' ? 'Компанија' : 'Company',
+          label: t('settings.tab_company'),
           icon: <Building2 className="w-3.5 h-3.5" />,
         },
         {
@@ -293,8 +314,13 @@ export default function SettingsPage() {
           icon: <ShieldCheck className="w-3.5 h-3.5" />,
         },
         {
+          id: 'AUDIT',
+          label: t('settings.tab_audit'),
+          icon: <ClipboardList className="w-3.5 h-3.5" />,
+        },
+        {
           id: 'MAINTENANCE',
-          label: locale === 'mk' ? 'Одржување' : 'Maintenance',
+          label: t('settings.tab_maintenance'),
           icon: <Database className="w-3.5 h-3.5" />,
         },
       ]
@@ -344,10 +370,7 @@ export default function SettingsPage() {
       {!isSuperAdmin && (
         <div className="p-3.5 bg-muted/50 border border-border text-muted-foreground rounded-xl text-xs flex items-center gap-2.5">
           <Lock className="w-4 h-4 shrink-0 text-primary" />
-          <span>
-            Управувањето со корисници и системските подесувања на компанијата се достапни само за{' '}
-            <strong className="text-foreground">Супер Администратор</strong>. Овде можете да ја промените вашата лозинка.
-          </span>
+          <span>{t('settings.non_admin_notice')}</span>
         </div>
       )}
 
@@ -440,7 +463,7 @@ export default function SettingsPage() {
         <div className="max-w-3xl">
           <SectionCard
             title={t('settings.company_details')}
-            subtitle="Податоците се користат автоматски на PDF понуди, фактури, испратници и е-пошта."
+            subtitle={t('settings.company_helper')}
             icon={<Building2 className="w-4 h-4" />}
           >
             <form onSubmit={handleSaveCompanySettings} className="space-y-4 text-xs">
@@ -546,8 +569,8 @@ export default function SettingsPage() {
       {activeTab === 'SECURITY' && (
         <div className="max-w-xl">
           <SectionCard
-            title="Промена на сопствена лозинка"
-            subtitle={currentUser?.email ? `Сметка: ${currentUser.email}` : undefined}
+            title={t('settings.pwd_title')}
+            subtitle={currentUser?.email ? `${t('settings.pwd_account')} ${currentUser.email}` : undefined}
             icon={<ShieldCheck className="w-4 h-4" />}
             action={
               <button
@@ -556,7 +579,7 @@ export default function SettingsPage() {
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-[11px] font-medium cursor-pointer transition-colors"
               >
                 {showPwdFields ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                <span>{showPwdFields ? 'Сокриј' : 'Прикажи'}</span>
+                <span>{showPwdFields ? t('settings.pwd_hide') : t('settings.pwd_show')}</span>
               </button>
             }
           >
@@ -564,7 +587,7 @@ export default function SettingsPage() {
               {pwdSuccess && (
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg font-medium flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>Лозинката е успешно променета!</span>
+                  <span>{t('settings.pwd_success')}</span>
                 </div>
               )}
 
@@ -575,7 +598,7 @@ export default function SettingsPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="block font-medium text-muted-foreground">Тековна лозинка *</label>
+                <label className="block font-medium text-muted-foreground">{t('settings.pwd_current')}</label>
                 <input
                   type={showPwdFields ? 'text' : 'password'}
                   required
@@ -590,7 +613,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="block font-medium text-muted-foreground">
-                    Нова лозинка (мин. 8 знаци) *
+                    {t('settings.pwd_new')}
                   </label>
                   <input
                     type={showPwdFields ? 'text' : 'password'}
@@ -599,13 +622,13 @@ export default function SettingsPage() {
                     autoComplete="new-password"
                     value={newPwd}
                     onChange={(e) => setNewPwd(e.target.value)}
-                    placeholder="Најмалку 8 карактери"
+                    placeholder={t('settings.pwd_new_placeholder')}
                     className={inputClass}
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="block font-medium text-muted-foreground">Потврди нова лозинка *</label>
+                  <label className="block font-medium text-muted-foreground">{t('settings.pwd_confirm')}</label>
                   <input
                     type={showPwdFields ? 'text' : 'password'}
                     required
@@ -613,7 +636,7 @@ export default function SettingsPage() {
                     autoComplete="new-password"
                     value={confirmPwd}
                     onChange={(e) => setConfirmPwd(e.target.value)}
-                    placeholder="Повторете ја новата лозинка"
+                    placeholder={t('settings.pwd_confirm_placeholder')}
                     className={inputClass}
                   />
                 </div>
@@ -627,11 +650,11 @@ export default function SettingsPage() {
                 >
                   {isChangingPwd ? (
                     <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> Се зачувува...
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('settings.pwd_saving')}
                     </>
                   ) : (
                     <>
-                      <KeyRound className="w-3.5 h-3.5" /> Промени лозинка
+                      <KeyRound className="w-3.5 h-3.5" /> {t('settings.pwd_submit')}
                     </>
                   )}
                 </button>
@@ -641,7 +664,170 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tab 4: Database Maintenance & Danger Zone (SUPER_ADMIN only) */}
+      {/* Tab 4: Audit Log Viewer (IMP-09, SUPER_ADMIN only) */}
+      {isSuperAdmin && activeTab === 'AUDIT' && (
+        <SectionCard
+          title={t('settings.audit_title')}
+          subtitle={t('settings.audit_subtitle')}
+          icon={<ClipboardList className="w-4 h-4" />}
+          action={
+            <button
+              type="button"
+              onClick={() => void auditQuery.refetch()}
+              disabled={auditQuery.isFetching}
+              className="h-8 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${auditQuery.isFetching ? 'animate-spin' : ''}`} />
+              <span>{t('settings.audit_refresh')}</span>
+            </button>
+          }
+          noPadding
+        >
+          <div className="p-4 border-b border-border/70 flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                value={auditSearch}
+                onChange={(e) => {
+                  setAuditSearch(e.target.value);
+                  setAuditPage(0);
+                }}
+                placeholder={t('settings.audit_search_placeholder')}
+                className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+            </div>
+            <select
+              value={auditEntityFilter}
+              onChange={(e) => {
+                setAuditEntityFilter(e.target.value);
+                setAuditPage(0);
+              }}
+              aria-label={t('settings.audit_col_entity')}
+              className="h-9 px-3 text-xs rounded-lg border border-border bg-background text-foreground font-medium outline-none focus:border-primary cursor-pointer sm:w-52"
+            >
+              <option value="ALL">{t('settings.audit_all_entities')}</option>
+              {[
+                'Auth',
+                'Customer',
+                'Offer',
+                'Project',
+                'ServiceTicket',
+                'Product',
+                'SalesInvoice',
+                'PurchaseInvoice',
+                'DispatchNote',
+                'PaymentRecord',
+                'Profile',
+                'CompanySettings',
+                'System',
+              ].map((ent) => (
+                <option key={ent} value={ent}>
+                  {ent}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('settings.audit_col_time')}</th>
+                  <th className="px-4 py-3">{t('settings.audit_col_actor')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('settings.audit_col_action')}</th>
+                  <th className="px-4 py-3">{t('settings.audit_col_entity')}</th>
+                  <th className="px-4 py-3 whitespace-nowrap">{t('settings.audit_col_ip')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {auditQuery.isPending ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
+                      ...
+                    </td>
+                  </tr>
+                ) : (auditQuery.data?.logs || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      {t('settings.audit_empty')}
+                    </td>
+                  </tr>
+                ) : (
+                  (auditQuery.data?.logs || []).map((entry) => {
+                    const actionTone = entry.action.includes('DELETE') || entry.action.includes('RESET')
+                      ? 'danger'
+                      : entry.action.includes('LOGIN') || entry.action.includes('PASSWORD')
+                      ? 'warning'
+                      : 'primary';
+                    return (
+                      <tr key={entry.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px] text-muted-foreground tabular-nums">
+                          {formatDateTime(entry.createdAt)}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-foreground">
+                          {entry.actorEmail || '—'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <StatusBadge variant={actionTone}>{entry.action}</StatusBadge>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          <span className="font-medium text-foreground">{entry.entityType || '—'}</span>
+                          {entry.entityId && (
+                            <span className="block font-mono text-[10px] text-muted-foreground truncate max-w-[180px]">
+                              {entry.entityId}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap font-mono text-[11px] text-muted-foreground">
+                          {entry.ipAddress || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {auditQuery.data && auditQuery.data.totalCount > 0 && (
+            <div className="px-4 py-3 border-t border-border/70 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="tabular-nums">
+                {t('settings.audit_showing')}{' '}
+                <strong className="text-foreground">
+                  {auditPage * AUDIT_PAGE_SIZE + 1}–
+                  {Math.min((auditPage + 1) * AUDIT_PAGE_SIZE, auditQuery.data.totalCount)}
+                </strong>{' '}
+                {t('settings.audit_of')}{' '}
+                <strong className="text-foreground">{auditQuery.data.totalCount}</strong>
+              </span>
+              <div className="inline-flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={auditPage === 0}
+                  onClick={() => setAuditPage((p) => Math.max(0, p - 1))}
+                  className="h-8 px-2.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>{t('settings.audit_prev')}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={(auditPage + 1) * AUDIT_PAGE_SIZE >= auditQuery.data.totalCount}
+                  onClick={() => setAuditPage((p) => p + 1)}
+                  className="h-8 px-2.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <span>{t('settings.audit_next')}</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </SectionCard>
+      )}
+
+      {/* Tab 5: Database Maintenance & Danger Zone (SUPER_ADMIN only) */}
       {isSuperAdmin && activeTab === 'MAINTENANCE' && (
         <div className="max-w-3xl space-y-5 text-xs">
           {syncStatusMsg && (
@@ -652,13 +838,13 @@ export default function SettingsPage() {
           )}
 
           <SectionCard
-            title="Синхронизација на база"
-            subtitle="Ги отстранува оштетените записи и повторно ги синхронизира податоците со PostgreSQL."
+            title={t('settings.sync_title')}
+            subtitle={t('settings.sync_subtitle')}
             icon={<Database className="w-4 h-4" />}
           >
             <div className="flex flex-wrap items-center justify-between gap-4">
               <p className="text-muted-foreground max-w-lg">
-                Користете ја оваа алатка доколку забележите неконзистентни записи во локалниот кеш или по масовен увоз.
+                {t('settings.sync_desc')}
               </p>
               <button
                 type="button"
@@ -667,7 +853,7 @@ export default function SettingsPage() {
                 className="h-9 px-4 font-medium rounded-lg border border-border bg-background hover:bg-muted text-foreground inline-flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>{isSyncing ? 'Се синхронизира...' : 'Исчисти и Синхронизирај'}</span>
+                <span>{isSyncing ? t('settings.sync_running') : t('settings.sync_btn')}</span>
               </button>
             </div>
           </SectionCard>
@@ -677,16 +863,16 @@ export default function SettingsPage() {
               <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
               <div>
                 <h2 className="text-sm font-semibold text-rose-700 dark:text-rose-400">
-                  Опасна Зона — Целосно ресетирање
+                  {t('settings.danger_title')}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Оневозможено во продукција по дифолт. Неповратна акција.
+                  {t('settings.danger_subtitle')}
                 </p>
               </div>
             </div>
             <div className="p-5 flex flex-wrap items-center justify-between gap-4">
               <p className="text-muted-foreground max-w-lg">
-                Трајно ги брише сите клиенти, производи, понуди, проекти, фактури, уплати и тикети, оставајќи го само активниот Супер Администратор.
+                {t('settings.danger_desc')}
               </p>
               <button
                 type="button"
@@ -697,7 +883,7 @@ export default function SettingsPage() {
                 className="h-9 px-4 font-semibold rounded-lg border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 inline-flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Ресетирај Систем</span>
+                <span>{t('settings.reset_btn')}</span>
               </button>
             </div>
           </section>
@@ -716,7 +902,7 @@ export default function SettingsPage() {
           }}
           role="dialog"
           aria-modal="true"
-          aria-label="Потврда за целосно ресетирање на базата"
+          aria-label={t('settings.reset_modal_title')}
         >
           <div
             className="bg-card border border-rose-500/35 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-xl text-xs"
@@ -728,27 +914,27 @@ export default function SettingsPage() {
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-sm text-foreground">Целосно бришење и ресетирање?</h3>
-                  <p className="text-[11px] text-muted-foreground">Неповратна акција врз базата</p>
+                  <h3 className="font-semibold text-sm text-foreground">{t('settings.reset_modal_title')}</h3>
+                  <p className="text-[11px] text-muted-foreground">{t('settings.reset_modal_subtitle')}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => !isResetting && setShowResetModal(false)}
                 className="p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted cursor-pointer"
-                aria-label="Затвори"
+                aria-label={t('service.close')}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <p className="text-muted-foreground leading-relaxed bg-muted/40 p-3 rounded-lg border border-border">
-              Оваа акција трајно ќе ги избрише <strong className="text-foreground">сите деловни записи</strong> (клиенти, производи, понуди, проекти, фактури, уплати, тикети и настани).
+              {t('settings.reset_modal_warning')}
             </p>
 
             <div className="space-y-1.5">
               <label className="block font-medium text-foreground">
-                Внесете <code className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700 dark:text-rose-400 font-mono">RESET</code> за потврда:
+                {t('settings.reset_modal_prompt')}
               </label>
               <input
                 type="text"
@@ -769,7 +955,7 @@ export default function SettingsPage() {
                 disabled={isResetting}
                 className="h-9 px-4 font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground cursor-pointer"
               >
-                Откажи
+                {t('settings.reset_modal_cancel')}
               </button>
               <button
                 type="button"
@@ -778,7 +964,7 @@ export default function SettingsPage() {
                 className="h-9 inline-flex items-center gap-1.5 px-4 font-semibold rounded-lg bg-rose-600 hover:bg-rose-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isResetting ? 'Се ресетира...' : 'Ресетирај База'}</span>
+                <span>{isResetting ? t('settings.reset_modal_running') : t('settings.reset_modal_confirm')}</span>
               </button>
             </div>
           </div>

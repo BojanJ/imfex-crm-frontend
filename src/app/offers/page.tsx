@@ -193,14 +193,17 @@ export default function OffersPage() {
         {filtered.length === 0 ? (
           <EmptyState
             icon={<FileSpreadsheet className="w-5 h-5" />}
-            title="Нема пронајдено понуди"
-            description="Кликнете „Креирај Нова Понуда“ за да креирате нова понуда."
+            title={t('offers.empty_title')}
+            description={t('offers.empty_desc')}
           />
         ) : (
           <>
             {/* Mobile & Tablet Cards (prevents table crowding below 1024px) */}
             <div className="divide-y divide-border lg:hidden text-xs">
-              {filtered.map((offer) => (
+              {filtered.map((offer) => {
+                const itemCount = (offer.items || []).length;
+                const itemUnit = itemCount === 1 ? t('offers.item_singular') : t('offers.items').toLowerCase();
+                return (
                 <div key={offer.id} className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <div>
@@ -229,7 +232,7 @@ export default function OffersPage() {
                       {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      {(offer.items || []).length} {t('offers.items').toLowerCase()} • ДДВ {Number(offer.taxRate ?? 18)}%
+                      {itemCount} {itemUnit} • {t('offers.vat_short')} {Number(offer.taxRate ?? 18)}%
                     </p>
                   </div>
 
@@ -244,7 +247,8 @@ export default function OffersPage() {
                           type="button"
                           onClick={() => setAdvanceOffer(offer)}
                           className="p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                          title="Евидентирај аванс"
+                          title={t('offers.advance_tooltip')}
+                          aria-label={t('offers.advance_tooltip')}
                         >
                           <Euro className="w-3.5 h-3.5" />
                         </button>
@@ -260,7 +264,8 @@ export default function OffersPage() {
                       <Link
                         href={`/offers/${offer.id}`}
                         className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
-                        title="Уреди понуда"
+                        title={t('offers.edit_offer_tooltip')}
+                        aria-label={t('offers.edit_offer_tooltip')}
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </Link>
@@ -268,14 +273,16 @@ export default function OffersPage() {
                         type="button"
                         onClick={() => handleDelete(offer.id)}
                         className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        title="Избриши понуда"
+                        title={t('offers.delete_offer_tooltip')}
+                        aria-label={t('offers.delete_offer_tooltip')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Desktop Table — Compact, Zero Horizontal Overflow */}
@@ -286,13 +293,16 @@ export default function OffersPage() {
                     <th className="px-2.5 xl:px-3.5 py-3 whitespace-nowrap">{t('offers.offer_number')}</th>
                     <th className="px-2 xl:px-2.5 py-3">{t('offers.customer')}</th>
                     <th className="px-2 xl:px-2.5 py-3 whitespace-nowrap">{t('offers.status')}</th>
-                    <th className="hidden xl:table-cell px-2.5 py-3 whitespace-nowrap">ДДВ / Попуст</th>
+                    <th className="hidden xl:table-cell px-2.5 py-3 whitespace-nowrap">{t('offers.vat_discount')}</th>
                     <th className="px-2 xl:px-2.5 py-3 text-right whitespace-nowrap">{t('offers.total')}</th>
                     <th className="px-2.5 xl:px-3.5 py-3 text-right whitespace-nowrap">{t('offers.action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
-                  {filtered.map((offer) => (
+                  {filtered.map((offer) => {
+                    const itemCount = (offer.items || []).length;
+                    const itemUnit = itemCount === 1 ? t('offers.item_singular') : t('offers.items').toLowerCase();
+                    return (
                     <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-2.5 xl:px-3.5 py-3 whitespace-nowrap">
                         <Link
@@ -302,7 +312,7 @@ export default function OffersPage() {
                           {offer.offerNumber}
                         </Link>
                         <span className="text-[11px] text-muted-foreground">
-                          {formatDate(offer.createdAt)} • {(offer.items || []).length} {t('offers.items').toLowerCase()}
+                          {formatDate(offer.createdAt)} • {itemCount} {itemUnit}
                         </span>
                       </td>
 
@@ -337,14 +347,14 @@ export default function OffersPage() {
                           </span>
                         )}
                         <span className="text-[11px]">
-                          ДДВ {Number(offer.taxRate ?? 18)}%: {formatCurrency(offer.taxAmount)}
+                          {t('offers.vat_short')} {Number(offer.taxRate ?? 18)}%: {formatCurrency(offer.taxAmount)}
                         </span>
                       </td>
 
                       <td className="px-2 xl:px-2.5 py-3 text-right font-semibold text-sm text-foreground tabular-nums whitespace-nowrap">
                         <span className="block">{formatCurrency(offer.totalAmount)}</span>
                         <span className="block xl:hidden text-[10px] font-normal text-muted-foreground">
-                          ДДВ {Number(offer.taxRate ?? 18)}%
+                          {t('offers.vat_short')} {Number(offer.taxRate ?? 18)}%
                           {Number(offer.discountRate || 0) > 0 ? ` • -${Number(offer.discountRate)}%` : ''}
                         </span>
                       </td>
@@ -357,19 +367,19 @@ export default function OffersPage() {
                                 type="button"
                                 onClick={() => setAdvanceOffer(offer)}
                                 className="h-7 px-1.5 xl:px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
-                                title="Евидентирај уплата на аванс"
-                                aria-label="Евидентирај уплата на аванс"
+                                title={t('offers.advance_tooltip')}
+                                aria-label={t('offers.advance_tooltip')}
                               >
                                 <Euro className="w-3 h-3 text-muted-foreground" />
-                                <span className="hidden xl:inline">Аванс</span>
+                                <span className="hidden xl:inline">{t('offers.advance')}</span>
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => handleCreateProforma(offer)}
                                 className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center cursor-pointer transition-colors"
-                                title="Генерирај Про-фактура"
-                                aria-label="Генерирај Про-фактура"
+                                title={t('offers.proforma_tooltip')}
+                                aria-label={t('offers.proforma_tooltip')}
                               >
                                 <Receipt className="w-3.5 h-3.5" />
                               </button>
@@ -384,10 +394,10 @@ export default function OffersPage() {
                                 className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-primary inline-flex items-center justify-center transition-colors"
                                 title={
                                   linkedProject
-                                    ? `Отвори Оперативен Проект (${linkedProject.projectNumber})`
-                                    : 'Отвори Оперативен Проект'
+                                    ? `${t('offers.open_project_tooltip')} (${linkedProject.projectNumber})`
+                                    : t('offers.open_project_tooltip')
                                 }
-                                aria-label="Отвори Оперативен Проект"
+                                aria-label={t('offers.open_project_tooltip')}
                               >
                                 <Briefcase className="w-3.5 h-3.5" />
                               </Link>
@@ -407,8 +417,8 @@ export default function OffersPage() {
                           <Link
                             href={`/offers/${offer.id}`}
                             className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
-                            title="Уреди понуда"
-                            aria-label="Уреди понуда"
+                            title={t('offers.edit_offer_tooltip')}
+                            aria-label={t('offers.edit_offer_tooltip')}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
@@ -417,15 +427,16 @@ export default function OffersPage() {
                             type="button"
                             onClick={() => handleDelete(offer.id)}
                             className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
-                            title="Избриши понуда"
-                            aria-label="Избриши понуда"
+                            title={t('offers.delete_offer_tooltip')}
+                            aria-label={t('offers.delete_offer_tooltip')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

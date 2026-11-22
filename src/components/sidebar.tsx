@@ -76,15 +76,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className={`hidden lg:flex items-center ${isCollapsed ? 'justify-center' : 'justify-between px-2'}`}>
           {!isCollapsed && (
             <span className="text-[11px] font-medium text-muted-foreground tracking-wide">
-              Навигација
+              {t('nav.navigation')}
             </span>
           )}
           <button
             type="button"
             onClick={onToggleCollapse}
             className="h-7 w-7 inline-flex items-center justify-center rounded-lg border border-border/80 bg-background/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            title={isCollapsed ? 'Прошири мени' : 'Собери мени'}
-            aria-label={isCollapsed ? 'Прошири мени' : 'Собери мени'}
+            title={isCollapsed ? t('nav.expand_menu') : t('nav.collapse_menu')}
+            aria-label={isCollapsed ? t('nav.expand_menu') : t('nav.collapse_menu')}
           >
             {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
           </button>
@@ -102,14 +102,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={onMobileClose}
             className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-            aria-label="Затвори мени"
+            aria-label={t('nav.close_menu')}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Grouped Navigation Links */}
-        <nav className="space-y-3" aria-label="Главна навигација">
+        <nav className="space-y-3" aria-label={t('nav.main_navigation')}>
           {navGroups.map((group, gIdx) => (
             <div
               key={gIdx}
@@ -204,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex"
           role="dialog"
           aria-modal="true"
-          aria-label="Навигација"
+          aria-label={t('nav.navigation')}
         >
           <div className="w-68 max-w-[82vw] bg-card border-r border-border h-full overflow-y-auto shadow-xl">
             {content}

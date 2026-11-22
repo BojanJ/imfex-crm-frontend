@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, getApiUrl, authFetch } from '@/lib/store';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-client';
+import { computeOfferTotals } from '@/lib/selectors';
 import { useCustomersQuery, useProductsQuery, useCategoriesQuery } from '@/lib/queries';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
@@ -12,6 +15,7 @@ import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal'
 import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { generateOfferVectorPdf } from '@/lib/pdf-generator';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { ProductSelect, CustomerSelect } from '@/components/ui/entity-selectors';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
@@ -35,7 +39,6 @@ import {
   Mail,
   CheckCircle2,
   XCircle,
-  Percent,
 } from 'lucide-react';
 
 interface OfferBuilderFormProps {
@@ -426,12 +429,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     handleUpdateItem(itemIndex, { specifications: nextSpecs });
   };
 
-  // Calculations with Discount (Workflow 4.1.3)
-  const subtotal = items.reduce((acc, i) => acc + Number(i.totalPrice || 0), 0);
-  const discountAmount = Math.round(((subtotal * discountRate) / 100) * 100) / 100;
-  const taxableSubtotal = Math.max(0, subtotal - discountAmount);
-  const taxAmount = Math.round(((taxableSubtotal * taxRate) / 100) * 100) / 100;
-  const totalAmount = Math.round((taxableSubtotal + taxAmount) * 100) / 100;
+  // Calculations with Discount (Pure Selector — IMP-08)
+  const qc = useQueryClient();
+  const { subtotal, discountAmount, taxAmount, totalAmount } = computeOfferTotals(
+    items,
+    discountRate,
+    taxRate
+  );
 
   const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
 
@@ -464,6 +468,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         imfexStore.createProjectFromOffer(saved);
       }
     }
+    void qc.invalidateQueries({ queryKey: queryKeys.offers });
+    void qc.invalidateQueries({ queryKey: queryKeys.projects });
     setSavedOfferForPdf(saved);
 
     // Save PDF document reference linked to this offer (opens via PdfModal, not broken /docs/*.pdf)
@@ -588,7 +594,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                 }}
                 className="h-9 px-3 text-xs font-medium rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
               >
-                <span>Аванс</span>
+                <span>{t('offers.advance')}</span>
               </button>
             )}
             <button
@@ -745,8 +751,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="block font-medium text-muted-foreground flex items-center gap-1">
-                  <Percent className="w-3 h-3" /> {t('offers.discount')} (%)
+                <label className="block font-medium text-muted-foreground">
+                  {t('offers.discount')} (%)
                 </label>
                 <input
                   type="number"
@@ -760,7 +766,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               </div>
 
               <div className="space-y-1">
-                <label className="block font-medium text-muted-foreground">{t('offers.tax_rate')}</label>
+                <label className="block font-medium text-muted-foreground">{t('offers.tax_rate')} (%)</label>
                 <input
                   type="number"
                   step="0.5"
@@ -774,23 +780,23 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="block font-medium text-muted-foreground">
-                  {locale === 'mk' ? 'Датум' : 'Issue Date'}
+                  {t('builder.issue_date')}
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={offerDate}
-                  onChange={(e) => setOfferDate(e.target.value)}
+                  onChange={(val) => setOfferDate(val)}
+                  ariaLabel={t('builder.issue_date')}
                   className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
                 />
               </div>
               <div className="space-y-1">
                 <label className="block font-medium text-muted-foreground">
-                  {locale === 'mk' ? 'Важи до' : 'Valid Until'}
+                  {t('builder.valid_until')}
                 </label>
-                <input
-                  type="date"
+                <DatePicker
                   value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
+                  onChange={(val) => setValidUntil(val)}
+                  ariaLabel={t('builder.valid_until')}
                   className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
                 />
               </div>
@@ -803,13 +809,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Configured Line Items ({items.length})
+            {t('builder.configured_items')} ({items.length})
           </h3>
           <button
+            type="button"
             onClick={handleAddItem}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> Add Line Item
+            <Plus className="w-3.5 h-3.5" /> {t('builder.add_item')}
           </button>
         </div>
 
@@ -834,14 +841,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       type="text"
                       value={item.customTitle || ''}
                       onChange={(e) => handleUpdateItem(idx, { customTitle: e.target.value })}
-                      placeholder="Line Item Title / Custom Service Description"
+                      placeholder={t('builder.item_title')}
                       className="font-bold text-sm px-2 py-1 rounded border border-transparent hover:border-border focus:border-primary outline-none bg-transparent w-72 sm:w-96"
                     />
                   </div>
 
                   {/* Scope Checkboxes */}
                   <div className="flex items-center gap-3 bg-muted/50 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Scope:</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">{t('builder.scope')}</span>
                     {(['PRODUCT', 'INSTALLATION', 'SERVICE'] as ServiceType[]).map((service) => {
                       const checked = item.serviceTypes.includes(service);
                       return (
@@ -849,7 +856,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           key={service}
                           type="button"
                           onClick={() => handleToggleServiceType(idx, service)}
-                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition-all ${
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded transition-all cursor-pointer ${
                             checked
                               ? 'bg-primary text-primary-foreground font-bold shadow-sm'
                               : 'text-muted-foreground hover:text-foreground'
@@ -863,9 +870,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
                     {items.length > 1 && (
                       <button
+                        type="button"
                         onClick={() => handleRemoveItem(idx)}
-                        className="ml-2 text-red-500 hover:text-red-600 p-1 hover:bg-red-500/10 rounded transition-colors"
-                        title="Remove Line Item"
+                        className="ml-2 text-red-500 hover:text-red-600 p-1 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                        title={t('builder.remove_item')}
+                        aria-label={t('builder.remove_item')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -879,14 +888,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     {/* Product & Model Picker */}
                     <div className="space-y-3">
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                        Product & Base Model
+                        {t('builder.product_and_model')}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Category (Optional)</label>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                            {t('builder.category_optional')}
+                          </label>
                           <SearchableSelect
                             options={[
-                              { value: '', label: 'All Categories' },
+                              { value: '', label: t('builder.all_categories') },
                               ...categories.map((c) => ({
                                 value: c.id,
                                 label: c.name,
@@ -901,13 +912,15 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                 specifications: [],
                               });
                             }}
-                            placeholder="All Categories"
-                            searchPlaceholder="Search categories..."
+                            placeholder={t('builder.all_categories')}
+                            searchPlaceholder={t('builder.search_categories')}
                             className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Product Family</label>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                            {t('builder.product_family')}
+                          </label>
                           <ProductSelect
                             products={products.filter((p) => !item.categoryId || p.categoryId === item.categoryId)}
                             value={item.productId || ''}
@@ -922,17 +935,19 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                 specifications: buildDefaultSpecificationsForProduct(prod),
                               });
                             }}
-                            placeholder="Select Product Family..."
-                            searchPlaceholder="Search products by code or name..."
+                            placeholder={t('builder.select_product_family')}
+                            searchPlaceholder={t('builder.search_products')}
                             allowClear
-                            clearLabel="-- Clear product --"
+                            clearLabel={t('builder.clear_product')}
                           />
                         </div>
                       </div>
 
                       {selectedProd && (
                         <div>
-                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Model Variant</label>
+                          <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                            {t('builder.model_variant')}
+                          </label>
                           <SearchableSelect
                             options={selectedProd.models.map((m) => ({
                               value: m.id,
@@ -940,8 +955,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                             }))}
                             value={item.productModelId || ''}
                             onChange={(val) => handleUpdateItem(idx, { productModelId: val })}
-                            placeholder="Select Model Variant..."
-                            searchPlaceholder="Search model variants..."
+                            placeholder={t('builder.select_model_variant')}
+                            searchPlaceholder={t('builder.search_models')}
                             className="w-full px-3 py-1.5 text-xs rounded-lg border border-border bg-background outline-none font-semibold"
                           />
                         </div>
@@ -950,7 +965,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       {/* Dimensions (W x H) */}
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <div>
-                          <label className="block text-[10px] font-bold text-muted-foreground uppercase">Width (mm)</label>
+                          <label className="block text-[10px] font-bold text-muted-foreground uppercase">
+                            {t('builder.width')}
+                          </label>
                           <input
                             type="number"
                             value={item.widthMm || ''}
@@ -959,7 +976,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-bold text-muted-foreground uppercase">Height (mm)</label>
+                          <label className="block text-[10px] font-bold text-muted-foreground uppercase">
+                            {t('builder.height')}
+                          </label>
                           <input
                             type="number"
                             value={item.heightMm || ''}
@@ -1180,11 +1199,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       {selectedProd?.stockType === 'CUSTOM' && (
                         <div className="pt-3 mt-3 border-t border-border space-y-2.5">
                           <span className="text-xs font-bold text-foreground block">
-                            Поврзани магацински артикли (Резервација при прифаќање понуда)
+                            {t('builder.linked_accessories')}
                           </span>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Автоматика (Мотор)</label>
+                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                                {t('builder.motor')}
+                              </label>
                               <ProductSelect
                                 products={products.filter((p) => p.code.startsWith('AV-') || p.category?.name === 'Автоматика')}
                                 value={item.selectedAccessories?.motorId || ''}
@@ -1194,12 +1215,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                   })
                                 }
                                 allowClear
-                                clearLabel="-- Без автоматика --"
-                                placeholder="-- Избери Автоматика --"
+                                clearLabel={t('builder.no_motor')}
+                                placeholder={t('builder.select_motor')}
                               />
                             </div>
                             <div>
-                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Шина</label>
+                              <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                                {t('builder.rail')}
+                              </label>
                               <ProductSelect
                                 products={products.filter((p) => p.code.startsWith('SH-') || p.category?.name === 'Шини')}
                                 value={item.selectedAccessories?.railId || ''}
@@ -1209,8 +1232,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                                   })
                                 }
                                 allowClear
-                                clearLabel="-- Без шина --"
-                                placeholder="-- Избери Шина --"
+                                clearLabel={t('builder.no_rail')}
+                                placeholder={t('builder.select_rail')}
                               />
                             </div>
                           </div>
@@ -1220,7 +1243,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   </div>
                 ) : (
                   <div className="p-4 bg-muted/20 border border-border rounded-xl text-xs text-muted-foreground italic">
-                    Ставка за чист Сервис / Монтажа (без физички производ од главен каталог).
+                    {t('builder.service_only_notice')}
                   </div>
                 )}
 
@@ -1229,43 +1252,43 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
                     <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
                       <span className="text-xs font-extrabold text-amber-500 uppercase tracking-wider">
-                        Детали за Сервис и Одржување (се запишува во историја на клиентот)
+                        {t('builder.service_panel_title')}
                       </span>
                       <span className="text-[10px] text-muted-foreground">
-                        Замена за поранешниот сервисен модул — сè оди преку Понуди
+                        {t('builder.service_panel_note')}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
                       <div>
                         <label className="block text-[11px] font-bold text-foreground mb-1">
-                          Опрема кај клиентот (или внеси рачно)
+                          {t('builder.client_equipment')}
                         </label>
                         <input
                           type="text"
                           value={item.serviceEquipmentTitle || ''}
                           onChange={(e) => handleUpdateItem(idx, { serviceEquipmentTitle: e.target.value })}
-                          placeholder="пр. Сегментна врата Хоrmann / Мотор..."
+                          placeholder="пр. Сегментна врата / Мотор..."
                           className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
                         />
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-foreground mb-1">
-                          Опис на дефект / сервисна работа
+                          {t('builder.defect_work_desc')}
                         </label>
                         <input
                           type="text"
                           value={item.defectDescription || ''}
                           onChange={(e) => handleUpdateItem(idx, { defectDescription: e.target.value })}
-                          placeholder="пр. Замена на сајла и торзиона пружина"
+                          placeholder="..."
                           className="w-full px-2.5 py-1.5 rounded-lg border border-border bg-background font-semibold outline-none"
                         />
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-foreground mb-1">
-                          Резервен дел од магацин (опционално)
+                          {t('builder.spare_part')}
                         </label>
                         <ProductSelect
                           value={item.consumedPartProductId || ''}
@@ -1278,14 +1301,14 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                           }}
                           products={products}
                           allowClear
-                          clearLabel="-- Без дел од залиха --"
-                          placeholder="-- Пребарај дел од магацин --"
+                          clearLabel={t('builder.clear_product')}
+                          placeholder={t('builder.select_product_family')}
                         />
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-foreground mb-1">
-                          Работни часови (Сервис)
+                          {t('builder.service_labor_hours')}
                         </label>
                         <input
                           type="number"
@@ -1305,7 +1328,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                 <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-border bg-muted/30 -mx-5 -mb-5 p-4 rounded-b-xl">
                   <div className="flex items-center gap-4">
                     <div>
-                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Unit Price (€)</span>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">{t('builder.unit_price')}</span>
                       <input
                         type="number"
                         step="0.01"
@@ -1315,7 +1338,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                       />
                     </div>
                     <div>
-                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">Quantity</span>
+                      <span className="block text-[10px] font-bold text-muted-foreground uppercase">{t('builder.quantity')}</span>
                       <input
                         type="number"
                         min="1"
@@ -1327,9 +1350,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   </div>
 
                   <div className="text-right">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Line Item Total</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">{t('builder.item_total')}</span>
                     <span className="text-base font-extrabold text-foreground">
-                      €{Number(item.totalPrice).toFixed(2)}
+                      {formatCurrency(item.totalPrice)}
                     </span>
                   </div>
                 </div>
@@ -1358,7 +1381,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               </div>
             )}
             <div>
-              <span className="text-muted-foreground block text-[11px]">ДДВ ({taxRate}%)</span>
+              <span className="text-muted-foreground block text-[11px]">{t('builder.vat')} ({taxRate}%)</span>
               <span className="font-semibold text-sm text-muted-foreground">{formatCurrency(taxAmount)}</span>
             </div>
             <div className="pl-4 border-l border-border">

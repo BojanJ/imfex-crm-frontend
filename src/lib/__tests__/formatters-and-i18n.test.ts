@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { formatCurrency, formatMkd, formatTime24, TIME_SLOTS_24H } from '../formatters';
-import { formatDate, toDateInputValue, resolveOfferValidUntil } from '../date-format';
+import {
+  formatDate,
+  formatDateTime,
+  parseDDMMYYYYToIso,
+  splitIsoDateTime,
+  toDateInputValue,
+  resolveOfferValidUntil,
+} from '../date-format';
 import {
   getOfferStatusLabel,
   getProjectStatusLabel,
@@ -56,6 +63,20 @@ describe('Currency, Date & 24h Time Formatters (I18N-06)', () => {
     );
     // When validUntil is null, anchors deterministically to createdAt + 14 days
     expect(resolveOfferValidUntil({ validUntil: null, createdAt: '2026-11-12T08:50:37.030Z' })).toBe('26/11/2026');
+  });
+
+  it('strictly parses dd/mm/yyyy date inputs and formats datetimes as dd/mm/yyyy HH:mm', () => {
+    expect(parseDDMMYYYYToIso('22/11/2026')).toBe('2026-11-22');
+    expect(parseDDMMYYYYToIso('5/3/2026')).toBe('2026-03-05');
+    expect(parseDDMMYYYYToIso('29/02/2024')).toBe('2024-02-29'); // leap year
+    expect(parseDDMMYYYYToIso('29/02/2026')).toBeNull(); // non-leap year rejected
+    expect(parseDDMMYYYYToIso('31/04/2026')).toBeNull(); // April has 30 days
+    expect(parseDDMMYYYYToIso('11/22/2026')).toBeNull(); // MM/DD/YYYY rejected!
+
+    expect(formatDateTime('2026-11-22T14:30')).toBe('22/11/2026 14:30');
+    expect(formatDateTime('2026-11-22')).toBe('22/11/2026');
+    expect(splitIsoDateTime('2026-11-22T14:30')).toEqual({ date: '2026-11-22', time: '14:30' });
+    expect(splitIsoDateTime('2026-11-22')).toEqual({ date: '2026-11-22', time: '' });
   });
 });
 

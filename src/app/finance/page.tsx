@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
+import { useI18n } from '@/lib/i18n-context';
 import {
   PurchaseInvoice,
   PurchaseInvoiceItem,
@@ -35,6 +36,7 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DatePicker } from '@/components/ui/date-picker';
 import {
   ProjectSelect,
   ProductSelect,
@@ -99,6 +101,7 @@ const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
 };
 
 function FinancePageContent() {
+  const { t } = useI18n();
   useImfexStore();
   const qc = useQueryClient();
   const searchParams = useSearchParams();
@@ -751,8 +754,8 @@ function FinancePageContent() {
     <div className="space-y-6 pb-16 text-xs">
       {/* Unified Minimal Page Header */}
       <PageHeader
-        title="Финансии и Набавки"
-        subtitle="Влезни и излезни фактури, аванси, испратници, уплати и добавувачи."
+        title={t('finance.title')}
+        subtitle={t('finance.subtitle')}
         icon={<Landmark className="w-5 h-5" />}
         actions={
           <>
@@ -766,7 +769,7 @@ function FinancePageContent() {
               className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Euro className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Аванс</span>
+              <span>{t('finance.btn_advance')}</span>
             </button>
 
             <button
@@ -775,7 +778,7 @@ function FinancePageContent() {
               className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <FileText className="w-3.5 h-3.5 text-primary" />
-              <span>Излезна</span>
+              <span>{t('finance.btn_sales_invoice')}</span>
             </button>
 
             <button
@@ -784,7 +787,7 @@ function FinancePageContent() {
               className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Truck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-              <span>Испратница</span>
+              <span>{t('finance.btn_dispatch')}</span>
             </button>
 
             <button
@@ -793,7 +796,7 @@ function FinancePageContent() {
               className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
-              <span>Влезна / Трошок</span>
+              <span>{t('finance.btn_purchase')}</span>
             </button>
           </>
         }
@@ -802,36 +805,36 @@ function FinancePageContent() {
       {/* Calm 4-Column Financial KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Наплатени средства"
+          label={t('finance.kpi_collected')}
           value={formatCurrency(totalPaymentsIn)}
           tone="success"
           icon={<ArrowDownLeft className="w-4 h-4" />}
           helper={
             <>
-              <span>Реален прилив (бруто) • За наплата:</span>
+              <span>{t('finance.kpi_collected_helper')}</span>
               <strong className="text-foreground tabular-nums">{formatCurrency(totalOpenReceivables)}</strong>
             </>
           }
         />
 
         <StatCard
-          label="Набавка на стока (без ДДВ)"
+          label={t('finance.kpi_stock_purchases')}
           value={formatCurrency(totalStockPurchases)}
           tone="primary"
           icon={<Boxes className="w-4 h-4" />}
-          helper="Фактурирана нето набавка (вкл. неплатени)"
+          helper={t('finance.kpi_stock_purchases_helper')}
         />
 
         <StatCard
-          label="Оперативни трошоци (без ДДВ)"
+          label={t('finance.kpi_op_expenses')}
           value={formatCurrency(totalOperationalExpenses)}
           tone="warning"
           icon={<Fuel className="w-4 h-4" />}
-          helper="Фактурирани нето трошоци (гориво, материјал)"
+          helper={t('finance.kpi_op_expenses_helper')}
         />
 
         <StatCard
-          label="Нето кеш биланс"
+          label={t('finance.kpi_net_cash')}
           value={
             <span className={netCashBalance >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
               {formatCurrency(netCashBalance)}
@@ -839,7 +842,7 @@ function FinancePageContent() {
           }
           tone={netCashBalance >= 0 ? 'success' : 'danger'}
           icon={<Sparkles className="w-4 h-4" />}
-          helper="Реални уплати (прилив) минус исплати (одлив)"
+          helper={t('finance.kpi_net_cash_helper')}
         />
       </div>
 
@@ -848,11 +851,11 @@ function FinancePageContent() {
         activeTab={activeTab}
         onChange={(id) => setActiveTab(id as FinanceTab)}
         tabs={[
-          { id: 'purchases', label: 'Набавки и Трошоци', count: purchases.length, icon: <ShoppingCart className="w-3.5 h-3.5" /> },
-          { id: 'invoices', label: 'Излезни Фактури', count: salesInvoices.length, icon: <FileText className="w-3.5 h-3.5" /> },
-          { id: 'dispatches', label: 'Испратници', count: dispatches.length, icon: <Truck className="w-3.5 h-3.5" /> },
-          { id: 'payments', label: 'Уплати', count: payments.length, icon: <CreditCard className="w-3.5 h-3.5" /> },
-          { id: 'partners', label: 'Партнери', count: partnersList.length, icon: <Building2 className="w-3.5 h-3.5" /> },
+          { id: 'purchases', label: t('finance.tab_purchases'), count: purchases.length, icon: <ShoppingCart className="w-3.5 h-3.5" /> },
+          { id: 'invoices', label: t('finance.tab_invoices'), count: salesInvoices.length, icon: <FileText className="w-3.5 h-3.5" /> },
+          { id: 'dispatches', label: t('finance.tab_dispatches'), count: dispatches.length, icon: <Truck className="w-3.5 h-3.5" /> },
+          { id: 'payments', label: t('finance.tab_payments'), count: payments.length, icon: <CreditCard className="w-3.5 h-3.5" /> },
+          { id: 'partners', label: t('finance.tab_partners'), count: partnersList.length, icon: <Building2 className="w-3.5 h-3.5" /> },
         ]}
       />
 
@@ -864,13 +867,13 @@ function FinancePageContent() {
           <FilterBar
             searchValue={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Пребарај документ, добавувач или ставка..."
+            searchPlaceholder={t('finance.search_purchases')}
           >
             {[
-              { key: 'ALL', label: 'Сите' },
-              { key: 'STOCK', label: 'Стока (Залиха)' },
-              { key: 'EXPENSE', label: 'Трошоци' },
-              { key: 'PENDING_RECEIPT', label: 'Чека прием' },
+              { key: 'ALL', label: t('finance.filter_all') },
+              { key: 'STOCK', label: t('finance.filter_stock') },
+              { key: 'EXPENSE', label: t('finance.filter_expense') },
+              { key: 'PENDING_RECEIPT', label: t('finance.filter_pending_receipt') },
             ].map((f) => (
               <button
                 key={f.key}
@@ -892,7 +895,7 @@ function FinancePageContent() {
             <div className="divide-y divide-border md:hidden">
               {filteredPurchases.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  Нема евидентирани влезни фактури или трошоци.
+                  {t('finance.empty_purchases')}
                 </div>
               ) : (
                 filteredPurchases.map((pinv) => {
@@ -908,7 +911,7 @@ function FinancePageContent() {
                           <p className="font-mono font-semibold text-primary">{pinv.internalNumber}</p>
                           <p className="font-medium text-foreground truncate">{pinv.supplierName}</p>
                           <p className="text-[11px] text-muted-foreground">
-                            {formatDate(pinv.issueDate)} • {linkedProj ? linkedProj.projectNumber : 'Општ / Магацин'}
+                            {formatDate(pinv.issueDate)} • {linkedProj ? linkedProj.projectNumber : t('finance.general_warehouse')}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
@@ -923,14 +926,14 @@ function FinancePageContent() {
                             dot
                           >
                             {pinv.status === 'PAID'
-                              ? 'Платено'
+                              ? t('finance.status_paid')
                               : pinv.status === 'DRAFT'
-                              ? 'Нацрт'
-                              : 'За плаќање'}
+                              ? t('finance.status_draft')
+                              : t('finance.status_unpaid')}
                           </StatusBadge>
                           {hasStock && (
                             <StatusBadge variant={hasUnreceivedStock ? 'warning' : 'success'}>
-                              {hasUnreceivedStock ? 'Чека прием' : 'Примено'}
+                              {hasUnreceivedStock ? t('finance.status_pending_receipt') : t('finance.status_received')}
                             </StatusBadge>
                           )}
                         </div>
@@ -941,8 +944,8 @@ function FinancePageContent() {
                           <div key={item.id} className="flex items-center gap-1.5 flex-wrap text-[11px]">
                             <StatusBadge variant={item.itemType === 'STOCK' ? 'primary' : 'warning'}>
                               {item.itemType === 'STOCK'
-                                ? 'Стока'
-                                : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || 'Трошок'}
+                                ? t('finance.badge_stock')
+                                : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || t('finance.badge_expense')}
                             </StatusBadge>
                             <span className="text-foreground font-medium">
                               {item.quantity}× {item.title}
@@ -983,7 +986,7 @@ function FinancePageContent() {
                               className="h-7 px-2.5 rounded-md bg-emerald-600 text-white font-medium text-[11px] hover:bg-emerald-700 cursor-pointer inline-flex items-center gap-1"
                             >
                               <CheckCircle2 className="w-3 h-3" />
-                              <span>Прими</span>
+                              <span>{t('finance.btn_receive')}</span>
                             </button>
                           )}
                           {hasStock && (
@@ -992,7 +995,7 @@ function FinancePageContent() {
                               onClick={() => handleCreateSalesInvoiceFromPurchase(pinv)}
                               className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer"
                             >
-                              Фактурирај
+                              {t('finance.btn_invoice')}
                             </button>
                           )}
                           {pinv.status !== 'PAID' && (
@@ -1010,7 +1013,7 @@ function FinancePageContent() {
                               }}
                               className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer"
                             >
-                              Плати
+                              {t('finance.btn_pay')}
                             </button>
                           )}
                           <button
@@ -1021,7 +1024,7 @@ function FinancePageContent() {
                                 title: 'Избриши Влезна Фактура / Трошок',
                                 message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
                                 variant: 'danger',
-                                confirmLabel: 'Избриши',
+                                confirmLabel: t('finance.btn_delete'),
                                 onConfirm: () => {
                                   setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                   imfexStore.deletePurchaseInvoice(pinv.id);
@@ -1030,7 +1033,7 @@ function FinancePageContent() {
                               });
                             }}
                             className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer"
-                            aria-label="Избриши"
+                            aria-label={t('finance.btn_delete')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1047,19 +1050,19 @@ function FinancePageContent() {
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 whitespace-nowrap">Документ</th>
-                    <th className="px-3 py-3">Добавувач</th>
-                    <th className="px-3 py-3">Ставки</th>
-                    <th className="px-3 py-3 whitespace-nowrap">Статус</th>
-                    <th className="px-3 py-3 text-right whitespace-nowrap">Вкупно</th>
-                    <th className="px-4 py-3 text-right whitespace-nowrap">Акции</th>
+                    <th className="px-4 py-3 whitespace-nowrap">{t('finance.col_document')}</th>
+                    <th className="px-3 py-3">{t('finance.col_supplier')}</th>
+                    <th className="px-3 py-3">{t('finance.col_items')}</th>
+                    <th className="px-3 py-3 whitespace-nowrap">{t('finance.col_status')}</th>
+                    <th className="px-3 py-3 text-right whitespace-nowrap">{t('finance.col_total')}</th>
+                    <th className="px-4 py-3 text-right whitespace-nowrap">{t('finance.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
                   {filteredPurchases.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center text-muted-foreground">
-                        Нема евидентирани влезни фактури или трошоци.
+                        {t('finance.empty_purchases')}
                       </td>
                     </tr>
                   ) : (
@@ -1085,7 +1088,7 @@ function FinancePageContent() {
                           <td className="px-3 py-3.5 align-top">
                             <p className="font-medium text-foreground">{pinv.supplierName}</p>
                             <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {linkedProj ? linkedProj.projectNumber : 'Општ / Магацин'}
+                              {linkedProj ? linkedProj.projectNumber : t('finance.general_warehouse')}
                             </p>
                           </td>
 
@@ -1094,8 +1097,8 @@ function FinancePageContent() {
                               <div key={item.id} className="flex items-center gap-1.5 flex-wrap">
                                 <StatusBadge variant={item.itemType === 'STOCK' ? 'primary' : 'warning'}>
                                   {item.itemType === 'STOCK'
-                                    ? 'Стока'
-                                    : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || 'Трошок'}
+                                    ? t('finance.badge_stock')
+                                    : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || t('finance.badge_expense')}
                                 </StatusBadge>
                                 <span className="text-foreground font-medium truncate">
                                   {item.quantity}× {item.title}
@@ -1120,14 +1123,14 @@ function FinancePageContent() {
                                 dot
                               >
                                 {pinv.status === 'PAID'
-                                  ? 'Платено'
+                                  ? t('finance.status_paid')
                                   : pinv.status === 'DRAFT'
-                                  ? 'Нацрт'
-                                  : 'За плаќање'}
+                                  ? t('finance.status_draft')
+                                  : t('finance.status_unpaid')}
                               </StatusBadge>
                               {hasStock && (
                                 <StatusBadge variant={hasUnreceivedStock ? 'warning' : 'success'}>
-                                  {hasUnreceivedStock ? 'Чека прием' : 'Примено'}
+                                  {hasUnreceivedStock ? t('finance.status_pending_receipt') : t('finance.status_received')}
                                 </StatusBadge>
                               )}
                             </div>
@@ -1161,10 +1164,10 @@ function FinancePageContent() {
                                     });
                                   }}
                                   className="h-7 px-2.5 rounded-md bg-emerald-600 text-white font-medium text-[11px] hover:bg-emerald-700 cursor-pointer inline-flex items-center gap-1"
-                                  title="Потврди прием во залиха"
+                                  title={t('finance.btn_receive')}
                                 >
                                   <CheckCircle2 className="w-3 h-3" />
-                                  <span>Прими</span>
+                                  <span>{t('finance.btn_receive')}</span>
                                 </button>
                               )}
 
@@ -1173,9 +1176,9 @@ function FinancePageContent() {
                                   type="button"
                                   onClick={() => handleCreateSalesInvoiceFromPurchase(pinv)}
                                   className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer transition-colors"
-                                  title="Креирај излезна фактура од оваа набавка"
+                                  title={t('finance.btn_invoice')}
                                 >
-                                  Фактурирај
+                                  {t('finance.btn_invoice')}
                                 </button>
                               )}
 
@@ -1194,7 +1197,7 @@ function FinancePageContent() {
                                   }}
                                   className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer transition-colors"
                                 >
-                                  Плати
+                                  {t('finance.btn_pay')}
                                 </button>
                               )}
 
@@ -1206,7 +1209,7 @@ function FinancePageContent() {
                                     title: 'Избриши Влезна Фактура / Трошок',
                                     message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
                                     variant: 'danger',
-                                    confirmLabel: 'Избриши',
+                                    confirmLabel: t('finance.btn_delete'),
                                     onConfirm: () => {
                                       setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                       imfexStore.deletePurchaseInvoice(pinv.id);
@@ -1215,8 +1218,8 @@ function FinancePageContent() {
                                   });
                                 }}
                                 className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
-                                title="Избриши"
-                                aria-label="Избриши"
+                                title={t('finance.btn_delete')}
+                                aria-label={t('finance.btn_delete')}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1240,23 +1243,23 @@ function FinancePageContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-muted-foreground uppercase text-[10px]">Тип на документ:</span>
+              <span className="font-bold text-muted-foreground uppercase text-[10px]">{t('finance.doc_type_label')}</span>
               {[
-                { key: 'ALL', label: 'Сите документи' },
-                { key: 'PROFORMA', label: 'Про-фактури (PRO)' },
-                { key: 'ADVANCE', label: 'Авансни фактури (AVN)' },
-                { key: 'FINAL', label: 'Конечни фактури (FAK)' },
-              ].map((t) => (
+                { key: 'ALL', label: t('finance.filter_all_docs') },
+                { key: 'PROFORMA', label: t('finance.filter_proforma') },
+                { key: 'ADVANCE', label: t('finance.filter_advance') },
+                { key: 'FINAL', label: t('finance.filter_final') },
+              ].map((opt) => (
                 <button
-                  key={t.key}
-                  onClick={() => setInvoiceTypeFilter(t.key as any)}
+                  key={opt.key}
+                  onClick={() => setInvoiceTypeFilter(opt.key as any)}
                   className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                    invoiceTypeFilter === t.key
+                    invoiceTypeFilter === opt.key
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {t.label}
+                  {opt.label}
                 </button>
               ))}
             </div>
@@ -1267,14 +1270,14 @@ function FinancePageContent() {
                 onClick={() => setShowAdvanceModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <Euro className="w-4 h-4" /> Евидентирај Уплата на Аванс
+                <Euro className="w-4 h-4" /> {t('finance.btn_record_advance')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowSalesInvoiceModal(true)}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Нова Фактура / Про-фактура
+                <Plus className="w-4 h-4" /> {t('finance.btn_new_invoice')}
               </button>
             </div>
           </div>
@@ -1284,7 +1287,7 @@ function FinancePageContent() {
             <div className="divide-y divide-border md:hidden">
               {filteredSalesInvoices.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  Нема креирани излезни фактури.
+                  {t('finance.empty_invoices')}
                 </div>
               ) : (
                 filteredSalesInvoices.map((sinv) => {
@@ -1298,7 +1301,7 @@ function FinancePageContent() {
                     sinv.customerName ||
                     customers.find((c) => c.id === sinv.customerId)?.companyName ||
                     customers.find((c) => c.id === sinv.customerId)?.name ||
-                    'Клиент';
+                    t('offers.customer');
                   return (
                     <div key={sinv.id} className="p-4 space-y-3">
                       <div className="flex items-start justify-between gap-2">
@@ -1318,10 +1321,10 @@ function FinancePageContent() {
                             }`}
                           >
                             {sinv.invoiceType === 'ADVANCE'
-                              ? 'АВАНСНА'
+                              ? t('finance.type_advance_short')
                               : sinv.invoiceType === 'PROFORMA'
-                              ? 'ПРО-ФАКТУРА'
-                              : 'КОНЕЧНА'}
+                              ? t('finance.type_proforma')
+                              : t('finance.type_final_short')}
                           </span>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
@@ -1333,18 +1336,18 @@ function FinancePageContent() {
                             }`}
                           >
                             {sinv.status === 'PAID'
-                              ? 'ПЛАТЕНО'
+                              ? t('finance.status_paid_upper')
                               : sinv.status === 'PARTIAL_PAID'
-                              ? 'ДЕЛУМНО'
-                              : 'ИЗДАДЕНО'}
+                              ? t('finance.status_partial_upper')
+                              : t('finance.status_issued_upper')}
                           </span>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
-                        <span>Вкупно: {formatCurrency(Number(sinv.grossTotalAmount || sinv.totalAmount || 0))}</span>
+                        <span>{t('finance.col_total')}: {formatCurrency(Number(sinv.grossTotalAmount || sinv.totalAmount || 0))}</span>
                         <span className="font-semibold text-foreground">
-                          За наплата:{' '}
+                          {t('finance.col_amount_due')}:{' '}
                           <strong className={remainingDue === 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}>
                             {formatCurrency(remainingDue)}
                           </strong>
@@ -1370,7 +1373,7 @@ function FinancePageContent() {
                           }}
                           className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
                         >
-                          <Mail className="w-3.5 h-3.5" /> Е-пошта
+                          <Mail className="w-3.5 h-3.5" /> {t('finance.btn_email')}
                         </button>
                         {sinv.status !== 'PAID' && (
                           <button
@@ -1387,7 +1390,7 @@ function FinancePageContent() {
                             }}
                             className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] cursor-pointer"
                           >
-                            + Уплата
+                            {t('finance.btn_add_payment')}
                           </button>
                         )}
                         <button
@@ -1398,7 +1401,7 @@ function FinancePageContent() {
                               title: 'Избриши Излезна Фактура',
                               message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${clientDisplay}“?`,
                               variant: 'danger',
-                              confirmLabel: 'Избриши',
+                              confirmLabel: t('finance.btn_delete'),
                               onConfirm: () => {
                                 setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                 imfexStore.deleteSalesInvoice(sinv.id);
@@ -1407,7 +1410,7 @@ function FinancePageContent() {
                             });
                           }}
                           className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                          aria-label="Избриши"
+                          aria-label={t('finance.btn_delete')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -1423,21 +1426,21 @@ function FinancePageContent() {
               <table className="w-full text-left min-w-[950px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
-                    <th className="p-4">Број / Датум</th>
-                    <th className="p-4">Тип</th>
-                    <th className="p-4">Клиент</th>
-                    <th className="p-4">Вкупно со ДДВ</th>
-                    <th className="p-4">Одбиен Аванс</th>
-                    <th className="p-4 text-right">За Наплата</th>
-                    <th className="p-4">Статус</th>
-                    <th className="p-4 text-center">Акции (PDF / Уплата / Испратница)</th>
+                    <th className="p-4">{t('finance.col_number_date')}</th>
+                    <th className="p-4">{t('finance.col_type')}</th>
+                    <th className="p-4">{t('finance.col_client')}</th>
+                    <th className="p-4">{t('finance.col_gross_total')}</th>
+                    <th className="p-4">{t('finance.col_deducted_advance')}</th>
+                    <th className="p-4 text-right">{t('finance.col_amount_due')}</th>
+                    <th className="p-4">{t('finance.col_status')}</th>
+                    <th className="p-4 text-center">{t('finance.col_invoice_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredSalesInvoices.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-10 text-center text-muted-foreground">
-                        Нема креирани излезни фактури. Кликнете на <strong>„+ Нова Фактура / Про-фактура“</strong> или <strong>„Евидентирај Уплата на Аванс“</strong>.
+                        {t('finance.empty_invoices')}
                       </td>
                     </tr>
                   ) : (
@@ -1458,10 +1461,10 @@ function FinancePageContent() {
                             }`}
                           >
                             {sinv.invoiceType === 'ADVANCE'
-                              ? 'АВАНСНА Ф-РА'
+                              ? t('finance.type_advance')
                               : sinv.invoiceType === 'PROFORMA'
-                              ? 'ПРО-ФАКТУРА'
-                              : 'КОНЕЧНА Ф-РА'}
+                              ? t('finance.type_proforma')
+                              : t('finance.type_final')}
                           </span>
                         </td>
                         <td className="p-4 font-bold text-foreground">
@@ -1470,7 +1473,7 @@ function FinancePageContent() {
                             sinv.customerName ||
                             customers.find((c) => c.id === sinv.customerId)?.companyName ||
                             customers.find((c) => c.id === sinv.customerId)?.name ||
-                            'Клиент'}
+                            t('offers.customer')}
                         </td>
                         <td className="p-4 font-bold text-foreground">
                           €{Number(sinv.grossTotalAmount || sinv.totalAmount || 0).toFixed(2)}
@@ -1478,7 +1481,7 @@ function FinancePageContent() {
                         <td className="p-4">
                           {sinv.advanceDeductedAmount > 0 ? (
                             <span className="text-amber-400 font-bold">
-                              -€{Number(sinv.advanceDeductedAmount).toFixed(2)} ({sinv.linkedAdvanceInvoiceNumber || 'Аванс'})
+                              -€{Number(sinv.advanceDeductedAmount).toFixed(2)} ({sinv.linkedAdvanceInvoiceNumber || t('finance.btn_advance')})
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -1497,7 +1500,7 @@ function FinancePageContent() {
                                 </span>
                                 {invPaid > 0 && (
                                   <span className="block text-[10px] font-medium text-muted-foreground">
-                                    од {formatCurrency(invTotal)}
+                                    {t('finance.of_total')} {formatCurrency(invTotal)}
                                   </span>
                                 )}
                               </div>
@@ -1515,10 +1518,10 @@ function FinancePageContent() {
                             }`}
                           >
                             {sinv.status === 'PAID'
-                              ? 'ПЛАТЕНО'
+                              ? t('finance.status_paid_upper')
                               : sinv.status === 'PARTIAL_PAID'
-                              ? `ДЕЛУМНО (€${Number(sinv.paidAmount).toFixed(2)})`
-                              : 'ИЗДАДЕНО'}
+                              ? `${t('finance.status_partial_upper')} (€${Number(sinv.paidAmount).toFixed(2)})`
+                              : t('finance.status_issued_upper')}
                           </span>
                         </td>
                         <td className="p-4">
@@ -1530,7 +1533,7 @@ function FinancePageContent() {
                               }}
                               className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[10px] hover:brightness-110 flex items-center gap-1 cursor-pointer"
                             >
-                              <Printer className="w-3.5 h-3.5" /> PDF Фактура
+                              <Printer className="w-3.5 h-3.5" /> {t('finance.btn_pdf_invoice')}
                             </button>
 
                             <button
@@ -1539,9 +1542,9 @@ function FinancePageContent() {
                                 setPdfInvoice(sinv);
                               }}
                               className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-[10px] hover:bg-blue-500/20 flex items-center gap-1 cursor-pointer"
-                              title="Испрати фактура по е-пошта"
+                              title={t('finance.btn_email')}
                             >
-                              <Mail className="w-3.5 h-3.5" /> Е-пошта
+                              <Mail className="w-3.5 h-3.5" /> {t('finance.btn_email')}
                             </button>
 
                             {sinv.status !== 'PAID' && (
@@ -1549,7 +1552,7 @@ function FinancePageContent() {
                                 onClick={() => {
                                   setPayDirection('IN');
                                   setPaySalesInvoiceId(sinv.id);
-                                  setPayPartnerName(sinv.customer?.companyName || sinv.customer?.name || 'Клиент');
+                                  setPayPartnerName(sinv.customer?.companyName || sinv.customer?.name || t('offers.customer'));
                                   setPayProjectId(sinv.projectId || '');
                                   setPayAmount(
                                     Math.max(0, Number(sinv.totalAmount || 0) - Number(sinv.paidAmount || 0))
@@ -1558,7 +1561,7 @@ function FinancePageContent() {
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 cursor-pointer"
                               >
-                                + Уплата
+                                {t('finance.btn_add_payment')}
                               </button>
                             )}
 
@@ -1567,9 +1570,9 @@ function FinancePageContent() {
                                 setConfirmState({
                                   isOpen: true,
                                   title: 'Избриши Излезна Фактура',
-                                  message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${sinv.customer?.companyName || sinv.customer?.name || 'Клиент'}“?`,
+                                  message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${sinv.customer?.companyName || sinv.customer?.name || t('offers.customer')}“?`,
                                   variant: 'danger',
-                                  confirmLabel: 'Избриши',
+                                  confirmLabel: t('finance.btn_delete'),
                                   onConfirm: () => {
                                     setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                     imfexStore.deleteSalesInvoice(sinv.id);
@@ -1578,6 +1581,7 @@ function FinancePageContent() {
                                 });
                               }}
                               className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                              aria-label={t('finance.btn_delete')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1601,17 +1605,17 @@ function FinancePageContent() {
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
             <div>
               <h3 className="font-extrabold text-sm text-foreground">
-                Испратници — Физичко раздолжување на магацинска залиха
+                {t('finance.dispatches_title')}
               </h3>
               <p className="text-[11px] text-muted-foreground">
-                Залихата се намалува при потврда на Испратницата (резервираното од проектот се претвора во излезено), а не при фактурирање.
+                {t('finance.dispatches_subtitle')}
               </p>
             </div>
             <button
               onClick={() => setShowDispatchModal(true)}
               className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Креирај Испратница
+              <Plus className="w-4 h-4" /> {t('finance.btn_create_dispatch')}
             </button>
           </div>
 
@@ -1620,7 +1624,7 @@ function FinancePageContent() {
             <div className="divide-y divide-border md:hidden">
               {filteredDispatches.length === 0 ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  Нема издадени испратници.
+                  {t('finance.empty_dispatches')}
                 </div>
               ) : (
                 filteredDispatches.map((d) => (
@@ -1629,7 +1633,7 @@ function FinancePageContent() {
                       <div className="min-w-0">
                         <p className="font-mono font-extrabold text-primary">{d.dispatchNumber}</p>
                         <p className="font-semibold text-foreground truncate">
-                          {d.customer?.companyName || d.customer?.name || d.customerName || 'Клиент'}
+                          {d.customer?.companyName || d.customer?.name || d.customerName || t('offers.customer')}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
                           {formatDate(d.issueDate)}
@@ -1638,11 +1642,11 @@ function FinancePageContent() {
                       </div>
                       {d.stockDeducted ? (
                         <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-extrabold text-[10px] shrink-0">
-                          ✓ ИЗДАДЕНО
+                          {t('finance.dispatch_issued_short')}
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-extrabold text-[10px] shrink-0">
-                          НАЦРТ
+                          {t('finance.dispatch_draft_short')}
                         </span>
                       )}
                     </div>
@@ -1663,7 +1667,7 @@ function FinancePageContent() {
                               title: 'Потврда за Излез на Стока од Магацин',
                               message: `Дали сте сигурни дека сакате да го потврдите излезот за испратницата „${d.dispatchNumber}“ и да ја намалите залихата во магацин?`,
                               variant: 'warning',
-                              confirmLabel: 'Потврди Излез',
+                              confirmLabel: t('finance.btn_confirm_dispatch'),
                               onConfirm: () => {
                                 setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                 imfexStore.confirmAndIssueDispatchNote(d.id);
@@ -1674,7 +1678,7 @@ function FinancePageContent() {
                           }}
                           className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] cursor-pointer"
                         >
-                          Потврди Излез
+                          {t('finance.btn_confirm_dispatch')}
                         </button>
                       )}
                       <button
@@ -1692,7 +1696,7 @@ function FinancePageContent() {
                             title: 'Избриши Испратница',
                             message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
                             variant: 'danger',
-                            confirmLabel: 'Избриши',
+                            confirmLabel: t('finance.btn_delete'),
                             onConfirm: () => {
                               setConfirmState((prev) => ({ ...prev, isOpen: false }));
                               imfexStore.deleteDispatchNote(d.id);
@@ -1701,7 +1705,7 @@ function FinancePageContent() {
                           });
                         }}
                         className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        aria-label="Избриши"
+                        aria-label={t('finance.btn_delete')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1716,19 +1720,19 @@ function FinancePageContent() {
               <table className="w-full text-left min-w-[900px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
-                    <th className="p-4">Испратница Бр.</th>
-                    <th className="p-4">Датум</th>
-                    <th className="p-4">Клиент & Адреса</th>
-                    <th className="p-4">Ставки за излез од магацин</th>
-                    <th className="p-4">Статус на Залиха</th>
-                    <th className="p-4 text-center">Акции</th>
+                    <th className="p-4">{t('finance.col_dispatch_no')}</th>
+                    <th className="p-4">{t('finance.col_date')}</th>
+                    <th className="p-4">{t('finance.col_client_address')}</th>
+                    <th className="p-4">{t('finance.col_dispatch_items')}</th>
+                    <th className="p-4">{t('finance.col_stock_status')}</th>
+                    <th className="p-4 text-center">{t('finance.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredDispatches.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-10 text-center text-muted-foreground">
-                        Нема издадени испратници. Кликнете на <strong>„+ Креирај Испратница“</strong> кога стоката физички излегува од магацин.
+                        {t('finance.empty_dispatches')}
                       </td>
                     </tr>
                   ) : (
@@ -1738,7 +1742,7 @@ function FinancePageContent() {
                         <td className="p-4 text-muted-foreground">{formatDate(d.issueDate)}</td>
                         <td className="p-4">
                           <p className="font-bold text-foreground">
-                            {d.customer?.companyName || d.customer?.name || 'Клиент'}
+                            {d.customer?.companyName || d.customer?.name || d.customerName || t('offers.customer')}
                           </p>
                           <p className="text-[10px] text-muted-foreground">{d.deliveryAddress}</p>
                         </td>
@@ -1752,11 +1756,11 @@ function FinancePageContent() {
                         <td className="p-4">
                           {d.stockDeducted ? (
                             <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 font-extrabold text-[10px]">
-                              ✓ ИЗДАДЕНО (Залиха намалена)
+                              {t('finance.dispatch_issued_badge')}
                             </span>
                           ) : (
                             <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 font-extrabold text-[10px]">
-                              НАЦРТ (Чека излез)
+                              {t('finance.dispatch_draft_badge')}
                             </span>
                           )}
                         </td>
@@ -1770,7 +1774,7 @@ function FinancePageContent() {
                                     title: 'Потврда за Излез на Стока од Магацин',
                                     message: `Дали сте сигурни дека сакате да го потврдите излезот за испратницата „${d.dispatchNumber}“ и да ја намалите залихата во магацин?`,
                                     variant: 'warning',
-                                    confirmLabel: 'Потврди Излез',
+                                    confirmLabel: t('finance.btn_confirm_dispatch'),
                                     onConfirm: () => {
                                       setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                       imfexStore.confirmAndIssueDispatchNote(d.id);
@@ -1781,14 +1785,14 @@ function FinancePageContent() {
                                 }}
                                 className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 cursor-pointer"
                               >
-                                Потврди Излез
+                                {t('finance.btn_confirm_dispatch')}
                               </button>
                             )}
                             <button
                               onClick={() => setPdfDispatch(d)}
                               className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[10px] flex items-center gap-1 cursor-pointer"
                             >
-                              <Printer className="w-3.5 h-3.5" /> PDF Испратница
+                              <Printer className="w-3.5 h-3.5" /> {t('finance.btn_pdf_dispatch')}
                             </button>
                             <button
                               onClick={() => {
@@ -1797,7 +1801,7 @@ function FinancePageContent() {
                                   title: 'Избриши Испратница',
                                   message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
                                   variant: 'danger',
-                                  confirmLabel: 'Избриши',
+                                  confirmLabel: t('finance.btn_delete'),
                                   onConfirm: () => {
                                     setConfirmState((prev) => ({ ...prev, isOpen: false }));
                                     imfexStore.deleteDispatchNote(d.id);
@@ -1806,6 +1810,7 @@ function FinancePageContent() {
                                 });
                               }}
                               className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                              aria-label={t('finance.btn_delete')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1828,9 +1833,9 @@ function FinancePageContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
             <div>
-              <h3 className="font-extrabold text-sm text-foreground">Регистар на сите уплати и исплати</h3>
+              <h3 className="font-extrabold text-sm text-foreground">{t('finance.payments_title')}</h3>
               <p className="text-[11px] text-muted-foreground">
-                Сите приливи од клиенти (аванси, фактури) и исплати кон добавувачи / трошоци.
+                {t('finance.payments_subtitle')}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1839,7 +1844,7 @@ function FinancePageContent() {
                 onClick={() => setShowAdvanceModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold flex items-center gap-1.5 cursor-pointer"
               >
-                <Euro className="w-4 h-4" /> Евидентирај Уплата на Аванс
+                <Euro className="w-4 h-4" /> {t('finance.btn_record_advance')}
               </button>
               <button
                 type="button"
@@ -1855,7 +1860,7 @@ function FinancePageContent() {
                 }}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> Нова Уплата / Исплата
+                <Plus className="w-4 h-4" /> {t('finance.btn_new_payment')}
               </button>
             </div>
           </div>
@@ -1864,7 +1869,7 @@ function FinancePageContent() {
             {/* Mobile Stacked Cards */}
             <div className="divide-y divide-border md:hidden">
               {filteredPayments.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">Нема евидентирани уплати.</div>
+                <div className="p-8 text-center text-muted-foreground">{t('finance.empty_payments')}</div>
               ) : (
                 filteredPayments.map((pay) => (
                   <div key={pay.id} className="p-4 space-y-2.5">
@@ -1885,11 +1890,11 @@ function FinancePageContent() {
                       >
                         {pay.direction === 'IN' ? (
                           <>
-                            <ArrowDownLeft className="w-3 h-3" /> ПРИЛИВ {pay.isAdvance ? '(АВАНС)' : ''}
+                            <ArrowDownLeft className="w-3 h-3" /> {t('finance.dir_in')} {pay.isAdvance ? t('finance.dir_advance_tag') : ''}
                           </>
                         ) : (
                           <>
-                            <ArrowUpRight className="w-3 h-3" /> ОДЛИВ
+                            <ArrowUpRight className="w-3 h-3" /> {t('finance.dir_out')}
                           </>
                         )}
                       </span>
@@ -1911,7 +1916,7 @@ function FinancePageContent() {
                             title: 'Избриши Трансакција / Уплата',
                             message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
                             variant: 'danger',
-                            confirmLabel: 'Избриши',
+                            confirmLabel: t('finance.btn_delete'),
                             onConfirm: () => {
                               setConfirmState((prev) => ({ ...prev, isOpen: false }));
                               imfexStore.deletePayment(pay.id);
@@ -1920,7 +1925,7 @@ function FinancePageContent() {
                           });
                         }}
                         className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        aria-label="Избриши"
+                        aria-label={t('finance.btn_delete')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1935,21 +1940,21 @@ function FinancePageContent() {
               <table className="w-full text-left min-w-[850px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
-                    <th className="p-4">Бр. на Уплата</th>
-                    <th className="p-4">Датум</th>
-                    <th className="p-4">Насока</th>
-                    <th className="p-4">Клиент / Партнер</th>
-                    <th className="p-4">Начин / Сметка</th>
-                    <th className="p-4">Забелешка / Документ</th>
-                    <th className="p-4 text-right">Износ (€)</th>
-                    <th className="p-4 text-center">Акции</th>
+                    <th className="p-4">{t('finance.col_payment_no')}</th>
+                    <th className="p-4">{t('finance.col_date')}</th>
+                    <th className="p-4">{t('finance.col_direction')}</th>
+                    <th className="p-4">{t('finance.col_client_partner')}</th>
+                    <th className="p-4">{t('finance.col_method')}</th>
+                    <th className="p-4">{t('finance.col_note_doc')}</th>
+                    <th className="p-4 text-right">{t('finance.col_amount')}</th>
+                    <th className="p-4 text-center">{t('finance.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {filteredPayments.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="p-10 text-center text-muted-foreground">
-                        Нема евидентирани уплати.
+                        {t('finance.empty_payments')}
                       </td>
                     </tr>
                   ) : (
@@ -1967,11 +1972,11 @@ function FinancePageContent() {
                           >
                             {pay.direction === 'IN' ? (
                               <>
-                                <ArrowDownLeft className="w-3 h-3" /> ПРИЛИВ {pay.isAdvance ? '(АВАНС)' : ''}
+                                <ArrowDownLeft className="w-3 h-3" /> {t('finance.dir_in')} {pay.isAdvance ? t('finance.dir_advance_tag') : ''}
                               </>
                             ) : (
                               <>
-                                <ArrowUpRight className="w-3 h-3" /> ОДЛИВ (ТРОШОК/НАБАВКА)
+                                <ArrowUpRight className="w-3 h-3" /> {t('finance.dir_out_full')}
                               </>
                             )}
                           </span>
@@ -2024,16 +2029,16 @@ function FinancePageContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
             <div>
-              <h3 className="font-extrabold text-sm text-foreground">Партнери и Добавувачи (пр. Doors Impex)</h3>
+              <h3 className="font-extrabold text-sm text-foreground">{t('finance.partners_title')}</h3>
               <p className="text-[11px] text-muted-foreground">
-                Преглед на деловни партнери и компании од CRM. Добавувачите со евидентирани набавки се означени со беџ „ДОБАВУВАЧ“.
+                {t('finance.partners_subtitle')}
               </p>
             </div>
             <button
               onClick={() => setShowPartnerModal(true)}
               className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              <Plus className="w-4 h-4" /> Додај Партнер / Добавувач
+              <Plus className="w-4 h-4" /> {t('finance.btn_add_partner')}
             </button>
           </div>
 
@@ -2080,23 +2085,23 @@ function FinancePageContent() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-extrabold text-[10px] uppercase whitespace-nowrap">
-                        {partner.customerType === 'PARTNER' ? 'ПАРТНЕР' : 'КОМПАНИЈА'}
+                        {partner.customerType === 'PARTNER' ? t('finance.badge_partner') : t('finance.badge_company')}
                       </span>
                       {isSupplier && (
                         <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-extrabold text-[10px] uppercase whitespace-nowrap">
-                          ДОБАВУВАЧ
+                          {t('finance.badge_supplier')}
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground shrink-0">ЕДБ: {partner.taxId || '—'}</span>
+                    <span className="text-[11px] text-muted-foreground shrink-0">{t('finance.tax_id_short')} {partner.taxId || '—'}</span>
                   </div>
                   <h4 className="font-extrabold text-base text-foreground">{pName}</h4>
                   <p className="text-muted-foreground text-[11px]">
                     {[partner.phone, partner.email].filter(Boolean).join(' • ') || '—'}
                   </p>
                   <div className="pt-2 border-t border-border flex items-center justify-between">
-                    <span className="text-muted-foreground">Вкупно набавки:</span>
-                    <strong className="text-foreground">€{totalBought.toFixed(2)} ({partnerPurchases.length} ф-ри)</strong>
+                    <span className="text-muted-foreground">{t('finance.total_purchases_label')}</span>
+                    <strong className="text-foreground">€{totalBought.toFixed(2)} ({partnerPurchases.length} {t('finance.invoices_short')})</strong>
                   </div>
                   <button
                     onClick={() => {
@@ -2105,7 +2110,7 @@ function FinancePageContent() {
                     }}
                     className="w-full py-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground font-bold text-xs transition-all cursor-pointer"
                   >
-                    + Внеси Влезна Фактура од {pName}
+                    {t('finance.btn_add_purchase_from')} {pName}
                   </button>
                 </div>
               );
@@ -2123,7 +2128,7 @@ function FinancePageContent() {
           onClick={() => setShowPurchaseModal(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="Внеси влезна фактура или трошок"
+          aria-label={t('finance.modal_purchase_title')}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
@@ -2133,16 +2138,16 @@ function FinancePageContent() {
               <div>
                 <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
                   <ShoppingCart className="w-5 h-5 text-primary" />
-                  <span>Внеси Влезна Фактура / Набавка на Стока / Трошок</span>
+                  <span>{t('finance.modal_purchase_title')}</span>
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Секоја ставка може да биде <strong>СТОКА</strong> (влегува во залиха со набавна цена) или <strong>ТРОШОК</strong> (гориво, режии, потрошен материјал).
+                  {t('finance.modal_purchase_subtitle')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowPurchaseModal(false)}
-                aria-label="Затвори"
+                aria-label={t('finance.btn_close')}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2186,10 +2191,10 @@ function FinancePageContent() {
 
                 <div>
                   <label className="block font-bold mb-1">Датум</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={pIssueDate}
-                    onChange={(e) => setPIssueDate(e.target.value)}
+                    onChange={(val) => setPIssueDate(val)}
+                    ariaLabel="Датум"
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
                   />
                 </div>
@@ -2512,7 +2517,7 @@ function FinancePageContent() {
           onClick={() => setShowSalesInvoiceModal(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="Издавање излезна фактура"
+          aria-label={t('finance.modal_sales_title')}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
@@ -2521,16 +2526,16 @@ function FinancePageContent() {
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-foreground">
-                  Издавање Излезна Фактура / Про-фактура / Авансна фактура
+                  {t('finance.modal_sales_title')}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  При Конечна фактура од проект, системот автоматски го одбива претходно платениот аванс.
+                  {t('finance.modal_sales_subtitle')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowSalesInvoiceModal(false)}
-                aria-label="Затвори"
+                aria-label={t('finance.btn_close')}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2829,13 +2834,13 @@ function FinancePageContent() {
                   onClick={() => setShowSalesInvoiceModal(false)}
                   className="px-4 py-2 rounded-xl border border-border bg-card font-bold cursor-pointer"
                 >
-                  Откажи
+                  {t('finance.btn_cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-6 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold shadow-md cursor-pointer"
                 >
-                  Генерирај Фактура и Отвори PDF
+                  {t('finance.btn_generate_invoice_pdf')}
                 </button>
               </div>
             </form>
@@ -2852,7 +2857,7 @@ function FinancePageContent() {
           onClick={() => setShowDispatchModal(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="Креирај испратница"
+          aria-label={t('finance.modal_dispatch_title')}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
@@ -2860,15 +2865,15 @@ function FinancePageContent() {
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
-                <h3 className="font-extrabold text-base text-foreground">Креирај Испратница (Физички излез)</h3>
+                <h3 className="font-extrabold text-base text-foreground">{t('finance.modal_dispatch_title')}</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  При потврда на испратницата, залихата се намалува и резервираните артикли се раздолжуваат.
+                  {t('finance.modal_dispatch_subtitle')}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowDispatchModal(false)}
-                aria-label="Затвори"
+                aria-label={t('finance.btn_close')}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2975,13 +2980,13 @@ function FinancePageContent() {
                   onClick={() => setShowDispatchModal(false)}
                   className="px-4 py-2 rounded-xl border border-border bg-card font-bold cursor-pointer"
                 >
-                  Откажи
+                  {t('finance.btn_cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-6 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold shadow-md cursor-pointer"
                 >
-                  Издај Испратница и Отвори PDF
+                  {t('finance.btn_issue_dispatch_pdf')}
                 </button>
               </div>
             </form>
@@ -2998,18 +3003,18 @@ function FinancePageContent() {
           onClick={() => setShowPaymentModal(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="Евидентирај уплата или исплата"
+          aria-label={t('finance.modal_payment_title')}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-extrabold text-base text-foreground">Евидентирај Уплата / Исплата</h3>
+              <h3 className="font-extrabold text-base text-foreground">{t('finance.modal_payment_title')}</h3>
               <button
                 type="button"
                 onClick={() => setShowPaymentModal(false)}
-                aria-label="Затвори"
+                aria-label={t('finance.btn_close')}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -3027,7 +3032,7 @@ function FinancePageContent() {
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  + Прилив од Клиент
+                  {t('finance.btn_inflow')}
                 </button>
                 <button
                   type="button"
@@ -3038,7 +3043,7 @@ function FinancePageContent() {
                       : 'bg-muted text-muted-foreground'
                   }`}
                 >
-                  - Одлив кон Добавувач
+                  {t('finance.btn_outflow')}
                 </button>
               </div>
 
@@ -3118,7 +3123,7 @@ function FinancePageContent() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold mb-1">Износ (€) *</label>
+                  <label className="block font-bold mb-1">{t('finance.field_amount')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -3129,18 +3134,18 @@ function FinancePageContent() {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold mb-1">Датум</label>
-                  <input
-                    type="date"
+                  <label className="block font-bold mb-1">{t('finance.field_date')}</label>
+                  <DatePicker
                     value={payDate}
-                    onChange={(e) => setPayDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-border bg-background"
+                    onChange={(val) => setPayDate(val)}
+                    ariaLabel={t('finance.field_date')}
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold mb-1">Забелешка</label>
+                <label className="block font-bold mb-1">{t('finance.field_note')}</label>
                 <input
                   type="text"
                   value={payNotes}

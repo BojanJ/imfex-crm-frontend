@@ -37,8 +37,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
           type="button"
           onClick={onMobileMenuToggle}
           className="p-2 rounded-lg border border-border lg:hidden text-foreground hover:bg-muted transition-colors cursor-pointer"
-          title="Отвори навигација"
-          aria-label="Отвори навигација"
+          title={t('nav.open_navigation')}
+          aria-label={t('nav.open_navigation')}
         >
           <Menu className="w-4 h-4" />
         </button>
@@ -60,8 +60,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
           type="button"
           onClick={toggleTheme}
           className="h-8 w-8 rounded-lg border border-border bg-background/70 hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center transition-colors cursor-pointer"
-          title={isDark ? 'Светла тема' : 'Темна тема'}
-          aria-label={isDark ? 'Светла тема' : 'Темна тема'}
+          title={isDark ? t('nav.light_theme') : t('nav.dark_theme')}
+          aria-label={isDark ? t('nav.light_theme') : t('nav.dark_theme')}
         >
           {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
         <div
           className="inline-flex items-center h-8 p-0.5 border border-border rounded-lg bg-background/70 text-[11px] font-semibold"
           role="group"
-          aria-label={locale === 'mk' ? 'Избор на јазик' : 'Language switcher'}
+          aria-label={t('nav.language_switcher')}
         >
           {(['mk', 'en'] as Locale[]).map((code) => {
             const active = locale === code;

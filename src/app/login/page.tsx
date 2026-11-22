@@ -46,13 +46,13 @@ export default function LoginPage() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setForgotError(data?.error || 'Грешка при испраќање на барањето.');
+        setForgotError(data?.error || t('login.forgot_request_error'));
         setForgotStatus('idle');
         return;
       }
       setForgotStatus('sent');
     } catch {
-      setForgotError('Мрежна грешка. Проверете ја интернет врската.');
+      setForgotError(t('login.forgot_network_error'));
       setForgotStatus('idle');
     }
   };
@@ -67,11 +67,11 @@ export default function LoginPage() {
       if (user) {
         router.replace('/');
       } else {
-        setErrorMessage('Грешна е-пошта или лозинка. Ве молиме обидете се повторно.');
+        setErrorMessage(t('login.invalid_credentials'));
         setIsLoading(false);
       }
     } catch {
-      setErrorMessage('Настана грешка при најавата. Ве молиме проверете ја вашата интернет врска.');
+      setErrorMessage(t('login.network_error'));
       setIsLoading(false);
     }
   };
@@ -84,7 +84,8 @@ export default function LoginPage() {
           type="button"
           onClick={() => setLocale((locale === 'mk' ? 'en' : 'mk') as Locale)}
           className="h-8 px-2.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-          title="Промени јазик"
+          title={t('nav.change_language')}
+          aria-label={t('nav.change_language')}
         >
           <Globe className="w-3.5 h-3.5 text-muted-foreground" />
           <span>{locale === 'mk' ? 'МК' : 'EN'}</span>
@@ -93,8 +94,8 @@ export default function LoginPage() {
           type="button"
           onClick={toggleTheme}
           className="h-8 w-8 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center transition-colors cursor-pointer"
-          title={theme === 'dark' ? 'Светла тема' : 'Темна тема'}
-          aria-label={theme === 'dark' ? 'Светла тема' : 'Темна тема'}
+          title={theme === 'dark' ? t('nav.light_theme') : t('nav.dark_theme')}
+          aria-label={theme === 'dark' ? t('nav.light_theme') : t('nav.dark_theme')}
         >
           {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>

@@ -14,10 +14,11 @@ import {
   useDeleteCalendarEventMutation,
 } from '@/lib/queries';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
 import { TIME_SLOTS_24H } from '@/lib/formatters';
-import { getCalendarEventTypeLabel } from '@/lib/enum-labels';
+import { getCalendarEventTypeLabel, getProjectStatusLabel, getServiceStatusLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
 import { PageHeader, SectionCard, EmptyState } from '@/components/ui/page-primitives';
@@ -37,13 +38,44 @@ import {
 
 type ViewMode = 'month' | 'week' | 'day' | 'agenda';
 
-function compactCalendarTitle(rawTitle: string): string {
-  return rawTitle
-    .replace(/^Project Start:\s*/i, 'Старт: ')
-    .replace(/^Target Delivery:\s*/i, 'Рок: ')
-    .replace(/^Installation:\s*/i, 'Монтажа: ')
-    .replace(/^Service:\s*/i, 'Сервис: ')
-    .replace(/\b(?:PRJ|SRV)-\d{4}-(\d+)\b/g, '#$1');
+function localizeCalendarTitle(rawTitle: string, locale: 'mk' | 'en', compact = false): string {
+  let result = rawTitle;
+  if (locale === 'mk') {
+    result = result
+      .replace(/^Project Start:\s*/i, 'Старт: ')
+      .replace(/^Target Delivery:\s*/i, 'Рок: ')
+      .replace(/^Installation:\s*/i, 'Монтажа: ')
+      .replace(/^Service:\s*/i, 'Сервис: ')
+      .replace(/^Project:\s*/i, 'Проект: ');
+  } else if (compact) {
+    result = result
+      .replace(/^Project Start:\s*/i, 'Start: ')
+      .replace(/^Target Delivery:\s*/i, 'Due: ')
+      .replace(/^Installation:\s*/i, 'Install: ')
+      .replace(/^Service:\s*/i, 'Service: ')
+      .replace(/^Project:\s*/i, 'Proj: ');
+  }
+  if (compact) {
+    result = result.replace(/\b(?:PRJ|SRV)-\d{4}-(\d+)\b/g, '#$1');
+  }
+  return result;
+}
+
+function localizeCalendarDescription(rawDesc: string | undefined, locale: 'mk' | 'en'): string {
+  if (!rawDesc) return '';
+  let result = rawDesc.replace(/\bStatus:\s*([A-Z_]+)/g, (_m, st: string) => {
+    const translated =
+      getProjectStatusLabel(st, locale) !== st
+        ? getProjectStatusLabel(st, locale)
+        : getServiceStatusLabel(st, locale);
+    return `${locale === 'mk' ? 'Статус' : 'Status'}: ${translated}`;
+  });
+  if (locale === 'mk') {
+    result = result
+      .replace(/\bClient:\s*/g, 'Клиент: ')
+      .replace(/\bContact:\s*/g, 'Контакт: ');
+  }
+  return result;
 }
 
 export default function CalendarPage() {
@@ -328,8 +360,8 @@ export default function CalendarPage() {
                 type="button"
                 onClick={handlePrev}
                 className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                title="Претходен"
-                aria-label="Претходен период"
+                title={t('calendar.prev')}
+                aria-label={t('calendar.prev_period')}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -344,8 +376,8 @@ export default function CalendarPage() {
                 type="button"
                 onClick={handleNext}
                 className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                title="Следен"
-                aria-label="Следен период"
+                title={t('calendar.next')}
+                aria-label={t('calendar.next_period')}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -448,7 +480,7 @@ export default function CalendarPage() {
                     {dayEvents.slice(0, 3).map((ev) => (
                       <div
                         key={ev.id}
-                        title={ev.title}
+                        title={localizeCalendarTitle(ev.title, locale)}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedEvent(ev);
@@ -458,7 +490,7 @@ export default function CalendarPage() {
                         )}`}
                       >
                         {getEventIcon(ev)}
-                        <span className="truncate">{compactCalendarTitle(ev.title)}</span>
+                        <span className="truncate">{localizeCalendarTitle(ev.title, locale, true)}</span>
                       </div>
                     ))}
                     {dayEvents.length > 3 && (
@@ -508,7 +540,7 @@ export default function CalendarPage() {
 
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-foreground">{ev.title}</span>
+                          <span className="font-semibold text-foreground">{localizeCalendarTitle(ev.title, locale)}</span>
                           <span
                             className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${getEventBadgeClass(
                               ev
@@ -519,7 +551,7 @@ export default function CalendarPage() {
                         </div>
 
                         {ev.description && (
-                          <p className="text-muted-foreground line-clamp-1">{ev.description}</p>
+                          <p className="text-muted-foreground line-clamp-1">{localizeCalendarDescription(ev.description, locale)}</p>
                         )}
 
                         <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
@@ -628,7 +660,7 @@ export default function CalendarPage() {
                       dayEvents.map((ev) => (
                         <div
                           key={ev.id}
-                          title={ev.title}
+                          title={localizeCalendarTitle(ev.title, locale)}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEvent(ev);
@@ -639,7 +671,7 @@ export default function CalendarPage() {
                         >
                           <div className="flex items-center gap-1.5">
                             {getEventIcon(ev)}
-                            <span className="truncate font-semibold">{compactCalendarTitle(ev.title)}</span>
+                            <span className="truncate font-semibold">{localizeCalendarTitle(ev.title, locale, true)}</span>
                           </div>
                           <p className="text-[10px] opacity-80 tabular-nums">
                             {ev.allDay
@@ -690,7 +722,7 @@ export default function CalendarPage() {
                             )}`}
                           >
                             {getEventIcon(ev)}
-                            <span>{ev.title}</span>
+                            <span>{localizeCalendarTitle(ev.title, locale)}</span>
                           </div>
                         ))}
                       </div>
@@ -710,7 +742,7 @@ export default function CalendarPage() {
           onClick={() => setSelectedEvent(null)}
           role="dialog"
           aria-modal="true"
-          aria-label={selectedEvent.title}
+          aria-label={localizeCalendarTitle(selectedEvent.title, locale)}
         >
           <div
             className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-5"
@@ -723,7 +755,7 @@ export default function CalendarPage() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-sm text-foreground leading-snug">
-                    {selectedEvent.title}
+                    {localizeCalendarTitle(selectedEvent.title, locale)}
                   </h3>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-medium border inline-block mt-1 ${getEventBadgeClass(
@@ -738,7 +770,7 @@ export default function CalendarPage() {
                 type="button"
                 onClick={() => setSelectedEvent(null)}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
-                aria-label="Затвори"
+                aria-label={t('calendar.close')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -782,7 +814,7 @@ export default function CalendarPage() {
                   <span className="font-medium text-[11px] text-muted-foreground">
                     {t('calendar.notes')}
                   </span>
-                  <p className="text-foreground leading-relaxed">{selectedEvent.description}</p>
+                  <p className="text-foreground leading-relaxed">{localizeCalendarDescription(selectedEvent.description, locale)}</p>
                 </div>
               )}
             </div>
@@ -935,28 +967,27 @@ export default function CalendarPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block font-medium text-muted-foreground">{t('calendar.start_date')}</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       required
                       value={eventStartDate}
-                      onChange={(e) => {
-                        const nextStart = e.target.value;
+                      onChange={(nextStart) => {
                         setEventStartDate(nextStart);
                         if (!eventEndDate || eventEndDate < nextStart) {
                           setEventEndDate(nextStart);
                         }
                       }}
+                      ariaLabel={t('calendar.start_date')}
                       className={inputClass}
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="block font-medium text-muted-foreground">{t('calendar.end_date')}</label>
-                    <input
-                      type="date"
+                    <DatePicker
                       min={eventStartDate}
                       value={eventEndDate}
-                      onChange={(e) => setEventEndDate(e.target.value)}
+                      onChange={(val) => setEventEndDate(val)}
+                      ariaLabel={t('calendar.end_date')}
                       className={inputClass}
                     />
                   </div>

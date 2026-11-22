@@ -8,6 +8,7 @@ export const queryKeys = {
   offer: (id: string) => ['offers', id] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
+  projectNotes: (id: string) => ['projects', id, 'notes'] as const,
   serviceTickets: ['service-tickets'] as const,
   serviceTicket: (id: string) => ['service-tickets', id] as const,
   installedItems: ['installed-items'] as const,
@@ -20,7 +21,13 @@ export const queryKeys = {
   payments: ['payments'] as const,
   inventoryMovements: ['inventory-movements'] as const,
   companySettings: ['company-settings'] as const,
-  auditLogs: (limit = 50) => ['audit-logs', limit] as const,
+  auditLogs: (params?: {
+    limit?: number;
+    offset?: number;
+    action?: string;
+    entityType?: string;
+    search?: string;
+  }) => ['audit-logs', params ?? {}] as const,
 };
 
 export function createQueryClient(): QueryClient {

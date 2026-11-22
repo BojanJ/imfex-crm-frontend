@@ -12,6 +12,7 @@ import type {
   Product,
   ProductCategory,
   Project,
+  ProjectNote,
   PurchaseInvoice,
   SalesInvoice,
   ServiceTicket,
@@ -141,6 +142,16 @@ export const apiClient = {
     save: (payload: Partial<Project>) =>
       requestJson<Project>('/api/projects', { method: 'POST', body: JSON.stringify(payload) }),
     remove: (id: string) => requestJson<{ success: boolean; id: string }>(`/api/projects/${id}`, { method: 'DELETE' }),
+    listNotes: (id: string) => requestJson<ProjectNote[]>(`/api/projects/${id}/notes`),
+    addNote: (id: string, content: string) =>
+      requestJson<ProjectNote>(`/api/projects/${id}/notes`, {
+        method: 'POST',
+        body: JSON.stringify({ content }),
+      }),
+    deleteNote: (projectId: string, noteId: string) =>
+      requestJson<{ success: boolean; id: string }>(`/api/projects/${projectId}/notes/${noteId}`, {
+        method: 'DELETE',
+      }),
   },
 
   serviceTickets: {
@@ -220,6 +231,38 @@ export const apiClient = {
 
   auditLogs: {
     list: (limit = 50) => requestJson<AuditLogEntry[]>(`/api/audit-logs?limit=${Math.max(1, Math.min(200, limit))}`),
+    query: async (params: {
+      limit?: number;
+      offset?: number;
+      action?: string;
+      entityType?: string;
+      search?: string;
+    } = {}): Promise<{ logs: AuditLogEntry[]; totalCount: number }> => {
+      const qs = new URLSearchParams();
+      qs.set('limit', String(Math.max(1, Math.min(200, params.limit ?? 25))));
+      qs.set('offset', String(Math.max(0, params.offset ?? 0)));
+      if (params.action && params.action !== 'ALL') qs.set('action', params.action);
+      if (params.entityType && params.entityType !== 'ALL') qs.set('entityType', params.entityType);
+      if (params.search && params.search.trim()) qs.set('search', params.search.trim());
+      const url = `${getApiUrl()}/api/audit-logs?${qs.toString()}`;
+      const res = await authFetch(url);
+      if (!res.ok) {
+        let message = `Request failed with status ${res.status}`;
+        try {
+          const payload = await res.json();
+          if (payload && typeof payload === 'object' && 'error' in payload) {
+            message = String((payload as { error: unknown }).error);
+          }
+        } catch {
+          // ignore
+        }
+        throw new ApiError(message, res.status);
+      }
+      const logs = (await res.json()) as AuditLogEntry[];
+      const headerTotal = Number(res.headers.get('X-Total-Count'));
+      const totalCount = Number.isFinite(headerTotal) ? headerTotal : logs.length;
+      return { logs, totalCount };
+    },
   },
 
   admin: {

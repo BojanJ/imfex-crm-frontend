@@ -6,6 +6,7 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/formatters';
 import { getOfferStatusLabel, getProjectStatusLabel } from '@/lib/enum-labels';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DatePicker } from '@/components/ui/date-picker';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
@@ -364,11 +365,11 @@ export const AdvancePaymentModal: React.FC<AdvancePaymentModalProps> = ({
 
             <div>
               <label className="block font-bold mb-1 text-foreground">Датум на уплата *</label>
-              <input
-                type="date"
+              <DatePicker
                 required
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(val) => setDate(val)}
+                ariaLabel="Датум на уплата"
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-semibold outline-none"
               />
             </div>

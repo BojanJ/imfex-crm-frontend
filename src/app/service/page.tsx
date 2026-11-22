@@ -6,7 +6,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore } from '@/lib/store';
 import { useServiceTicketsQuery, useDeleteServiceTicketMutation } from '@/lib/queries';
 import { ServiceTicket, ServiceStatus } from '@/types';
-import { formatDate } from '@/lib/date-format';
+import { formatDateTime } from '@/lib/date-format';
 import { getServicePriorityLabel, getServiceStatusLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -87,8 +87,8 @@ export default function ServiceDeskPage() {
   return (
     <div className="space-y-6 pb-10">
       <PageHeader
-        title={t('nav.service') || 'Сервис и Тикети'}
-        subtitle="Управување со сервисни интервенции, теренски тикети и техничка поддршка."
+        title={t('nav.service')}
+        subtitle={t('service.subtitle')}
         icon={<Wrench className="w-5 h-5" />}
         actions={
           <Link
@@ -96,7 +96,7 @@ export default function ServiceDeskPage() {
             className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Нов Сервисен Тикет</span>
+            <span>{t('service.new_ticket')}</span>
           </Link>
         }
       />
@@ -104,7 +104,7 @@ export default function ServiceDeskPage() {
       <FilterBar
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Пребарај по број, клиент, опис или техничар..."
+        searchPlaceholder={t('service.search_placeholder')}
       >
         {(['ALL', 'OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CLOSED'] as const).map((st) => (
           <button
@@ -127,20 +127,20 @@ export default function ServiceDeskPage() {
         {filtered.length === 0 ? (
           <EmptyState
             icon={<CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />}
-            title="Нема сервисни тикети"
-            description="Кликнете „Нов Сервисен Тикет“ за да евидентирате нова интервенција."
+            title={t('service.empty_title')}
+            description={t('service.empty_desc')}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                 <tr>
-                  <th className="px-5 py-3">Тикет</th>
-                  <th className="px-4 py-3">Клиент и Дефект</th>
-                  <th className="px-4 py-3">Приоритет</th>
-                  <th className="px-4 py-3">Статус</th>
-                  <th className="px-4 py-3">Техничар / Термин</th>
-                  <th className="px-5 py-3 text-right">Акции</th>
+                  <th className="px-5 py-3">{t('service.col_ticket')}</th>
+                  <th className="px-4 py-3">{t('service.col_client_defect')}</th>
+                  <th className="px-4 py-3">{t('service.priority')}</th>
+                  <th className="px-4 py-3">{t('service.status')}</th>
+                  <th className="px-4 py-3">{t('service.col_technician_date')}</th>
+                  <th className="px-5 py-3 text-right">{t('service.col_actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/70">
@@ -153,7 +153,7 @@ export default function ServiceDeskPage() {
                     </td>
                     <td className="px-4 py-3.5 max-w-md">
                       <p className="font-medium text-foreground truncate">
-                        {st.customer?.companyName || st.customer?.name || 'Клиент'}
+                        {st.customer?.companyName || st.customer?.name || t('offers.customer')}
                       </p>
                       <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
                         {st.defectDescription}
@@ -173,12 +173,12 @@ export default function ServiceDeskPage() {
                     <td className="px-4 py-3.5 text-[11px] text-muted-foreground space-y-0.5 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <User className="w-3 h-3 shrink-0" />
-                        <span>{st.assignedTechnician?.fullName || 'Недоделен'}</span>
+                        <span>{st.assignedTechnician?.fullName || t('service.unassigned')}</span>
                       </div>
                       {st.scheduledDate && (
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3 h-3 shrink-0" />
-                          <span>{formatDate(st.scheduledDate)}</span>
+                          <span className="tabular-nums">{formatDateTime(st.scheduledDate)}</span>
                         </div>
                       )}
                     </td>
@@ -188,14 +188,14 @@ export default function ServiceDeskPage() {
                           href={`/service/${st.id}`}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium text-xs transition-colors"
                         >
-                          Отвори <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                          {t('service.open')} <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                         </Link>
                         <button
                           type="button"
                           onClick={() => setTicketToDelete(st)}
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
-                          title="Избриши тикет"
-                          aria-label="Избриши тикет"
+                          title={t('service.delete_ticket')}
+                          aria-label={t('service.delete_ticket')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -211,15 +211,15 @@ export default function ServiceDeskPage() {
 
       <ConfirmModal
         isOpen={Boolean(ticketToDelete)}
-        title="Избриши Сервисен Тикет"
-        message={`Дали сте сигурни дека сакате да го избришете тикетот „${ticketToDelete?.ticketNumber || ''}“?`}
-        confirmLabel="Да, избриши"
+        title={t('service.delete_title')}
+        message={`${t('service.delete_confirm_prefix')} „${ticketToDelete?.ticketNumber || ''}“?`}
+        confirmLabel={t('service.confirm_delete')}
         variant="danger"
         onConfirm={() => {
           if (ticketToDelete) {
             deleteTicketMutation.mutate(ticketToDelete.id, {
               onSuccess: () => {
-                toast.info('Сервисниот тикет е избришан');
+                toast.info(t('service.deleted_toast'));
               },
             });
           }

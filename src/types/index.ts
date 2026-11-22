@@ -450,3 +450,13 @@ export interface PaymentRecord {
   createdAt: string;
 }
 
+export interface ProjectNote {
+  id: string;
+  projectId: string;
+  authorId?: string | null;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+

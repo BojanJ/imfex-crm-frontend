@@ -11,8 +11,9 @@ import {
   useSaveServiceTicketMutation,
 } from '@/lib/queries';
 import { SearchableSelect } from '@/components/ui/searchable-select';
+import { DateTimePicker } from '@/components/ui/date-picker';
 import { ProductSelect } from '@/components/ui/entity-selectors';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, splitIsoDateTime } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import {
   getServicePriorityLabel,
@@ -82,7 +83,10 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setStatus(tk.status);
     setPriority(tk.priority);
     setAssignedTechnicianId(tk.assignedTechnicianId || '');
-    setScheduledDate(tk.scheduledDate ? String(tk.scheduledDate).slice(0, 16) : '');
+    const parsedSched = splitIsoDateTime(tk.scheduledDate);
+    setScheduledDate(
+      parsedSched.date ? `${parsedSched.date}T${parsedSched.time || '09:00'}` : ''
+    );
     setLaborHours(Number(tk.laborHours || 0));
     setSolution(tk.solution || '');
     setPartsConsumed(tk.partsConsumed || []);
@@ -261,7 +265,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               <label className="block font-medium text-muted-foreground">{t('service.technician')}</label>
               <SearchableSelect
                 options={[
-                  { value: '', label: '-- Додели Техничар --' },
+                  { value: '', label: t('service.assign_technician_placeholder') },
                   ...profiles.map((p) => ({
                     value: p.id,
                     label: `${p.fullName} (${getUserRoleLabel(p.role, locale)})`,
@@ -269,19 +273,19 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 ]}
                 value={assignedTechnicianId}
                 onChange={(val) => setAssignedTechnicianId(val)}
-                placeholder="-- Додели Техничар --"
-                searchPlaceholder="Пребарај техничар..."
+                placeholder={t('service.assign_technician_placeholder')}
+                searchPlaceholder={t('service.search_technician')}
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium outline-none"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="block font-medium text-muted-foreground">{t('service.scheduled_date')}</label>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background outline-none font-medium text-foreground"
+                onChange={(val) => setScheduledDate(val)}
+                ariaLabel={t('service.scheduled_date')}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background outline-none font-medium text-foreground text-xs"
               />
             </div>
           </div>
@@ -305,7 +309,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>{addPartCleanLabel} (Рачно)</span>
+                <span>{addPartCleanLabel} ({t('service.manual')})</span>
               </button>
             }
           >
@@ -313,7 +317,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               {/* Quick Part Selector from Inventory */}
               <div className="p-3 bg-muted/25 rounded-lg border border-border/80 flex flex-col sm:flex-row sm:items-center gap-2.5">
                 <span className="text-xs font-medium text-muted-foreground shrink-0">
-                  Избери од магацин:
+                  {t('service.quick_part_label')}
                 </span>
                 <div className="flex-1 w-full">
                   <ProductSelect
@@ -428,7 +432,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                   rows={4}
                   value={solution}
                   onChange={(e) => setSolution(e.target.value)}
-                  placeholder="Опис на извршениот сервис, тестирање и дијагностика..."
+                  placeholder={t('service.solution_placeholder')}
                   className="w-full px-3 py-2.5 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
@@ -460,7 +464,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 type="button"
                 onClick={() => setIsReportModalOpen(false)}
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
-                aria-label="Затвори"
+                aria-label={t('service.close')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -469,23 +473,23 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
             <div className="space-y-3 p-6 bg-white text-slate-900 rounded-xl border border-slate-200">
               <div className="flex justify-between items-start border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-lg font-bold text-blue-900">IMFEX ИЗВЕШТАЈ ЗА СЕРВИС</h2>
-                  <p className="text-xs text-slate-500">Тикет: {ticket.ticketNumber}</p>
+                  <h2 className="text-lg font-bold text-blue-900">{t('service.report_title')}</h2>
+                  <p className="text-xs text-slate-500">{t('service.col_ticket')}: {ticket.ticketNumber}</p>
                 </div>
                 <p className="text-xs text-slate-500">{formatDate(ticket.createdAt)}</p>
               </div>
               <p>
-                <strong className="font-semibold">Клиент:</strong>{' '}
+                <strong className="font-semibold">{t('offers.customer')}:</strong>{' '}
                 {ticket.customer?.companyName || ticket.customer?.name}
               </p>
               <p>
-                <strong className="font-semibold">Статус:</strong> {getServiceStatusLabel(status, locale)}
+                <strong className="font-semibold">{t('service.status')}:</strong> {getServiceStatusLabel(status, locale)}
               </p>
               <p>
-                <strong className="font-semibold">Дефект:</strong> {ticket.defectDescription}
+                <strong className="font-semibold">{t('service.defect')}:</strong> {ticket.defectDescription}
               </p>
               <p>
-                <strong className="font-semibold">Решение:</strong>{' '}
+                <strong className="font-semibold">{t('service.solution')}:</strong>{' '}
                 {solution.trim()
                   ? solution
                   : status === 'COMPLETED' || status === 'CLOSED'
@@ -497,8 +501,8 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                   : 'In progress (no resolution notes yet)'}
               </p>
               <p>
-                <strong className="font-semibold">Работни часови:</strong> {laborHours} ч. •{' '}
-                <strong className="font-semibold">Делови:</strong> {formatCurrency(totalPartsCost)}
+                <strong className="font-semibold">{t('service.labor_hours')}:</strong> {laborHours}h •{' '}
+                <strong className="font-semibold">{t('service.parts_consumed')}:</strong> {formatCurrency(totalPartsCost)}
               </p>
             </div>
 
@@ -508,7 +512,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 onClick={() => setIsReportModalOpen(false)}
                 className="h-9 px-4 rounded-lg border border-border bg-card hover:bg-muted text-foreground font-medium cursor-pointer"
               >
-                Затвори
+                {t('service.close')}
               </button>
               <button
                 type="button"

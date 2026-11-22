@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { useI18n } from '@/lib/i18n-context';
 import { Product, ProductStockType, UserRole, Project, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import {
@@ -45,6 +46,7 @@ import {
 type ActiveTab = 'catalog' | 'config' | 'moves' | 'projects';
 
 export default function ProductsPage() {
+  const { t } = useI18n();
   useImfexStore();
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
@@ -61,7 +63,7 @@ export default function ProductsPage() {
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const selectedProductCodeRef = React.useRef<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('Сите категории');
+  const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [isMounted, setIsMounted] = useState(false);
 
   // Configuration tab state: linked warehouse accessories (motor, rail) & advanced specs toggle
@@ -173,14 +175,14 @@ export default function ProductsPage() {
 
   // Categories list for dropdown
   const uniqueCategoryNames = [
-    'Сите категории',
+    'ALL',
     ...Array.from(new Set(products.map((p) => getProductCatName(p)))),
   ];
 
   // Filtered catalog list
   const filteredCatalog = products.filter((p) => {
     const catName = getProductCatName(p);
-    const matchesCat = categoryFilter === 'Сите категории' || catName === categoryFilter;
+    const matchesCat = categoryFilter === 'ALL' || catName === categoryFilter;
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.code.toLowerCase().includes(searchQuery.toLowerCase());
@@ -400,8 +402,8 @@ export default function ProductsPage() {
     <div className="space-y-5 pb-12">
       {/* Unified Minimal Page Header */}
       <PageHeader
-        title="Производи и залиха"
-        subtitle="Интегриран каталог, конфигурација на артикли, магацински движења и нарачки по проект."
+        title={t('products.title')}
+        subtitle={t('products.subtitle')}
         icon={<Package className="w-5 h-5" />}
         actions={
           isSuperAdmin ? (
@@ -412,7 +414,7 @@ export default function ProductsPage() {
                 className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Layers className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Категории</span>
+                <span>{t('products.categories_btn')}</span>
               </button>
               <button
                 type="button"
@@ -420,7 +422,7 @@ export default function ProductsPage() {
                 className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
-                <span>Нов Артикл</span>
+                <span>{t('products.new_item_btn')}</span>
               </button>
             </>
           ) : undefined
@@ -430,19 +432,19 @@ export default function ProductsPage() {
       {/* Compact 3-Column KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
-          label="Вкупно артикли"
+          label={t('products.kpi_total')}
           value={totalCount}
           tone="primary"
           icon={<Boxes className="w-4 h-4" />}
         />
         <StatCard
-          label="Без залиха"
+          label={t('products.kpi_out_of_stock')}
           value={zeroStockCount}
           tone={zeroStockCount > 0 ? 'danger' : 'success'}
           icon={<XCircle className="w-4 h-4" />}
         />
         <StatCard
-          label="По нарачка"
+          label={t('products.kpi_custom_order')}
           value={customOrderCount}
           tone="neutral"
           icon={<SlidersHorizontal className="w-4 h-4" />}
@@ -454,10 +456,10 @@ export default function ProductsPage() {
         activeTab={activeTab}
         onChange={(id) => setActiveTab(id as ActiveTab)}
         tabs={[
-          { id: 'catalog', label: 'Каталог', count: products.length, icon: <Boxes className="w-3.5 h-3.5" /> },
-          { id: 'config', label: 'Конфигурација', icon: <Settings2 className="w-3.5 h-3.5" /> },
-          { id: 'moves', label: 'Движења', count: movements.length, icon: <History className="w-3.5 h-3.5" /> },
-          { id: 'projects', label: 'Проект / нарачка', icon: <Briefcase className="w-3.5 h-3.5" /> },
+          { id: 'catalog', label: t('products.tab_catalog'), count: products.length, icon: <Boxes className="w-3.5 h-3.5" /> },
+          { id: 'config', label: t('products.tab_config'), icon: <Settings2 className="w-3.5 h-3.5" /> },
+          { id: 'moves', label: t('products.tab_moves'), count: movements.length, icon: <History className="w-3.5 h-3.5" /> },
+          { id: 'projects', label: t('products.tab_projects'), icon: <Briefcase className="w-3.5 h-3.5" /> },
         ]}
       />
 
@@ -476,7 +478,7 @@ export default function ProductsPage() {
                 >
                   {uniqueCategoryNames.map((cat) => (
                     <option key={cat} value={cat}>
-                      {cat}
+                      {cat === 'ALL' ? t('products.all_categories') : cat}
                     </option>
                   ))}
                 </select>
@@ -485,7 +487,7 @@ export default function ProductsPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Пребарај по шифра или име..."
+                  placeholder={t('products.search_placeholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground/70 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -498,19 +500,19 @@ export default function ProductsPage() {
               <table className="w-full border-collapse text-left text-xs">
                 <thead>
                   <tr className="bg-muted/40 border-y border-border text-muted-foreground text-[11px] font-medium">
-                    <th className="py-3 px-5">Шифра</th>
-                    <th className="py-3 px-4">Производ</th>
-                    <th className="py-3 px-4">Категорија</th>
-                    <th className="py-3 px-4">Физичка залиха</th>
-                    <th className="py-3 px-4">Резервирано</th>
-                    <th className="py-3 px-5 text-right">Акција</th>
+                    <th className="py-3 px-5">{t('products.col_code')}</th>
+                    <th className="py-3 px-4">{t('products.col_product')}</th>
+                    <th className="py-3 px-4">{t('products.col_category')}</th>
+                    <th className="py-3 px-4">{t('products.col_physical_stock')}</th>
+                    <th className="py-3 px-4">{t('products.col_reserved')}</th>
+                    <th className="py-3 px-5 text-right">{t('products.col_action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
                   {filteredCatalog.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Не се пронајдени артикли за избраниот филтер.
+                        {t('products.empty_filtered')}
                       </td>
                     </tr>
                   ) : (
@@ -541,7 +543,7 @@ export default function ProductsPage() {
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <StatusBadge variant={stockVariant} dot>
-                              {isCustom ? 'По нарачка' : `${stockQty} пар.`}
+                              {isCustom ? t('products.badge_custom') : `${stockQty} ${t('products.pcs_short')}`}
                             </StatusBadge>
                           </td>
                           <td className="py-3.5 px-4 font-medium text-foreground tabular-nums">
@@ -553,7 +555,7 @@ export default function ProductsPage() {
                               onClick={() => openProductConfig(p.id)}
                               className="h-7 px-3 rounded-md border border-border bg-background hover:bg-muted text-xs font-medium text-foreground transition-colors cursor-pointer"
                             >
-                              Отвори
+                              {t('products.open')}
                             </button>
                           </td>
                         </tr>
@@ -569,13 +571,13 @@ export default function ProductsPage() {
         {/* TAB 2: КОНФИГУРАЦИЈА */}
         {activeTab === 'config' && !selectedProduct && (
           <div className="p-8 text-center text-muted-foreground space-y-3">
-            <p className="text-xs sm:text-sm">Нема внесено производи во каталогот.</p>
+            <p className="text-xs sm:text-sm">{t('products.empty_catalog')}</p>
             {isSuperAdmin && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all cursor-pointer"
               >
-                <Plus className="w-4 h-4" /> + Додај Артикл
+                <Plus className="w-4 h-4" /> {t('products.add_item_plus')}
               </button>
             )}
           </div>
@@ -590,7 +592,7 @@ export default function ProductsPage() {
                     {selectedProduct.name}
                   </h2>
                   <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                    {selectedProduct.stockType === 'CUSTOM' ? 'По нарачка' : 'Залиха'}
+                    {selectedProduct.stockType === 'CUSTOM' ? t('products.badge_custom') : t('products.badge_stock')}
                   </span>
                 </div>
                 <small className="text-xs text-muted-foreground block mt-1">
@@ -612,24 +614,23 @@ export default function ProductsPage() {
                   className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-secondary text-secondary-foreground hover:brightness-110 transition-all cursor-pointer"
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>{showAdvancedEditor ? 'Сокриј Ценовник/Опции' : 'Ценовник и Спецификации'}</span>
+                  <span>{showAdvancedEditor ? t('products.hide_pricing_editor') : t('products.show_pricing_editor')}</span>
                 </button>
               </div>
             </div>
 
             {selectedProduct.stockType === 'CUSTOM' ? (
-              /* Custom-made Door Configuration View (matches HTML id===0 block) */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Left Block: Real Product Specifications */}
                   <div className="p-4 sm:p-5 bg-background/60 border border-border rounded-xl space-y-3">
                     <b className="text-sm font-bold text-foreground block border-b border-border pb-2">
-                      Спецификации на производот
+                      {t('products.product_specs')}
                     </b>
                     {selectedProduct.specificationKeys && selectedProduct.specificationKeys.length > 0 ? (
                       selectedProduct.specificationKeys.map((spec) => {
                         const defOpt = spec.options?.find((o) => o.isDefault) || spec.options?.[0];
-                        const displayVal = defOpt?.label || spec.defaultValue || 'По избор';
+                        const displayVal = defOpt?.label || spec.defaultValue || t('products.spec_by_choice');
                         return (
                           <div
                             key={spec.id}
@@ -642,34 +643,34 @@ export default function ProductsPage() {
                       })
                     ) : (
                       <p className="text-xs text-muted-foreground italic py-1">
-                        Нема дефинирани спецификации — користете „Напредно уредување“ за да додадете.
+                        {t('products.no_specs_defined')}
                       </p>
                     )}
                     <div className="flex justify-between items-center text-xs sm:text-sm py-1">
-                      <span className="text-muted-foreground">Изработка</span>
-                      <b className="text-sky-400">По нарачка</b>
+                      <span className="text-muted-foreground">{t('products.manufacturing')}</span>
+                      <b className="text-sky-400">{t('products.badge_custom')}</b>
                     </div>
                   </div>
 
                   {/* Right Block: Linked Warehouse Articles */}
                   <div className="p-4 sm:p-5 bg-background/60 border border-border rounded-xl space-y-4">
                     <b className="text-sm font-bold text-foreground block border-b border-border pb-2">
-                      Поврзани магацински артикли
+                      {t('products.linked_warehouse_items')}
                     </b>
 
                     <div className="space-y-1.5">
-                      <small className="text-xs text-muted-foreground block font-semibold">Автоматика</small>
+                      <small className="text-xs text-muted-foreground block font-semibold">{t('products.automation')}</small>
                       <ProductSelect
                         value={motorProd?.id || ''}
                         onChange={(id) => setSelectedMotorId(id)}
                         products={motorProducts}
-                        placeholder="-- Избери мотор (со пребарување) --"
+                        placeholder={t('products.select_motor_placeholder')}
                       />
                       {motorProd && (
                         <p className="text-xs text-muted-foreground pt-0.5">
-                          Физичка залиха:{' '}
-                          <b className="text-foreground">{motorProd.stockQuantity ?? 0}</b> · Резервирано:{' '}
-                          <b className="text-foreground">{motorProd.reservedQuantity ?? 0}</b> · Слободно:{' '}
+                          {t('products.stock_label')}{' '}
+                          <b className="text-foreground">{motorProd.stockQuantity ?? 0}</b> · {t('products.reserved_label')}{' '}
+                          <b className="text-foreground">{motorProd.reservedQuantity ?? 0}</b> · {t('products.available_label')}{' '}
                           <b className="text-emerald-400">
                             {Math.max(0, (motorProd.stockQuantity ?? 0) - (motorProd.reservedQuantity ?? 0))}
                           </b>
@@ -678,18 +679,18 @@ export default function ProductsPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <small className="text-xs text-muted-foreground block font-semibold">Шина</small>
+                      <small className="text-xs text-muted-foreground block font-semibold">{t('products.rail')}</small>
                       <ProductSelect
                         value={railProd?.id || ''}
                         onChange={(id) => setSelectedRailId(id)}
                         products={railProducts}
-                        placeholder="-- Избери шина (со пребарување) --"
+                        placeholder={t('products.select_rail_placeholder')}
                       />
                       {railProd && (
                         <p className="text-xs text-muted-foreground pt-0.5">
-                          Физичка залиха:{' '}
-                          <b className="text-foreground">{railProd.stockQuantity ?? 0}</b> · Резервирано:{' '}
-                          <b className="text-foreground">{railProd.reservedQuantity ?? 0}</b> · Слободно:{' '}
+                          {t('products.stock_label')}{' '}
+                          <b className="text-foreground">{railProd.stockQuantity ?? 0}</b> · {t('products.reserved_label')}{' '}
+                          <b className="text-foreground">{railProd.reservedQuantity ?? 0}</b> · {t('products.available_label')}{' '}
                           <b className="text-emerald-400">
                             {Math.max(0, (railProd.stockQuantity ?? 0) - (railProd.reservedQuantity ?? 0))}
                           </b>
@@ -701,7 +702,7 @@ export default function ProductsPage() {
 
                 {/* Notice Box */}
                 <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground leading-relaxed">
-                  Во реалниот систем, спецификациите и изборот на додатоци се зачувуваат во верзијата на понудата. При прифаќање се резервираат достапните артикли; недостатокот се означува „За набавка“. Нема физички излез додека не се издаде магацински документ.
+                  {t('products.custom_notice')}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -709,27 +710,26 @@ export default function ProductsPage() {
                     onClick={() => setActiveTab('projects')}
                     className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer inline-flex items-center gap-2"
                   >
-                    <span>Отвори пример проект →</span>
+                    <span>{t('products.open_sample_project')}</span>
                   </button>
                   <Link
                     href={`/offers/new?productId=${selectedProduct.id}`}
                     className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-2"
                   >
-                    <span>Креирај Нова Понуда со овој производ</span>
+                    <span>{t('products.create_offer_with_product')}</span>
                     <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               </div>
             ) : (
-              /* Stock Item Configuration View (matches HTML stock item block) */
               <div className="space-y-4">
                 <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
                   <div>
                     <h2 className="text-2xl font-extrabold text-foreground">
-                      {selectedProduct.stockQuantity ?? 0} парчиња
+                      {selectedProduct.stockQuantity ?? 0} {t('products.pcs_full')}
                     </h2>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                      Резервирано: <b className="text-foreground">{selectedProduct.reservedQuantity ?? 0}</b> · Слободно:{' '}
+                      {t('products.reserved_label')} <b className="text-foreground">{selectedProduct.reservedQuantity ?? 0}</b> · {t('products.available_label')}{' '}
                       <b className="text-emerald-400">
                         {Math.max(0, (selectedProduct.stockQuantity ?? 0) - (selectedProduct.reservedQuantity ?? 0))}
                       </b>
@@ -741,20 +741,20 @@ export default function ProductsPage() {
                       onClick={() => handleReceive(selectedProduct.id)}
                       className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer"
                     >
-                      + Прием 1 парче
+                      {t('products.receive_one')}
                     </button>
                     <button
                       onClick={() => handleSell(selectedProduct.id)}
                       disabled={(selectedProduct.stockQuantity ?? 0) <= 0}
                       className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Продажба / излез 1 парче
+                      {t('products.sell_one')}
                     </button>
                   </div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground leading-relaxed">
-                  Истиот артикл се користи и при самостојна продажба и како додаток на друг производ — нема дупла залиха.
+                  {t('products.stock_notice')}
                 </div>
               </div>
             )}
@@ -776,15 +776,15 @@ export default function ProductsPage() {
         {activeTab === 'moves' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-bold text-foreground">Магацински движења</h2>
+              <h2 className="text-lg sm:text-xl font-bold text-foreground">{t('products.moves_title')}</h2>
               <span className="text-xs text-muted-foreground">
-                Вкупно логови: {movements.length}
+                {t('products.moves_total')} {movements.length}
               </span>
             </div>
 
             {movements.length === 0 ? (
               <div className="p-5 bg-background/60 border border-border rounded-xl text-xs sm:text-sm text-muted-foreground">
-                Нема движења. Пробај прием или излез на артикл.
+                {t('products.moves_empty')}
               </div>
             ) : (
               <div className="divide-y divide-border border border-border rounded-xl overflow-hidden bg-background/40">
@@ -830,9 +830,9 @@ export default function ProductsPage() {
           <div className="space-y-5">
             {!activeRealProject ? (
               <div className="p-8 text-center text-muted-foreground space-y-2">
-                <p className="text-xs sm:text-sm font-medium">Нема активни проекти.</p>
+                <p className="text-xs sm:text-sm font-medium">{t('products.no_active_projects')}</p>
                 <p className="text-xs text-muted-foreground">
-                  Проектите се креираат автоматски кога понудата ќе добие статус „Прифатена“ (ACCEPTED).
+                  {t('products.no_active_projects_hint')}
                 </p>
               </div>
             ) : (
@@ -840,7 +840,7 @@ export default function ProductsPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold text-foreground">
-                      Проект {activeRealProject.projectNumber} ({activeRealProject.customer?.companyName || activeRealProject.customer?.name || 'Клиент'})
+                      {t('products.project_label')} {activeRealProject.projectNumber} ({activeRealProject.customer?.companyName || activeRealProject.customer?.name || t('offers.customer')})
                     </h2>
                     <small className="text-xs text-muted-foreground block mt-0.5">
                       {(() => {
@@ -849,8 +849,8 @@ export default function ProductsPage() {
                         const firstTitle =
                           linkedOffer?.items?.[0]?.customTitle ||
                           selectedProduct?.name ||
-                          'Производ';
-                        return `${firstTitle} · Поврзана понуда: ${linkedOffer?.offerNumber || 'N/A'}`;
+                          t('products.col_product');
+                        return `${firstTitle} · ${t('products.linked_offer')} ${linkedOffer?.offerNumber || 'N/A'}`;
                       })()}
                     </small>
                   </div>
@@ -861,14 +861,14 @@ export default function ProductsPage() {
                         value={activeRealProject.id}
                         onChange={(id) => id && setSelectedProjectId(id)}
                         projects={realProjects}
-                        placeholder="-- Пребарај проект по PRJ- или клиент --"
+                        placeholder={t('products.search_project_placeholder')}
                       />
                     </div>
                     <Link
                       href={`/projects/${activeRealProject.id}`}
                       className="px-3 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-semibold hover:brightness-110 transition-all shrink-0"
                     >
-                      Детали →
+                      {t('products.details_link')}
                     </Link>
                   </div>
                 </div>
@@ -877,9 +877,9 @@ export default function ProductsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Left Block: Понуди и аванс */}
                   <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
-                    <b className="text-sm font-bold text-foreground block">Понуди и аванс</b>
+                    <b className="text-sm font-bold text-foreground block">{t('products.offers_and_advance')}</b>
                     <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                      Понуда V1 → теренско мерење → понуда V2 (финална). Двете верзии се зачувани.
+                      {t('products.offers_and_advance_desc')}
                     </p>
 
                     <div>
@@ -890,7 +890,7 @@ export default function ProductsPage() {
                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        {isAccepted ? 'Финална понуда прифатена' : 'Чека прифаќање'}
+                        {isAccepted ? t('products.final_offer_accepted') : t('products.awaiting_acceptance')}
                       </span>
                     </div>
 
@@ -900,7 +900,7 @@ export default function ProductsPage() {
                         disabled={isAccepted}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
-                        1. Прифати финална понуда
+                        {t('products.step1_accept')}
                       </button>
 
                       <button
@@ -908,14 +908,14 @@ export default function ProductsPage() {
                         disabled={!isAccepted || isPaid}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
-                        2. Евидентирај аванс {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
+                        {t('products.step2_advance')} {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
                       </button>
                     </div>
                   </div>
 
                   {/* Right Block: Набавка и магацин */}
                   <div className="p-5 bg-background/60 border border-border rounded-xl space-y-4">
-                    <b className="text-sm font-bold text-foreground block">Набавка и магацин</b>
+                    <b className="text-sm font-bold text-foreground block">{t('products.procurement_and_warehouse')}</b>
 
                     <div>
                       <span
@@ -925,7 +925,7 @@ export default function ProductsPage() {
                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                         }`}
                       >
-                        {isOrdered ? 'Вратата е нарачана' : 'Не е нарачана'}
+                        {isOrdered ? t('products.door_ordered') : t('products.not_ordered')}
                       </span>
                     </div>
 
@@ -935,7 +935,7 @@ export default function ProductsPage() {
                         disabled={!isPaid || isOrdered}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
-                        3. Нарачај кај добавувач
+                        {t('products.step3_order')}
                       </button>
 
                       <button
@@ -943,7 +943,7 @@ export default function ProductsPage() {
                         disabled={!isOrdered || isReceived}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
-                        4. Прими врата во магацин
+                        {t('products.step4_receive')}
                       </button>
 
                       <button
@@ -951,7 +951,7 @@ export default function ProductsPage() {
                         disabled={!isReceived || isIssued}
                         className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
-                        5. Издај испратница
+                        {t('products.step5_dispatch')}
                       </button>
                     </div>
                   </div>
@@ -960,31 +960,31 @@ export default function ProductsPage() {
                 {/* Status & Missing Accessories Notice (.notice) */}
                 <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground space-y-2 leading-relaxed">
                   <div>
-                    <b>Состојба:</b>{' '}
+                    <b>{t('products.state_label')}</b>{' '}
                     {isIssued
-                      ? 'Испратница издадена — следува монтажа, протокол и финална фактура.'
+                      ? t('products.state_issued')
                       : isReceived
-                      ? 'Вратата е примена и поврзана со проектот.'
+                      ? t('products.state_received')
                       : isOrdered
-                      ? 'Се чека пристигнување на вратата.'
+                      ? t('products.state_ordered')
                       : isPaid
-                      ? 'Авансот е платен — може да се нарача вратата.'
+                      ? t('products.state_paid')
                       : isAccepted
-                      ? 'Чека авансна уплата.'
-                      : 'Се чека прифаќање на финалната понуда.'}
+                      ? t('products.state_accepted')
+                      : t('products.state_draft')}
                   </div>
                   <div>
-                    <b>Додатоци за набавка:</b>{' '}
+                    <b>{t('products.missing_accessories_label')}</b>{' '}
                     {missingAccessories.length > 0 ? (
                       <span className="text-amber-400 font-semibold">{missingAccessories.join(', ')}</span>
                     ) : (
-                      <span>Нема тековно утврден недостаток.</span>
+                      <span>{t('products.no_missing_accessories')}</span>
                     )}
                   </div>
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Напомена: При издавање испратница системот проверува дали сите задолжителни артикли се физички достапни, ги намалува од магацинската залиха и ги запишува во табот „Движења“.
+                  {t('products.dispatch_note_footer')}
                 </p>
               </>
             )}
@@ -999,7 +999,7 @@ export default function ProductsPage() {
           onClick={() => setShowAddModal(false)}
           role="dialog"
           aria-modal="true"
-          aria-label="Додај Нов Артикл"
+          aria-label={t('products.add_modal_title')}
         >
           <div
             className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
@@ -1008,12 +1008,12 @@ export default function ProductsPage() {
             <div className="flex items-center justify-between">
               <h3 className="font-extrabold text-base flex items-center gap-2">
                 <Package className="w-5 h-5 text-primary" />
-                <span>Додај Нов Артикл во Магацин / Каталог</span>
+                <span>{t('products.add_modal_title')}</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                aria-label="Затвори"
+                aria-label={t('products.close')}
                 className="text-muted-foreground hover:text-foreground cursor-pointer p-1 rounded-lg hover:bg-muted"
               >
                 <XCircle className="w-5 h-5" />
@@ -1022,35 +1022,35 @@ export default function ProductsPage() {
             <form onSubmit={handleCreateProduct} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Шифра *</label>
+                  <label className="block font-semibold mb-1">{t('products.field_code')}</label>
                   <input
                     type="text"
                     required
-                    placeholder="пр. AV-005"
+                    placeholder="AV-005"
                     value={newProdCode}
                     onChange={(e) => setNewProdCode(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none uppercase font-mono font-bold focus:ring-2 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Тип на залиха *</label>
+                  <label className="block font-semibold mb-1">{t('products.field_stock_type')}</label>
                   <select
                     value={newProdType}
                     onChange={(e) => setNewProdType(e.target.value as ProductStockType)}
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-semibold"
                   >
-                    <option value="STOCK">Залиха (Магацин)</option>
-                    <option value="CUSTOM">По нарачка</option>
+                    <option value="STOCK">{t('products.stock_type_stock')}</option>
+                    <option value="CUSTOM">{t('products.stock_type_custom')}</option>
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Назив на производ *</label>
+                <label className="block font-semibold mb-1">{t('products.field_name')}</label>
                 <input
                   type="text"
                   required
-                  placeholder="пр. Резидентна сегментна врата"
+                  placeholder={t('products.field_name_placeholder')}
                   value={newProdName}
                   onChange={(e) => setNewProdName(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
@@ -1059,21 +1059,21 @@ export default function ProductsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">Категорија</label>
+                  <label className="block font-semibold mb-1">{t('products.field_category')}</label>
                   <SearchableSelect
                     options={[
-                      { value: '', label: '-- Без категорија --' },
+                      { value: '', label: t('products.no_category') },
                       ...categories.map((c) => ({ value: c.id, label: c.name })),
                     ]}
                     value={newProdCatId}
                     onChange={(val) => setNewProdCatId(val)}
-                    placeholder="-- Избери категорија --"
-                    searchPlaceholder="Пребарај категорија..."
+                    placeholder={t('products.select_category')}
+                    searchPlaceholder={t('products.search_category')}
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold mb-1">Основна цена (€)</label>
+                  <label className="block font-semibold mb-1">{t('products.field_base_price')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1086,7 +1086,7 @@ export default function ProductsPage() {
 
               {newProdType === 'STOCK' && (
                 <div>
-                  <label className="block font-semibold mb-1">Почетна физичка залиха (парчиња)</label>
+                  <label className="block font-semibold mb-1">{t('products.field_initial_stock')}</label>
                   <input
                     type="number"
                     min="0"
@@ -1098,10 +1098,10 @@ export default function ProductsPage() {
               )}
 
               <div>
-                <label className="block font-semibold mb-1">Опис / Забелешка</label>
+                <label className="block font-semibold mb-1">{t('products.field_notes')}</label>
                 <textarea
                   rows={2}
-                  placeholder="Опис на производот или спецификација..."
+                  placeholder={t('products.field_notes_placeholder')}
                   value={newProdDesc}
                   onChange={(e) => setNewProdDesc(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none resize-none focus:ring-2 focus:ring-primary font-medium"
@@ -1114,13 +1114,13 @@ export default function ProductsPage() {
                   onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 font-semibold rounded-lg bg-secondary text-secondary-foreground cursor-pointer"
                 >
-                  Откажи
+                  {t('products.cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-5 py-2 font-bold rounded-lg bg-primary text-primary-foreground cursor-pointer shadow-md"
                 >
-                  Зачувај Артикл
+                  {t('products.save_item')}
                 </button>
               </div>
             </form>
@@ -1168,6 +1168,7 @@ export default function ProductsPage() {
 }
 
 function CategoriesModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   const [categories, setCategories] = useState(imfexStore.getCategories());
   const [newCatName, setNewCatName] = useState('');
   const [confirmDeleteCat, setConfirmDeleteCat] = useState<{ id: string; name: string } | null>(null);
@@ -1197,7 +1198,7 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Менаџирање со Категории"
+      aria-label={t('products.categories_modal_title')}
     >
       <div
         className="bg-card border border-border rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl text-xs"
@@ -1206,12 +1207,12 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-base flex items-center gap-2">
             <Layers className="w-5 h-5 text-primary" />
-            <span>Менаџирање со Категории</span>
+            <span>{t('products.categories_modal_title')}</span>
           </h3>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Затвори"
+            aria-label={t('products.close')}
             className="p-1 hover:bg-muted rounded-lg text-muted-foreground cursor-pointer"
           >
             <XCircle className="w-5 h-5" />
@@ -1222,7 +1223,7 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
           <input
             type="text"
             required
-            placeholder="Име на категорија (пр. Автоматика)"
+            placeholder={t('products.category_placeholder')}
             value={newCatName}
             onChange={(e) => setNewCatName(e.target.value)}
             className="flex-1 px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-medium"
@@ -1231,13 +1232,13 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
             type="submit"
             className="px-4 py-2 font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all shadow-md"
           >
-            Додај
+            {t('products.add_btn')}
           </button>
         </form>
 
         <div className="space-y-2 max-h-64 overflow-y-auto pt-2">
           {categories.length === 0 ? (
-            <div className="text-center text-muted-foreground p-4">Нема внесено категории.</div>
+            <div className="text-center text-muted-foreground p-4">{t('products.no_categories')}</div>
           ) : (
             categories.map((c) => (
               <div

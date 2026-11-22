@@ -350,7 +350,8 @@ export default function DashboardPage() {
                       {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      {offer.items.length} {t('offers.items').toLowerCase()}
+                      {offer.items.length}{' '}
+                      {offer.items.length === 1 ? t('offers.item_singular') : t('offers.items').toLowerCase()}
                     </p>
                   </div>
                   <div className="flex items-center justify-between pt-2 border-t border-border/60">
@@ -397,7 +398,8 @@ export default function DashboardPage() {
                         {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                       </td>
                       <td className="px-4 py-3.5 text-muted-foreground tabular-nums">
-                        {offer.items.length} {t('offers.items').toLowerCase()}
+                        {offer.items.length}{' '}
+                        {offer.items.length === 1 ? t('offers.item_singular') : t('offers.items').toLowerCase()}
                       </td>
                       <td className="px-4 py-3.5">
                         <StatusBadge variant={offerBadgeVariant(offer.status)} dot>
