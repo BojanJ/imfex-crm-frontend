@@ -34,6 +34,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('');
   const [notes, setNotes] = useState('');
+  const [creditLimit, setCreditLimit] = useState('');
+  const [paymentTermsDays, setPaymentTermsDays] = useState('15');
 
   useEffect(() => {
     if (customerToEdit) {
@@ -52,6 +54,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       setAddress(customerToEdit.address || '');
       setCity(customerToEdit.city || '');
       setNotes(customerToEdit.notes || '');
+      setCreditLimit(customerToEdit.creditLimit ? String(customerToEdit.creditLimit) : '');
+      setPaymentTermsDays(String(customerToEdit.paymentTermsDays ?? 15));
     } else {
       resetForm();
     }
@@ -69,6 +73,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     setAddress('');
     setCity('');
     setNotes('');
+    setCreditLimit('');
+    setPaymentTermsDays('15');
   };
 
   useEscapeKey(isOpen, onClose);
@@ -95,6 +101,8 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       address,
       city,
       notes,
+      creditLimit: creditLimit.trim() !== '' ? Math.max(0, Number(creditLimit) || 0) : null,
+      paymentTermsDays: Math.max(0, Math.round(Number(paymentTermsDays) || 15)),
       createdAt: customerToEdit?.createdAt || new Date().toISOString(),
     };
 
@@ -278,6 +286,32 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="Скопје"
                 className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1">{t('customers.credit_limit')} (€)</label>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                value={creditLimit}
+                onChange={(e) => setCreditLimit(e.target.value)}
+                placeholder="пр. 10000"
+                className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1">{t('customers.payment_terms_days')}</label>
+              <input
+                type="number"
+                min="0"
+                max="365"
+                value={paymentTermsDays}
+                onChange={(e) => setPaymentTermsDays(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary tabular-nums"
               />
             </div>
           </div>

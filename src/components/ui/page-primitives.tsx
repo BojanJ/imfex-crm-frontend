@@ -118,8 +118,8 @@ export const StatCard: React.FC<StatCardProps> = ({
     <div
       className={`surface-card rounded-xl p-4 sm:p-5 flex flex-col justify-between gap-2.5 transition-colors hover:border-border/90 ${className}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground truncate">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground leading-snug line-clamp-2">
           {label}
         </span>
         {icon && (

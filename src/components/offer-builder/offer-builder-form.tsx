@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-client';
-import { computeOfferTotals, computeOfferMarginSummary } from '@/lib/selectors';
+import { computeCustomerFinancialProfile, computeOfferTotals, computeOfferMarginSummary } from '@/lib/selectors';
 import { useCustomersQuery, useProductsQuery, useCategoriesQuery, useCompanySettingsQuery } from '@/lib/queries';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
@@ -84,6 +84,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [offerDate, setOfferDate] = useState<string>(() =>
     toDateInputValue(existingOffer?.createdAt, toDateInputValue(new Date()))
   );
+  const [followUpDate, setFollowUpDate] = useState<string>(() =>
+    existingOffer?.followUpDate ? toDateInputValue(existingOffer.followUpDate, '') : ''
+  );
+  const [lostReason, setLostReason] = useState<string>(existingOffer?.lostReason || '');
+  const [paymentTerms, setPaymentTerms] = useState<string>(existingOffer?.paymentTerms || '');
+  const [deliveryTerms, setDeliveryTerms] = useState<string>(existingOffer?.deliveryTerms || '');
+  const [warrantyTerms, setWarrantyTerms] = useState<string>(existingOffer?.warrantyTerms || '');
 
   const [items, setItems] = useState<OfferItem[]>(
     (existingOffer?.items || []).map((it) => ({
@@ -480,6 +487,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       taxAmount,
       totalAmount,
       validUntil,
+      followUpDate: followUpDate || undefined,
+      lostReason: lostReason.trim() || undefined,
+      paymentTerms: paymentTerms.trim() || undefined,
+      deliveryTerms: deliveryTerms.trim() || undefined,
+      warrantyTerms: warrantyTerms.trim() || undefined,
       createdAt: offerDate ? new Date(offerDate).toISOString() : (existingOffer?.createdAt || new Date().toISOString()),
       items,
     };
@@ -544,8 +556,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     setEmailErrorMsg('');
     setIsSendingEmail(true);
 
-    const saved = handleSaveOffer('SENT');
-    setStatus('SENT');
+    // BIZ-04: Never downgrade an ACCEPTED offer back to SENT when resending email
+    const nextEmailStatus: OfferStatus = status === 'ACCEPTED' ? 'ACCEPTED' : 'SENT';
+    const saved = handleSaveOffer(nextEmailStatus);
+    setStatus(nextEmailStatus);
 
     let pdfBase64 = '';
     try {
@@ -716,6 +730,30 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     {[selectedCustomerObj.address, selectedCustomerObj.city].filter(Boolean).join(', ')}
                   </p>
                 )}
+                {/* BIZ-14: Inline Overdue Balance / Credit Limit Warning */}
+                {(() => {
+                  const custFin = computeCustomerFinancialProfile({
+                    customer: selectedCustomerObj,
+                    offers: imfexStore.getOffers(),
+                    salesInvoices: imfexStore.getSalesInvoices(),
+                    payments: imfexStore.getPayments(),
+                  });
+                  if (custFin.overdueBalance <= 0 && !custFin.isOverCreditLimit) return null;
+                  return (
+                    <div className="mt-2 p-2 rounded-md border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400 text-[11px] font-medium">
+                      {custFin.overdueBalance > 0 && (
+                        <span className="block">
+                          {t('builder.customer_overdue_warn')}: {formatCurrency(custFin.overdueBalance)} ({custFin.overdueInvoiceCount})
+                        </span>
+                      )}
+                      {custFin.isOverCreditLimit && custFin.creditLimit !== null && (
+                        <span className="block">
+                          {t('builder.customer_credit_limit_warn')}: {formatCurrency(custFin.openBalance)} / {formatCurrency(custFin.creditLimit)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -761,11 +799,9 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     variant: newSt === 'REJECTED' ? 'danger' : 'warning',
                     confirmLabel: 'Потврди Промена',
                     onConfirm: () => {
+                      // BIZ-04: Preserve original quote creation date (offerDate) when transitioning to ACCEPTED
                       setConfirmState((prev) => ({ ...prev, isOpen: false }));
                       setStatus(newSt);
-                      if (newSt === 'ACCEPTED') {
-                        setOfferDate(new Date().toISOString().split('T')[0]);
-                      }
                     },
                   });
                 }}
@@ -822,6 +858,64 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                   onChange={(val) => setValidUntil(val)}
                   ariaLabel={t('builder.valid_until')}
                   className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                />
+              </div>
+            </div>
+
+            {/* BIZ-04: Follow-up Date, Lost Reason & Commercial Terms */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/60">
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('builder.follow_up_date')}</label>
+                <DatePicker
+                  value={followUpDate}
+                  onChange={(val) => setFollowUpDate(val)}
+                  ariaLabel={t('builder.follow_up_date')}
+                  className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none font-medium"
+                />
+              </div>
+              {status === 'REJECTED' ? (
+                <div className="space-y-1">
+                  <label className="block font-medium text-rose-600 dark:text-rose-400">{t('builder.lost_reason')}</label>
+                  <input
+                    type="text"
+                    value={lostReason}
+                    onChange={(e) => setLostReason(e.target.value)}
+                    placeholder={t('builder.lost_reason_placeholder')}
+                    className="w-full h-9 px-2.5 text-xs rounded-lg border border-rose-500/40 bg-background outline-none"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="block font-medium text-muted-foreground">{t('builder.payment_terms')}</label>
+                  <input
+                    type="text"
+                    value={paymentTerms}
+                    onChange={(e) => setPaymentTerms(e.target.value)}
+                    placeholder={t('builder.payment_terms_placeholder')}
+                    className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('builder.delivery_terms')}</label>
+                <input
+                  type="text"
+                  value={deliveryTerms}
+                  onChange={(e) => setDeliveryTerms(e.target.value)}
+                  placeholder={t('builder.delivery_terms_placeholder')}
+                  className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('builder.warranty_terms')}</label>
+                <input
+                  type="text"
+                  value={warrantyTerms}
+                  onChange={(e) => setWarrantyTerms(e.target.value)}
+                  placeholder={t('builder.warranty_terms_placeholder')}
+                  className="w-full h-9 px-2.5 text-xs rounded-lg border border-border bg-background outline-none"
                 />
               </div>
             </div>
@@ -1549,10 +1643,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
                 <div className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between text-muted-foreground text-[11px]">
                   <span className="flex items-center gap-1.5 font-semibold">
-                    <FileText className="w-4 h-4 text-red-500" /> Прикачен PDF: Quote_${existingOffer?.offerNumber || 'OFF-2026'}.pdf
+                    <FileText className="w-4 h-4 text-red-500" /> {t('builder.attached_pdf')}: {`Quote_${existingOffer?.offerNumber || 'OFF-2026'}.pdf`}
                   </span>
                   <span className="font-extrabold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                    Статусот се менува во SENT
+                    {status === 'ACCEPTED' ? t('builder.email_keeps_accepted') : t('builder.email_sets_sent')}
                   </span>
                 </div>
 

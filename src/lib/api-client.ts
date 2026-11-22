@@ -133,6 +133,8 @@ export const apiClient = {
     getById: (id: string) => requestJson<Offer>(`/api/offers/${id}`),
     save: (payload: Partial<Offer>) =>
       requestJson<Offer>('/api/offers', { method: 'POST', body: JSON.stringify(payload) }),
+    clone: (id: string) =>
+      requestJson<Offer>(`/api/offers/${id}/clone`, { method: 'POST' }),
     remove: (id: string) => requestJson<{ success: boolean; id: string }>(`/api/offers/${id}`, { method: 'DELETE' }),
   },
 

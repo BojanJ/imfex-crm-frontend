@@ -398,7 +398,15 @@
     "download_pdf": "Download PDF",
     "no_docs": "No documents currently archived for this customer.",
     "no_equipment": "No equipment registered yet. Equipment is automatically registered upon project closure.",
-    "no_service": "No service tickets found for this customer."
+    "no_service": "No service tickets found for this customer.",
+    "credit_limit": "Credit Limit",
+    "payment_terms_days": "Payment terms (days)",
+    "lifetime_value": "Lifetime Value",
+    "open_balance": "Open Balance",
+    "tab_invoices": "Invoices & Balance",
+    "no_offers": "No offers found for this customer.",
+    "no_projects": "No projects found for this customer.",
+    "no_invoices": "No sales invoices issued for this customer."
   },
   "customer_modal": {
     "add_title": "Add New Customer",
@@ -458,7 +466,11 @@
     "loading_details": "Loading offer details...",
     "not_found_title": "Offer Record Not Found",
     "not_found_desc": "The requested quote does not exist or may have been deleted.",
-    "return_to_list": "Return to Offers List"
+    "return_to_list": "Return to Offers List",
+    "expired_badge": "Expired",
+    "clone_offer_tooltip": "Clone / New Revision (v+1)",
+    "clone_success": "New offer revision created",
+    "clone_failed": "Failed to clone offer"
   },
   "projects": {
     "title": "Operational Projects Pipeline",
@@ -825,6 +837,19 @@
     "est_cost": "Est. cost",
     "est_profit": "Est. profit",
     "no_cost_data": "No cost data",
-    "no_cost_data_hint": "Enter purchase costs on catalog products to track live quote margin."
+    "no_cost_data_hint": "Enter purchase costs on catalog products to track live quote margin.",
+    "customer_overdue_warn": "Customer has overdue balance",
+    "customer_credit_limit_warn": "Credit limit exceeded",
+    "email_keeps_accepted": "Status stays ACCEPTED",
+    "email_sets_sent": "Status changes to SENT",
+    "follow_up_date": "Follow-up Date",
+    "lost_reason": "Lost / Rejection Reason",
+    "lost_reason_placeholder": "e.g. Price, delivery timeline, competitor...",
+    "payment_terms": "Payment Terms",
+    "payment_terms_placeholder": "e.g. 50% advance, 50% before install",
+    "delivery_terms": "Delivery Lead Time",
+    "delivery_terms_placeholder": "e.g. 4–6 weeks from advance",
+    "warranty_terms": "Warranty Terms",
+    "warranty_terms_placeholder": "e.g. 24 months on door & motor"
   }
 }

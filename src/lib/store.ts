@@ -1928,7 +1928,7 @@ class ImfexStore {
       offer,
       customerId: offer.customerId,
       customer: cust,
-      responsibleUserId: this.currentUser?.id || 'usr-admin-1',
+      responsibleUserId: this.currentUser?.id || undefined,
       responsibleUser: this.currentUser || undefined,
       status: 'PLANNED',
       startDate: new Date().toISOString().split('T')[0],

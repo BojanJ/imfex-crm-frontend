@@ -8,7 +8,14 @@ import { imfexStore, useImfexStore } from '@/lib/store';
 import { canDeleteRecords } from '@/lib/rbac';
 import { useCustomersQuery, useDeleteCustomerMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
-import { getCustomerTypeLabel, getServiceStatusLabel } from '@/lib/enum-labels';
+import { formatCurrency } from '@/lib/formatters';
+import { computeCustomerFinancialProfile } from '@/lib/selectors';
+import {
+  getCustomerTypeLabel,
+  getOfferStatusLabel,
+  getProjectStatusLabel,
+  getServiceStatusLabel,
+} from '@/lib/enum-labels';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import {
@@ -30,6 +37,8 @@ import {
   File,
   ChevronRight,
   X,
+  Briefcase,
+  Receipt,
 } from 'lucide-react';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -66,7 +75,7 @@ export default function CustomersPage() {
   const [previewOffer, setPreviewOffer] = useState<Offer | null>(null);
 
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(null);
-  const [detailTab, setDetailTab] = useState<'DOCS' | 'EQUIPMENT' | 'SERVICE'>('DOCS');
+  const [detailTab, setDetailTab] = useState<'OFFERS' | 'PROJECTS' | 'INVOICES' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>('OFFERS');
 
   useEscapeKey(Boolean(activeCustomerDetail) && !previewOffer, () => setActiveCustomerDetail(null));
 
@@ -106,6 +115,27 @@ export default function CustomersPage() {
   const serviceForActiveCust = activeCustomerDetail
     ? imfexStore.getServiceTickets().filter((st) => st.customerId === activeCustomerDetail.id)
     : [];
+
+  const offersForActiveCust = activeCustomerDetail
+    ? imfexStore.getOffers().filter((o) => o.customerId === activeCustomerDetail.id)
+    : [];
+
+  const projectsForActiveCust = activeCustomerDetail
+    ? imfexStore.getProjects().filter((p) => p.customerId === activeCustomerDetail.id)
+    : [];
+
+  const invoicesForActiveCust = activeCustomerDetail
+    ? imfexStore.getSalesInvoices().filter((s) => s.customerId === activeCustomerDetail.id)
+    : [];
+
+  const activeCustFinance = activeCustomerDetail
+    ? computeCustomerFinancialProfile({
+        customer: activeCustomerDetail,
+        offers: imfexStore.getOffers(),
+        salesInvoices: imfexStore.getSalesInvoices(),
+        payments: imfexStore.getPayments(),
+      })
+    : null;
 
   if (!imfexStore.isLoadedFromBackend) {
     return <PageLoadingSkeleton cards={0} rows={6} />;
@@ -338,10 +368,62 @@ export default function CustomersPage() {
               </div>
             </div>
 
+            {/* BIZ-14: Customer 360 Financial Summary Strip */}
+            {activeCustFinance && (
+              <div className="grid grid-cols-3 gap-2.5 tabular-nums text-xs">
+                <div className="p-3 rounded-lg bg-muted/25 border border-border/80">
+                  <span className="text-[10px] text-muted-foreground block">{t('customers.lifetime_value')}</span>
+                  <strong className="text-sm font-bold text-foreground">{formatCurrency(activeCustFinance.lifetimeValue)}</strong>
+                </div>
+                <div
+                  className={`p-3 rounded-lg border ${
+                    activeCustFinance.overdueBalance > 0
+                      ? 'bg-rose-500/[0.07] border-rose-500/30'
+                      : 'bg-muted/25 border-border/80'
+                  }`}
+                >
+                  <span className="text-[10px] text-muted-foreground block">{t('customers.open_balance')}</span>
+                  <strong
+                    className={`text-sm font-bold ${
+                      activeCustFinance.overdueBalance > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'
+                    }`}
+                  >
+                    {formatCurrency(activeCustFinance.openBalance)}
+                  </strong>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/25 border border-border/80">
+                  <span className="text-[10px] text-muted-foreground block">{t('customers.credit_limit')}</span>
+                  <strong className="text-sm font-bold text-foreground">
+                    {activeCustFinance.creditLimit !== null ? formatCurrency(activeCustFinance.creditLimit) : '—'}
+                  </strong>
+                </div>
+              </div>
+            )}
+
             <TabBar
               activeTab={detailTab}
-              onChange={(id) => setDetailTab(id as 'DOCS' | 'EQUIPMENT' | 'SERVICE')}
+              onChange={(id) =>
+                setDetailTab(id as 'OFFERS' | 'PROJECTS' | 'INVOICES' | 'DOCS' | 'EQUIPMENT' | 'SERVICE')
+              }
               tabs={[
+                {
+                  id: 'OFFERS',
+                  label: t('nav.offers'),
+                  count: offersForActiveCust.length,
+                  icon: <FileText className="w-3.5 h-3.5" />,
+                },
+                {
+                  id: 'PROJECTS',
+                  label: t('nav.projects'),
+                  count: projectsForActiveCust.length,
+                  icon: <Briefcase className="w-3.5 h-3.5" />,
+                },
+                {
+                  id: 'INVOICES',
+                  label: t('customers.tab_invoices'),
+                  count: invoicesForActiveCust.length,
+                  icon: <Receipt className="w-3.5 h-3.5" />,
+                },
                 {
                   id: 'DOCS',
                   label: t('customers.documentation'),
@@ -362,6 +444,110 @@ export default function CustomersPage() {
                 },
               ]}
             />
+
+            {/* Tab: Offers (Customer 360 — BIZ-14) */}
+            {detailTab === 'OFFERS' && (
+              <div className="space-y-2.5">
+                {offersForActiveCust.length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                    {t('customers.no_offers')}
+                  </div>
+                ) : (
+                  offersForActiveCust.map((o) => (
+                    <Link
+                      key={o.id}
+                      href={`/offers/${o.id}`}
+                      className="flex items-center justify-between gap-3 p-3.5 bg-muted/25 hover:bg-muted/45 border border-border rounded-xl text-xs transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-mono font-semibold text-primary block">{o.offerNumber}</span>
+                        <span className="text-[11px] text-muted-foreground">{formatDate(o.createdAt)}</span>
+                      </div>
+                      <div className="text-right shrink-0 space-y-1">
+                        <strong className="block font-semibold tabular-nums">{formatCurrency(o.totalAmount)}</strong>
+                        <StatusBadge variant={o.status === 'ACCEPTED' ? 'success' : 'primary'}>
+                          {getOfferStatusLabel(o.status, locale)}
+                        </StatusBadge>
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Projects (Customer 360 — BIZ-14) */}
+            {detailTab === 'PROJECTS' && (
+              <div className="space-y-2.5">
+                {projectsForActiveCust.length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                    {t('customers.no_projects')}
+                  </div>
+                ) : (
+                  projectsForActiveCust.map((pr) => (
+                    <Link
+                      key={pr.id}
+                      href={`/projects/${pr.id}`}
+                      className="flex items-center justify-between gap-3 p-3.5 bg-muted/25 hover:bg-muted/45 border border-border rounded-xl text-xs transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-mono font-semibold text-primary block">{pr.projectNumber}</span>
+                        <span className="text-[11px] text-muted-foreground truncate block">
+                          {pr.installationAddress || formatDate(pr.createdAt)}
+                        </span>
+                      </div>
+                      <StatusBadge variant={pr.status === 'COMPLETED' || pr.status === 'CLOSED' ? 'success' : 'primary'}>
+                        {getProjectStatusLabel(pr.status, locale)}
+                      </StatusBadge>
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Tab: Sales Invoices & Balance (Customer 360 — BIZ-14) */}
+            {detailTab === 'INVOICES' && (
+              <div className="space-y-2.5">
+                {invoicesForActiveCust.length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
+                    {t('customers.no_invoices')}
+                  </div>
+                ) : (
+                  invoicesForActiveCust.map((inv) => {
+                    const rem = Math.max(0, Number(inv.totalAmount || 0) - Number(inv.paidAmount || 0));
+                    return (
+                      <div
+                        key={inv.id}
+                        className="flex items-center justify-between gap-3 p-3.5 bg-muted/25 border border-border rounded-xl text-xs tabular-nums"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono font-semibold text-foreground block">{inv.invoiceNumber}</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {formatDate(inv.issueDate)}
+                            {inv.dueDate ? ` · ${t('finance.due_short')}: ${formatDate(inv.dueDate)}` : ''}
+                          </span>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <strong className="block font-semibold">{formatCurrency(inv.totalAmount)}</strong>
+                          <span
+                            className={`text-[11px] ${
+                              rem > 0 && inv.status !== 'CANCELLED'
+                                ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {inv.status === 'CANCELLED'
+                              ? t('finance.status_void_upper')
+                              : rem > 0
+                              ? `${t('projects.fin_debt')}: ${formatCurrency(rem)}`
+                              : t('finance.status_paid_upper')}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
 
             {/* Tab 1: Client Documentation */}
             {detailTab === 'DOCS' && (
@@ -388,7 +574,16 @@ export default function CustomersPage() {
                         doc.fileUrl.startsWith('http://') ||
                         doc.fileUrl.startsWith('https://') ||
                         doc.fileUrl.startsWith('blob:'));
-                    const upperType = (doc.fileType || 'PDF').toUpperCase();
+                    const fileHint = `${doc.fileName || ''} ${doc.title || ''} ${doc.fileUrl || ''}`.toLowerCase();
+                    const inferredType =
+                      /\.(png|jpe?g|webp|gif)\b|data:image\//.test(fileHint)
+                        ? 'IMAGE'
+                        : /\.(xlsx?|csv)\b/.test(fileHint)
+                        ? 'EXCEL'
+                        : /\.(docx?)\b/.test(fileHint)
+                        ? 'WORD'
+                        : (doc.fileType || 'PDF').toUpperCase();
+                    const upperType = inferredType;
                     const downloadLabel =
                       upperType === 'PDF'
                         ? t('customers.download_pdf')

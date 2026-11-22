@@ -104,6 +104,8 @@ export interface Customer {
   address?: string;
   city?: string;
   notes?: string;
+  creditLimit?: number | null;
+  paymentTermsDays?: number;
   createdAt: string;
 }
 
@@ -157,6 +159,11 @@ export interface Offer {
   taxAmount: number;
   totalAmount: number;
   validUntil?: string;
+  lostReason?: string;
+  followUpDate?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  warrantyTerms?: string;
   createdAt: string;
   items: OfferItem[];
 }

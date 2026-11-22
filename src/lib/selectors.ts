@@ -1,6 +1,7 @@
 import type {
   CalendarEvent,
   CompanySettings,
+  Customer,
   InstalledItem,
   Offer,
   OfferItem,
@@ -565,4 +566,90 @@ export function findTechnicianCalendarConflicts(
     if (!evRange) return false;
     return candRange[0] < evRange[1] && evRange[0] < candRange[1];
   });
+}
+
+/**
+ * Checks whether a SENT offer has passed its validUntil date (BIZ-04).
+ */
+export function isOfferExpired(
+  offer: Pick<Offer, 'status' | 'validUntil'>,
+  referenceDate = new Date()
+): boolean {
+  if (offer.status !== 'SENT' || !offer.validUntil) return false;
+  return getInvoiceOverdueDays(offer.validUntil, referenceDate) > 0;
+}
+
+export interface CustomerFinancialProfile {
+  lifetimeValue: number;
+  totalInvoiced: number;
+  totalPaid: number;
+  openBalance: number;
+  overdueBalance: number;
+  overdueInvoiceCount: number;
+  creditLimit: number | null;
+  isOverCreditLimit: boolean;
+}
+
+/**
+ * Pure Customer 360° financial ledger & credit-limit evaluator (BIZ-14).
+ */
+export function computeCustomerFinancialProfile(params: {
+  customer: Pick<Customer, 'id' | 'creditLimit'>;
+  offers: Offer[];
+  salesInvoices: SalesInvoice[];
+  payments: PaymentRecord[];
+  referenceDate?: Date;
+}): CustomerFinancialProfile {
+  const { customer, offers, salesInvoices, payments, referenceDate = new Date() } = params;
+  const custOffers = offers.filter((o) => o.customerId === customer.id && o.status === 'ACCEPTED');
+  const lifetimeValue =
+    Math.round(custOffers.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0) * 100) / 100;
+
+  const custInvoices = salesInvoices.filter(
+    (s) => s.customerId === customer.id && s.status !== 'CANCELLED' && s.invoiceType !== 'PROFORMA'
+  );
+  const totalInvoiced =
+    Math.round(
+      custInvoices.reduce((sum, s) => {
+        const sign = s.invoiceType === 'CREDIT_NOTE' ? -1 : 1;
+        return sum + sign * Number(s.totalAmount || 0);
+      }, 0) * 100
+    ) / 100;
+
+  const custPayments = payments.filter((p) => p.direction === 'IN' && p.customerId === customer.id);
+  const totalPaid =
+    Math.round(custPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0) * 100) / 100;
+
+  let openBalance = 0;
+  let overdueBalance = 0;
+  let overdueInvoiceCount = 0;
+  for (const inv of custInvoices) {
+    if (inv.status === 'PAID' || inv.invoiceType === 'CREDIT_NOTE') continue;
+    const rem = Math.max(0, Number(inv.totalAmount || 0) - Number(inv.paidAmount || 0));
+    if (rem <= 0.005) continue;
+    openBalance += rem;
+    if (getInvoiceOverdueDays(inv.dueDate, referenceDate) > 0) {
+      overdueBalance += rem;
+      overdueInvoiceCount += 1;
+    }
+  }
+  openBalance = Math.round(openBalance * 100) / 100;
+  overdueBalance = Math.round(overdueBalance * 100) / 100;
+
+  const creditLimit =
+    customer.creditLimit !== undefined && customer.creditLimit !== null && Number(customer.creditLimit) > 0
+      ? Number(customer.creditLimit)
+      : null;
+  const isOverCreditLimit = creditLimit !== null && openBalance > creditLimit;
+
+  return {
+    lifetimeValue,
+    totalInvoiced,
+    totalPaid,
+    openBalance,
+    overdueBalance,
+    overdueInvoiceCount,
+    creditLimit,
+    isOverCreditLimit,
+  };
 }

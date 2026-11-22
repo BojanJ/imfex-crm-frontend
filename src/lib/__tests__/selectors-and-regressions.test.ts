@@ -1,12 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeAgingAndVatSummary,
+  computeCustomerFinancialProfile,
   computeOfferMarginSummary,
   computeOfferTotals,
   computeProjectFinancialSummary,
   findTechnicianCalendarConflicts,
   getServiceSlaStatus,
   getWarrantyStatus,
+  isOfferExpired,
 } from '../selectors';
 import { buildCsvString } from '../csv-export';
 import { canDeleteRecords, canViewFinance, canWriteFinance, canWriteSales } from '../rbac';
@@ -372,6 +374,74 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     );
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0].id).toBe('ev-1');
+  });
+
+  it('detects expired SENT quotes & evaluates Customer 360 LTV/overdue/credit limit (BIZ-04, BIZ-14)', () => {
+    const ref = new Date('2026-11-22T12:00:00Z');
+    expect(isOfferExpired({ status: 'SENT', validUntil: '2026-11-10' }, ref)).toBe(true);
+    expect(isOfferExpired({ status: 'ACCEPTED', validUntil: '2026-11-10' }, ref)).toBe(false);
+    expect(isOfferExpired({ status: 'SENT', validUntil: '2026-12-10' }, ref)).toBe(false);
+
+    const profile = computeCustomerFinancialProfile({
+      customer: { id: 'c1', creditLimit: 1000 },
+      offers: [
+        {
+          id: 'o1',
+          offerNumber: 'OFF-1',
+          customerId: 'c1',
+          status: 'ACCEPTED',
+          taxRate: 18,
+          discountRate: 0,
+          discountAmount: 0,
+          subtotal: 2000,
+          taxAmount: 360,
+          totalAmount: 2360,
+          createdAt: '2026-10-01',
+          items: [],
+        },
+      ],
+      salesInvoices: [
+        {
+          id: 's1',
+          invoiceNumber: 'FAK-1',
+          invoiceType: 'FINAL',
+          status: 'ISSUED',
+          customerId: 'c1',
+          issueDate: '2026-10-01',
+          dueDate: '2026-10-15',
+          taxRate: 18,
+          discountRate: 0,
+          discountAmount: 0,
+          subtotal: 2000,
+          taxAmount: 360,
+          grossTotalAmount: 2360,
+          advanceDeductedAmount: 0,
+          totalAmount: 2360,
+          paidAmount: 1000,
+          items: [],
+          createdAt: '2026-10-01',
+        },
+      ],
+      payments: [
+        {
+          id: 'p1',
+          paymentNumber: 'UPL-1',
+          direction: 'IN',
+          amount: 1000,
+          date: '2026-10-05',
+          method: 'BANK',
+          customerId: 'c1',
+          createdAt: '2026-10-05',
+        },
+      ],
+      referenceDate: ref,
+    });
+
+    expect(profile.lifetimeValue).toBe(2360);
+    expect(profile.openBalance).toBe(1360);
+    expect(profile.overdueBalance).toBe(1360);
+    expect(profile.overdueInvoiceCount).toBe(1);
+    expect(profile.isOverCreditLimit).toBe(true);
   });
 
   it('guarantees full i18n coverage across finance, products, settings, service, builder & fixes MK typos (I18N-08..I18N-12)', () => {

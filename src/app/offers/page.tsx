@@ -2,9 +2,12 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { apiClient } from '@/lib/api-client';
+import { isOfferExpired } from '@/lib/selectors';
 import { canDeleteRecords } from '@/lib/rbac';
 import { useOffersQuery, useProjectsQuery, useDeleteOfferMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
@@ -22,6 +25,7 @@ import {
   Briefcase,
   Euro,
   Receipt,
+  Copy,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
@@ -46,8 +50,24 @@ function offerStatusSelectStyle(status: string) {
 
 export default function OffersPage() {
   const { t, locale } = useI18n();
+  const router = useRouter();
   useImfexStore();
   const offersQuery = useOffersQuery();
+  const [cloningId, setCloningId] = useState<string | null>(null);
+
+  const handleCloneOffer = async (offerId: string) => {
+    setCloningId(offerId);
+    try {
+      const cloned = await apiClient.offers.clone(offerId);
+      void offersQuery.refetch();
+      toast.success(t('offers.clone_success'), `${cloned.offerNumber} (v${cloned.version || 2})`);
+      router.push(`/offers/${cloned.id}`);
+    } catch (err) {
+      toast.error(t('offers.clone_failed'), err instanceof Error ? err.message : undefined);
+    } finally {
+      setCloningId(null);
+    }
+  };
   const projectsQuery = useProjectsQuery();
   const deleteOfferMutation = useDeleteOfferMutation();
 
@@ -308,12 +328,24 @@ export default function OffersPage() {
                     return (
                     <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-2.5 xl:px-3.5 py-3 whitespace-nowrap">
-                        <Link
-                          href={`/offers/${offer.id}`}
-                          className="font-mono font-semibold text-primary hover:underline block"
-                        >
-                          {offer.offerNumber}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link
+                            href={`/offers/${offer.id}`}
+                            className="font-mono font-semibold text-primary hover:underline"
+                          >
+                            {offer.offerNumber}
+                          </Link>
+                          {(offer.version ?? 1) > 1 && (
+                            <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">
+                              v{offer.version}
+                            </span>
+                          )}
+                          {isOfferExpired(offer) && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-bold">
+                              {t('offers.expired_badge')}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[11px] text-muted-foreground">
                           {formatDate(offer.createdAt)} • {itemCount} {itemUnit}
                         </span>
@@ -425,6 +457,17 @@ export default function OffersPage() {
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
+
+                          <button
+                            type="button"
+                            disabled={cloningId === offer.id}
+                            onClick={() => void handleCloneOffer(offer.id)}
+                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-muted inline-flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50"
+                            title={t('offers.clone_offer_tooltip')}
+                            aria-label={t('offers.clone_offer_tooltip')}
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
 
                           {canDeleteRecords(imfexStore.getCurrentRole()) && (
                             <button
