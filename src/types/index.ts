@@ -142,6 +142,7 @@ export interface Offer {
   version?: number; // V1, V2 (Финална)
   parentOfferId?: string;
   customerId: string;
+  customerName?: string | null;
   customer?: Customer;
   createdByUserId?: string;
   createdByUser?: UserProfile;
@@ -193,6 +194,7 @@ export interface Project {
   offerId: string;
   offer?: Offer;
   customerId: string;
+  customerName?: string | null;
   customer?: Customer;
   responsibleUserId?: string;
   responsibleUser?: UserProfile;
@@ -249,6 +251,7 @@ export interface ServiceTicket {
   id: string;
   ticketNumber: string;
   customerId: string;
+  customerName?: string | null;
   customer?: Customer;
   installedItemId?: string;
   installedItem?: InstalledItem;
@@ -371,6 +374,7 @@ export interface SalesInvoice {
   invoiceType: SalesInvoiceType;
   status: SalesInvoiceStatus;
   customerId: string;
+  customerName?: string | null;
   customer?: Customer;
   offerId?: string;
   projectId?: string;
@@ -409,6 +413,7 @@ export interface DispatchNote {
   dispatchNumber: string; // e.g. ISP-2026-0001
   status: DispatchNoteStatus;
   customerId: string;
+  customerName?: string | null;
   customer?: Customer;
   projectId?: string;
   offerId?: string;

@@ -287,7 +287,7 @@ export default function CustomersPage() {
       {/* Client Documentation & History Slide-Over Drawer */}
       {activeCustomerDetail && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end"
+          className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-sm flex justify-end"
           onClick={() => setActiveCustomerDetail(null)}
           role="dialog"
           aria-modal="true"

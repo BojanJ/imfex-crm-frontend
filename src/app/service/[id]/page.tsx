@@ -440,7 +440,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
       {/* Printable Report Modal */}
       {isReportModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setIsReportModalOpen(false)}
           role="dialog"
           aria-modal="true"

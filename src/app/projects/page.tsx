@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus } from '@/types';
@@ -20,6 +20,7 @@ import {
   Briefcase,
   User,
   Calendar,
+  ChevronLeft,
   ChevronRight,
   GripVertical,
   Kanban,
@@ -35,6 +36,20 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'KANBAN' | 'TABLE'>('KANBAN');
+  const kanbanScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setViewMode('TABLE');
+    }
+  }, []);
+
+  const scrollKanban = (direction: 'left' | 'right') => {
+    const el = kanbanScrollRef.current;
+    if (!el) return;
+    const delta = direction === 'left' ? -260 : 260;
+    el.scrollBy({ left: delta, behavior: 'smooth' });
+  };
 
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<ProjectStatus | null>(null);
@@ -145,7 +160,7 @@ export default function ProjectsPage() {
               onClick={() => setViewMode('KANBAN')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
                 viewMode === 'KANBAN'
-                  ? 'bg-card text-foreground shadow-xs'
+                  ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -157,7 +172,7 @@ export default function ProjectsPage() {
               onClick={() => setViewMode('TABLE')}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
                 viewMode === 'TABLE'
-                  ? 'bg-card text-foreground shadow-xs'
+                  ? 'bg-card text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -203,10 +218,35 @@ export default function ProjectsPage() {
       {/* View Mode 1: Minimal Kanban Board */}
       {viewMode === 'KANBAN' ? (
         <div className="space-y-3">
-          <p className="text-[11px] text-muted-foreground">
-            Повлечете картичка во друга колона за да го промените статусот на проектот.
-          </p>
-          <div className="flex gap-3.5 overflow-x-auto pb-3 -mx-1 px-1">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-[11px] text-muted-foreground">
+              Повлечете картичка во друга колона за да го промените статусот на проектот.
+            </p>
+            <div className="inline-flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollKanban('left')}
+                className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                aria-label="Скролај лево"
+                title="Скролај лево"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollKanban('right')}
+                className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                aria-label="Скролај десно"
+                title="Скролај десно"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+          <div
+            ref={kanbanScrollRef}
+            className="flex gap-3.5 overflow-x-auto snap-x snap-mandatory pb-3 -mx-1 px-1"
+          >
             {statuses.map((col) => {
               const colProjects = filtered.filter((p) => p.status === col.key);
               const isDropTarget = dragOverStatus === col.key;
@@ -219,7 +259,7 @@ export default function ProjectsPage() {
                     if (dragOverStatus === col.key) setDragOverStatus(null);
                   }}
                   onDrop={(e) => handleDropOnStatus(e, col.key)}
-                  className={`rounded-xl border p-3 space-y-3 w-[232px] shrink-0 transition-colors ${
+                  className={`snap-start rounded-xl border p-3 space-y-3 w-[232px] shrink-0 transition-colors ${
                     isDropTarget
                       ? 'bg-primary/5 border-primary ring-1 ring-primary/30'
                       : 'bg-muted/25 border-border/80'
@@ -307,7 +347,7 @@ export default function ProjectsPage() {
       ) : (
         /* View Mode 2: Table View with Process Drop Zones */
         <div className="space-y-4">
-          <div className="surface-card rounded-xl p-3.5 space-y-2.5">
+          <div className="surface-card rounded-xl p-3.5 space-y-2.5 hidden md:block">
             <p className="text-[11px] font-medium text-muted-foreground">
               Повлечете ред од табелата врз статус за промена:
             </p>
@@ -342,7 +382,68 @@ export default function ProjectsPage() {
           </div>
 
           <div className="surface-card rounded-xl overflow-hidden text-xs">
-            <div className="overflow-x-auto">
+            {/* Mobile Stacked Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {filtered.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">Нема пронајдено проекти.</div>
+              ) : (
+                filtered.map((p) => (
+                  <div key={p.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/projects/${p.id}`}
+                          className="font-mono font-semibold text-primary hover:underline block"
+                        >
+                          {p.projectNumber}
+                        </Link>
+                        <p className="font-medium text-foreground truncate">
+                          {p.customer?.companyName || p.customer?.name}
+                        </p>
+                      </div>
+                      <select
+                        value={p.status}
+                        onChange={(e) =>
+                          requestProjectStatusChange(p, e.target.value as ProjectStatus)
+                        }
+                        aria-label={`Статус за ${p.projectNumber}`}
+                        className="px-2 py-1 rounded-lg text-[11px] font-medium bg-background text-foreground border border-border outline-none focus:border-primary cursor-pointer shrink-0"
+                      >
+                        {statuses.map((st) => (
+                          <option key={st.key} value={st.key} className="bg-card text-foreground">
+                            {st.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 truncate">
+                        <User className="w-3 h-3 shrink-0" />
+                        <span>{p.responsibleUser?.fullName || 'Недоделено'}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-medium tabular-nums">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        <span>{formatDate(p.targetDeliveryDate, '—')}</span>
+                      </span>
+                    </div>
+                    {p.installationAddress && (
+                      <p className="text-[11px] text-muted-foreground truncate">{p.installationAddress}</p>
+                    )}
+                    <div className="pt-2 border-t border-border/60 flex justify-end">
+                      <Link
+                        href={`/projects/${p.id}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-border bg-background hover:bg-muted text-foreground font-medium rounded-lg text-xs transition-colors"
+                      >
+                        {t('projects.manage')} <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>

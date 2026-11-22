@@ -98,7 +98,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-xs p-4 print:p-0 print:static print:bg-white"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-sm p-4 print:p-0 print:static print:bg-white"
       role="dialog"
       aria-modal="true"
       aria-label={`PDF преглед ${offer.offerNumber}`}

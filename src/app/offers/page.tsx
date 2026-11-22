@@ -198,8 +198,8 @@ export default function OffersPage() {
           />
         ) : (
           <>
-            {/* Mobile Cards */}
-            <div className="divide-y divide-border md:hidden text-xs">
+            {/* Mobile & Tablet Cards (prevents table crowding below 1024px) */}
+            <div className="divide-y divide-border lg:hidden text-xs">
               {filtered.map((offer) => (
                 <div key={offer.id} className="p-4 space-y-3">
                   <div className="flex justify-between items-start gap-2">
@@ -279,22 +279,22 @@ export default function OffersPage() {
             </div>
 
             {/* Desktop Table — Compact, Zero Horizontal Overflow */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>
-                    <th className="px-3.5 py-3 whitespace-nowrap">{t('offers.offer_number')}</th>
-                    <th className="px-2.5 py-3">{t('offers.customer')}</th>
-                    <th className="px-2.5 py-3 whitespace-nowrap">{t('offers.status')}</th>
-                    <th className="px-2.5 py-3 whitespace-nowrap">ДДВ / Попуст</th>
-                    <th className="px-2.5 py-3 text-right whitespace-nowrap">{t('offers.total')}</th>
-                    <th className="px-3.5 py-3 text-right whitespace-nowrap">{t('offers.action')}</th>
+                    <th className="px-2.5 xl:px-3.5 py-3 whitespace-nowrap">{t('offers.offer_number')}</th>
+                    <th className="px-2 xl:px-2.5 py-3">{t('offers.customer')}</th>
+                    <th className="px-2 xl:px-2.5 py-3 whitespace-nowrap">{t('offers.status')}</th>
+                    <th className="hidden xl:table-cell px-2.5 py-3 whitespace-nowrap">ДДВ / Попуст</th>
+                    <th className="px-2 xl:px-2.5 py-3 text-right whitespace-nowrap">{t('offers.total')}</th>
+                    <th className="px-2.5 xl:px-3.5 py-3 text-right whitespace-nowrap">{t('offers.action')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
                   {filtered.map((offer) => (
                     <tr key={offer.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-3.5 py-3 whitespace-nowrap">
+                      <td className="px-2.5 xl:px-3.5 py-3 whitespace-nowrap">
                         <Link
                           href={`/offers/${offer.id}`}
                           className="font-mono font-semibold text-primary hover:underline block"
@@ -306,7 +306,7 @@ export default function OffersPage() {
                         </span>
                       </td>
 
-                      <td className="px-2.5 py-3 max-w-[170px]">
+                      <td className="px-2 xl:px-2.5 py-3 max-w-[140px] xl:max-w-[180px]">
                         <p className="font-medium text-foreground truncate">
                           {offer.customer?.companyName || offer.customer?.name || t('offers.customer')}
                         </p>
@@ -317,8 +317,8 @@ export default function OffersPage() {
                         )}
                       </td>
 
-                      <td className="px-2.5 py-3 whitespace-nowrap">
-                        <div className="w-28">
+                      <td className="px-2 xl:px-2.5 py-3 whitespace-nowrap">
+                        <div className="w-24 xl:w-28">
                           <SearchableSelect
                             options={statusOptions}
                             value={offer.status}
@@ -330,7 +330,7 @@ export default function OffersPage() {
                         </div>
                       </td>
 
-                      <td className="px-2.5 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
+                      <td className="hidden xl:table-cell px-2.5 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
                         {Number(offer.discountRate || 0) > 0 && (
                           <span className="block text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
                             -{Number(offer.discountRate)}% ({formatCurrency(offer.discountAmount)})
@@ -341,22 +341,27 @@ export default function OffersPage() {
                         </span>
                       </td>
 
-                      <td className="px-2.5 py-3 text-right font-semibold text-sm text-foreground tabular-nums whitespace-nowrap">
-                        {formatCurrency(offer.totalAmount)}
+                      <td className="px-2 xl:px-2.5 py-3 text-right font-semibold text-sm text-foreground tabular-nums whitespace-nowrap">
+                        <span className="block">{formatCurrency(offer.totalAmount)}</span>
+                        <span className="block xl:hidden text-[10px] font-normal text-muted-foreground">
+                          ДДВ {Number(offer.taxRate ?? 18)}%
+                          {Number(offer.discountRate || 0) > 0 ? ` • -${Number(offer.discountRate)}%` : ''}
+                        </span>
                       </td>
 
-                      <td className="px-3.5 py-3 text-right whitespace-nowrap">
+                      <td className="px-2.5 xl:px-3.5 py-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1">
                           {(offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
                             <>
                               <button
                                 type="button"
                                 onClick={() => setAdvanceOffer(offer)}
-                                className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
+                                className="h-7 px-1.5 xl:px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
                                 title="Евидентирај уплата на аванс"
+                                aria-label="Евидентирај уплата на аванс"
                               >
                                 <Euro className="w-3 h-3 text-muted-foreground" />
-                                <span>Аванс</span>
+                                <span className="hidden xl:inline">Аванс</span>
                               </button>
 
                               <button

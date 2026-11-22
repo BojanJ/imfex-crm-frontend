@@ -6,8 +6,7 @@ import { useI18n, Locale } from '@/lib/i18n-context';
 import { useTheme } from '@/lib/theme-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { UserProfile } from '@/types';
-import { Globe, Menu, LogOut, Sun, Moon } from 'lucide-react';
-import { SearchableSelect } from '@/components/ui/searchable-select';
+import { Menu, LogOut, Sun, Moon } from 'lucide-react';
 
 interface NavbarProps {
   onMobileMenuToggle?: () => void;
@@ -27,11 +26,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
     imfexStore.logout();
     window.location.href = '/login';
   };
-
-  const languageOptions = [
-    { value: 'mk', label: 'МК' },
-    { value: 'en', label: 'EN' },
-  ];
 
   const isDark = theme === 'dark';
 
@@ -72,16 +66,30 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
           {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Language Switcher (MK / EN) */}
-        <div className="flex items-center h-8 border border-border rounded-lg bg-background/70 px-2 gap-1 text-xs min-w-[78px]">
-          <Globe className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <SearchableSelect
-            options={languageOptions}
-            value={locale}
-            onChange={(val) => setLocale(val as Locale)}
-            className="border-0 bg-transparent py-0 px-0.5 text-xs font-semibold text-foreground shadow-none h-7"
-            searchPlaceholder="Јазик..."
-          />
+        {/* Language Switcher (MK / EN segmented toggle — no search box for 2 options) */}
+        <div
+          className="inline-flex items-center h-8 p-0.5 border border-border rounded-lg bg-background/70 text-[11px] font-semibold"
+          role="group"
+          aria-label={locale === 'mk' ? 'Избор на јазик' : 'Language switcher'}
+        >
+          {(['mk', 'en'] as Locale[]).map((code) => {
+            const active = locale === code;
+            return (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLocale(code)}
+                aria-pressed={active}
+                className={`h-7 px-2 rounded-md transition-colors cursor-pointer ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {code === 'mk' ? 'МК' : 'EN'}
+              </button>
+            );
+          })}
         </div>
 
         {/* User Profile & Sign-out */}

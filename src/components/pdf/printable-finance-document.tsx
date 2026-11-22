@@ -34,7 +34,7 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
       ? 'Даночен документ за примен аванс со пресметан ДДВ'
       : 'Конечна даночна фактура за испорачани добра и услуги';
 
-  const customerName = invoice.customer?.companyName || invoice.customer?.name || 'Клиент';
+  const customerName = invoice.customer?.companyName || invoice.customer?.name || invoice.customerName || 'Клиент';
   const customerTaxId = invoice.customer?.taxId || '—';
   const customerAddress = [invoice.customer?.address, invoice.customer?.city].filter(Boolean).join(', ') || 'Скопје';
   const customerPhone = invoice.customer?.phone || '—';
@@ -279,7 +279,7 @@ interface PrintableDispatchProps {
 
 export const PrintableDispatchNote: React.FC<PrintableDispatchProps> = ({ dispatch }) => {
   const company = imfexStore.getCompanySettings();
-  const customerName = dispatch.customer?.companyName || dispatch.customer?.name || 'Клиент';
+  const customerName = dispatch.customer?.companyName || dispatch.customer?.name || dispatch.customerName || 'Клиент';
   const deliveryAddr =
     dispatch.deliveryAddress ||
     [dispatch.customer?.address, dispatch.customer?.city].filter(Boolean).join(', ') ||
@@ -444,7 +444,12 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
   if (!isOpen || (!invoice && !dispatchNote)) return null;
 
   const docNumber = invoice ? invoice.invoiceNumber : dispatchNote!.dispatchNumber;
-  const customerName = resolvedCustomer?.companyName || resolvedCustomer?.name || 'Клиент';
+  const customerName =
+    resolvedCustomer?.companyName ||
+    resolvedCustomer?.name ||
+    invoice?.customerName ||
+    dispatchNote?.customerName ||
+    'Клиент';
 
   const generateCurrentVectorPdf = async (downloadFilename?: string) => {
     const company = imfexStore.getCompanySettings();

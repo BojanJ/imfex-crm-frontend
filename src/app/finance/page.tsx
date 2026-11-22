@@ -736,9 +736,9 @@ function FinancePageContent() {
   const partnersList = customers.filter((c) => c.customerType === 'PARTNER' || c.customerType === 'COMPANY');
 
   useEscapeKey(showPurchaseModal && !confirmState.isOpen, () => setShowPurchaseModal(false));
-  useEscapeKey(showSalesInvoiceModal, () => setShowSalesInvoiceModal(false));
+  useEscapeKey(showSalesInvoiceModal && !confirmState.isOpen, () => setShowSalesInvoiceModal(false));
   useEscapeKey(showDispatchModal && !confirmState.isOpen, () => setShowDispatchModal(false));
-  useEscapeKey(showPaymentModal, () => setShowPaymentModal(false));
+  useEscapeKey(showPaymentModal && !confirmState.isOpen, () => setShowPaymentModal(false));
 
   if (
     !imfexStore.isLoadedFromBackend &&
@@ -888,7 +888,162 @@ function FinancePageContent() {
           </FilterBar>
 
           <div className="surface-card rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile Stacked Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {filteredPurchases.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Нема евидентирани влезни фактури или трошоци.
+                </div>
+              ) : (
+                filteredPurchases.map((pinv) => {
+                  const hasUnreceivedStock = pinv.items.some(
+                    (i) => i.itemType === 'STOCK' && !i.receivedInWarehouse
+                  );
+                  const hasStock = pinv.items.some((i) => i.itemType === 'STOCK');
+                  const linkedProj = pinv.projectId ? projects.find((p) => p.id === pinv.projectId) : undefined;
+                  return (
+                    <div key={pinv.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-mono font-semibold text-primary">{pinv.internalNumber}</p>
+                          <p className="font-medium text-foreground truncate">{pinv.supplierName}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatDate(pinv.issueDate)} • {linkedProj ? linkedProj.projectNumber : 'Општ / Магацин'}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <StatusBadge
+                            variant={
+                              pinv.status === 'PAID'
+                                ? 'success'
+                                : pinv.status === 'DRAFT'
+                                ? 'purple'
+                                : 'danger'
+                            }
+                            dot
+                          >
+                            {pinv.status === 'PAID'
+                              ? 'Платено'
+                              : pinv.status === 'DRAFT'
+                              ? 'Нацрт'
+                              : 'За плаќање'}
+                          </StatusBadge>
+                          {hasStock && (
+                            <StatusBadge variant={hasUnreceivedStock ? 'warning' : 'success'}>
+                              {hasUnreceivedStock ? 'Чека прием' : 'Примено'}
+                            </StatusBadge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        {pinv.items.map((item) => (
+                          <div key={item.id} className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                            <StatusBadge variant={item.itemType === 'STOCK' ? 'primary' : 'warning'}>
+                              {item.itemType === 'STOCK'
+                                ? 'Стока'
+                                : (item.expenseCategory && EXPENSE_CATEGORY_SHORT[item.expenseCategory]) || 'Трошок'}
+                            </StatusBadge>
+                            <span className="text-foreground font-medium">
+                              {item.quantity}× {item.title}
+                            </span>
+                            <span className="text-muted-foreground tabular-nums">
+                              ({formatCurrency(item.unitCost)})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-border/60">
+                        <span className="font-semibold text-sm text-foreground tabular-nums">
+                          {formatCurrency(pinv.totalAmount)}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {hasUnreceivedStock && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmState({
+                                  isOpen: true,
+                                  title: 'Потврда за Прием во Магацинска Залиха',
+                                  message: `Дали сте сигурни дека сакате да го потврдите приемот во магацин за влезната фактура „${pinv.internalNumber}“ (${pinv.supplierName}) и да ја зголемите залихата?`,
+                                  variant: 'success',
+                                  confirmLabel: 'Прими во Залиха',
+                                  onConfirm: () => {
+                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                    imfexStore.receivePurchaseInvoiceToWarehouse(pinv.id);
+                                    refreshAll();
+                                    toast.success(
+                                      'Примено во магацин!',
+                                      `Стоката од ${pinv.internalNumber} е додадена во залиха.`
+                                    );
+                                  },
+                                });
+                              }}
+                              className="h-7 px-2.5 rounded-md bg-emerald-600 text-white font-medium text-[11px] hover:bg-emerald-700 cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Прими</span>
+                            </button>
+                          )}
+                          {hasStock && (
+                            <button
+                              type="button"
+                              onClick={() => handleCreateSalesInvoiceFromPurchase(pinv)}
+                              className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer"
+                            >
+                              Фактурирај
+                            </button>
+                          )}
+                          {pinv.status !== 'PAID' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPayDirection('OUT');
+                                setPayPurchaseInvoiceId(pinv.id);
+                                setPayPartnerName(pinv.supplierName);
+                                setPayProjectId(pinv.projectId || '');
+                                setPayAmount(
+                                  Math.max(0, Number(pinv.totalAmount || 0) - Number(pinv.paidAmount || 0))
+                                );
+                                setShowPaymentModal(true);
+                              }}
+                              className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer"
+                            >
+                              Плати
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmState({
+                                isOpen: true,
+                                title: 'Избриши Влезна Фактура / Трошок',
+                                message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
+                                variant: 'danger',
+                                confirmLabel: 'Избриши',
+                                onConfirm: () => {
+                                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                  imfexStore.deletePurchaseInvoice(pinv.id);
+                                  refreshAll();
+                                },
+                              });
+                            }}
+                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer"
+                            aria-label="Избриши"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-muted/40 border-b border-border text-[11px] font-medium text-muted-foreground">
                   <tr>
@@ -1106,14 +1261,16 @@ function FinancePageContent() {
               ))}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={() => setShowAdvanceModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Euro className="w-4 h-4" /> Евидентирај Уплата на Аванс
               </button>
               <button
+                type="button"
                 onClick={() => setShowSalesInvoiceModal(true)}
                 className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center gap-1.5 cursor-pointer"
               >
@@ -1123,7 +1280,146 @@ function FinancePageContent() {
           </div>
 
           <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Mobile Stacked Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {filteredSalesInvoices.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Нема креирани излезни фактури.
+                </div>
+              ) : (
+                filteredSalesInvoices.map((sinv) => {
+                  const invTotal = Number(sinv.totalAmount || 0);
+                  const invPaid = Number(sinv.paidAmount || 0);
+                  const remainingDue =
+                    sinv.status === 'PAID' ? 0 : Math.max(0, Math.round((invTotal - invPaid) * 100) / 100);
+                  const clientDisplay =
+                    sinv.customer?.companyName ||
+                    sinv.customer?.name ||
+                    sinv.customerName ||
+                    customers.find((c) => c.id === sinv.customerId)?.companyName ||
+                    customers.find((c) => c.id === sinv.customerId)?.name ||
+                    'Клиент';
+                  return (
+                    <div key={sinv.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-mono font-extrabold text-primary">{sinv.invoiceNumber}</p>
+                          <p className="font-semibold text-foreground truncate">{clientDisplay}</p>
+                          <p className="text-[11px] text-muted-foreground">{formatDate(sinv.issueDate)}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                              sinv.invoiceType === 'ADVANCE'
+                                ? 'bg-amber-500/15 text-amber-500'
+                                : sinv.invoiceType === 'PROFORMA'
+                                ? 'bg-sky-500/15 text-sky-500'
+                                : 'bg-primary/15 text-primary'
+                            }`}
+                          >
+                            {sinv.invoiceType === 'ADVANCE'
+                              ? 'АВАНСНА'
+                              : sinv.invoiceType === 'PROFORMA'
+                              ? 'ПРО-ФАКТУРА'
+                              : 'КОНЕЧНА'}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                              sinv.status === 'PAID'
+                                ? 'bg-emerald-500/15 text-emerald-500'
+                                : sinv.status === 'PARTIAL_PAID'
+                                ? 'bg-amber-500/15 text-amber-500'
+                                : 'bg-blue-500/15 text-blue-500'
+                            }`}
+                          >
+                            {sinv.status === 'PAID'
+                              ? 'ПЛАТЕНО'
+                              : sinv.status === 'PARTIAL_PAID'
+                              ? 'ДЕЛУМНО'
+                              : 'ИЗДАДЕНО'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
+                        <span>Вкупно: {formatCurrency(Number(sinv.grossTotalAmount || sinv.totalAmount || 0))}</span>
+                        <span className="font-semibold text-foreground">
+                          За наплата:{' '}
+                          <strong className={remainingDue === 0 ? 'text-emerald-600 dark:text-emerald-400' : ''}>
+                            {formatCurrency(remainingDue)}
+                          </strong>
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2.5 border-t border-border/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPdfInitialEmailOpen(false);
+                            setPdfInvoice(sinv);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5" /> PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPdfInitialEmailOpen(true);
+                            setPdfInvoice(sinv);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Mail className="w-3.5 h-3.5" /> Е-пошта
+                        </button>
+                        {sinv.status !== 'PAID' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPayDirection('IN');
+                              setPaySalesInvoiceId(sinv.id);
+                              setPayPartnerName(clientDisplay);
+                              setPayProjectId(sinv.projectId || '');
+                              setPayAmount(
+                                Math.max(0, Number(sinv.totalAmount || 0) - Number(sinv.paidAmount || 0))
+                              );
+                              setShowPaymentModal(true);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] cursor-pointer"
+                          >
+                            + Уплата
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmState({
+                              isOpen: true,
+                              title: 'Избриши Излезна Фактура',
+                              message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${clientDisplay}“?`,
+                              variant: 'danger',
+                              confirmLabel: 'Избриши',
+                              onConfirm: () => {
+                                setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                imfexStore.deleteSalesInvoice(sinv.id);
+                                refreshAll();
+                              },
+                            });
+                          }}
+                          className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                          aria-label="Избриши"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left min-w-[950px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
@@ -1169,7 +1465,12 @@ function FinancePageContent() {
                           </span>
                         </td>
                         <td className="p-4 font-bold text-foreground">
-                          {sinv.customer?.companyName || sinv.customer?.name || 'Клиент'}
+                          {sinv.customer?.companyName ||
+                            sinv.customer?.name ||
+                            sinv.customerName ||
+                            customers.find((c) => c.id === sinv.customerId)?.companyName ||
+                            customers.find((c) => c.id === sinv.customerId)?.name ||
+                            'Клиент'}
                         </td>
                         <td className="p-4 font-bold text-foreground">
                           €{Number(sinv.grossTotalAmount || sinv.totalAmount || 0).toFixed(2)}
@@ -1315,7 +1616,103 @@ function FinancePageContent() {
           </div>
 
           <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Mobile Stacked Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {filteredDispatches.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  Нема издадени испратници.
+                </div>
+              ) : (
+                filteredDispatches.map((d) => (
+                  <div key={d.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-extrabold text-primary">{d.dispatchNumber}</p>
+                        <p className="font-semibold text-foreground truncate">
+                          {d.customer?.companyName || d.customer?.name || d.customerName || 'Клиент'}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {formatDate(d.issueDate)}
+                          {d.deliveryAddress ? ` • ${d.deliveryAddress}` : ''}
+                        </p>
+                      </div>
+                      {d.stockDeducted ? (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-extrabold text-[10px] shrink-0">
+                          ✓ ИЗДАДЕНО
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-extrabold text-[10px] shrink-0">
+                          НАЦРТ
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-0.5 text-[11px]">
+                      {d.items.map((it) => (
+                        <p key={it.id} className="font-medium text-foreground">
+                          • {it.quantity}× {it.title} {it.productCode ? `(${it.productCode})` : ''}
+                        </p>
+                      ))}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2.5 border-t border-border/60">
+                      {!d.stockDeducted && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmState({
+                              isOpen: true,
+                              title: 'Потврда за Излез на Стока од Магацин',
+                              message: `Дали сте сигурни дека сакате да го потврдите излезот за испратницата „${d.dispatchNumber}“ и да ја намалите залихата во магацин?`,
+                              variant: 'warning',
+                              confirmLabel: 'Потврди Излез',
+                              onConfirm: () => {
+                                setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                imfexStore.confirmAndIssueDispatchNote(d.id);
+                                refreshAll();
+                                toast.success('Испратницата е потврдена!', 'Залихата во магацинот е намалена.');
+                              },
+                            });
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px] cursor-pointer"
+                        >
+                          Потврди Излез
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPdfDispatch(d)}
+                        className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5" /> PDF
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Избриши Испратница',
+                            message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
+                            variant: 'danger',
+                            confirmLabel: 'Избриши',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              imfexStore.deleteDispatchNote(d.id);
+                              refreshAll();
+                            },
+                          });
+                        }}
+                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                        aria-label="Избриши"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left min-w-[900px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
@@ -1436,14 +1833,16 @@ function FinancePageContent() {
                 Сите приливи од клиенти (аванси, фактури) и исплати кон добавувачи / трошоци.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={() => setShowAdvanceModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Euro className="w-4 h-4" /> Евидентирај Уплата на Аванс
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setPayDirection('IN');
                   setPaySalesInvoiceId('');
@@ -1462,7 +1861,77 @@ function FinancePageContent() {
           </div>
 
           <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Mobile Stacked Cards */}
+            <div className="divide-y divide-border md:hidden">
+              {filteredPayments.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">Нема евидентирани уплати.</div>
+              ) : (
+                filteredPayments.map((pay) => (
+                  <div key={pay.id} className="p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono font-extrabold text-primary">{pay.paymentNumber}</p>
+                        <p className="font-semibold text-foreground truncate">{pay.partnerName || '—'}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {formatDate(pay.date)} • {pay.method}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase inline-flex items-center gap-1 shrink-0 ${
+                          pay.direction === 'IN'
+                            ? 'bg-emerald-500/15 text-emerald-500'
+                            : 'bg-rose-500/15 text-rose-500'
+                        }`}
+                      >
+                        {pay.direction === 'IN' ? (
+                          <>
+                            <ArrowDownLeft className="w-3 h-3" /> ПРИЛИВ {pay.isAdvance ? '(АВАНС)' : ''}
+                          </>
+                        ) : (
+                          <>
+                            <ArrowUpRight className="w-3 h-3" /> ОДЛИВ
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    {pay.notes && <p className="text-[11px] text-muted-foreground">{pay.notes}</p>}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/60">
+                      <span
+                        className={`font-black text-sm tabular-nums ${
+                          pay.direction === 'IN' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        {pay.direction === 'IN' ? '+' : '-'}€{Number(pay.amount || 0).toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Избриши Трансакција / Уплата',
+                            message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
+                            variant: 'danger',
+                            confirmLabel: 'Избриши',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              imfexStore.deletePayment(pay.id);
+                              refreshAll();
+                            },
+                          });
+                        }}
+                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                        aria-label="Избриши"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left min-w-[850px]">
                 <thead className="bg-muted/50 border-b border-border text-[10px] font-extrabold uppercase text-muted-foreground">
                   <tr>
@@ -1553,7 +2022,7 @@ function FinancePageContent() {
       {/* ===================================================================== */}
       {activeTab === 'partners' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-card p-4 rounded-xl border border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border">
             <div>
               <h3 className="font-extrabold text-sm text-foreground">Партнери и Добавувачи (пр. Doors Impex)</h3>
               <p className="text-[11px] text-muted-foreground">
@@ -1649,8 +2118,17 @@ function FinancePageContent() {
       {/* MODAL 1: НОВА ВЛЕЗНА ФАКТУРА / НАБАВКА / ТРОШОК                       */}
       {/* ===================================================================== */}
       {showPurchaseModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-card border border-border rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowPurchaseModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Внеси влезна фактура или трошок"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
@@ -1662,7 +2140,9 @@ function FinancePageContent() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowPurchaseModal(false)}
+                aria-label="Затвори"
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2027,8 +2507,17 @@ function FinancePageContent() {
       {/* MODAL 2: НОВА ИЗЛЕЗНА ФАКТУРА / ПРО-ФАКТУРА / АВАНСНА                  */}
       {/* ===================================================================== */}
       {showSalesInvoiceModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowSalesInvoiceModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Издавање излезна фактура"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-foreground">
@@ -2039,7 +2528,9 @@ function FinancePageContent() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowSalesInvoiceModal(false)}
+                aria-label="Затвори"
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2356,8 +2847,17 @@ function FinancePageContent() {
       {/* MODAL 3: НОВА ИСПРАТНИЦА                                              */}
       {/* ===================================================================== */}
       {showDispatchModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowDispatchModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Креирај испратница"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h3 className="font-extrabold text-base text-foreground">Креирај Испратница (Физички излез)</h3>
@@ -2366,7 +2866,9 @@ function FinancePageContent() {
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowDispatchModal(false)}
+                aria-label="Затвори"
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -2491,12 +2993,23 @@ function FinancePageContent() {
       {/* MODAL 4: ЕВИДЕНТИРАЈ УПЛАТА / ИСПЛАТА                                 */}
       {/* ===================================================================== */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowPaymentModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Евидентирај уплата или исплата"
+        >
+          <div
+            className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="font-extrabold text-base text-foreground">Евидентирај Уплата / Исплата</h3>
               <button
+                type="button"
                 onClick={() => setShowPaymentModal(false)}
+                aria-label="Затвори"
                 className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer"
               >
                 <X className="w-4 h-4" />

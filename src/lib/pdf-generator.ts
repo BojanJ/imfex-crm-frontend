@@ -849,7 +849,7 @@ export async function generateSalesInvoiceVectorPdf(
       ? 'Даночен документ за примен аванс со пресметан ДДВ'
       : 'Конечна даночна фактура за испорачани добра и услуги';
 
-  const customerName = invoice.customer?.companyName || invoice.customer?.name || 'Клиент';
+  const customerName = invoice.customer?.companyName || invoice.customer?.name || invoice.customerName || 'Клиент';
   const customerTaxId = invoice.customer?.taxId || '—';
   const customerAddress = [invoice.customer?.address, invoice.customer?.city].filter(Boolean).join(', ') || 'Скопје';
   const customerPhone = invoice.customer?.phone || '—';
@@ -1191,7 +1191,7 @@ export async function generateDispatchNoteVectorPdf(
   const contentWidth = pageWidth - margin * 2;
   const maxBodyY = pageHeight - 24;
 
-  const customerName = dispatch.customer?.companyName || dispatch.customer?.name || 'Клиент';
+  const customerName = dispatch.customer?.companyName || dispatch.customer?.name || dispatch.customerName || 'Клиент';
   const deliveryAddr =
     dispatch.deliveryAddress ||
     [dispatch.customer?.address, dispatch.customer?.city].filter(Boolean).join(', ') ||

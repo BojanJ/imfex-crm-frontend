@@ -42,7 +42,8 @@ function compactCalendarTitle(rawTitle: string): string {
     .replace(/^Project Start:\s*/i, 'Старт: ')
     .replace(/^Target Delivery:\s*/i, 'Рок: ')
     .replace(/^Installation:\s*/i, 'Монтажа: ')
-    .replace(/^Service:\s*/i, 'Сервис: ');
+    .replace(/^Service:\s*/i, 'Сервис: ')
+    .replace(/\b(?:PRJ|SRV)-\d{4}-(\d+)\b/g, '#$1');
 }
 
 export default function CalendarPage() {
@@ -364,7 +365,7 @@ export default function CalendarPage() {
                 onClick={() => setViewMode(v)}
                 className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                   viewMode === v
-                    ? 'bg-card text-foreground shadow-xs'
+                    ? 'bg-card text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -705,7 +706,7 @@ export default function CalendarPage() {
       {/* EVENT DETAILS MODAL */}
       {selectedEvent && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setSelectedEvent(null)}
           role="dialog"
           aria-modal="true"
@@ -833,7 +834,7 @@ export default function CalendarPage() {
       {/* NEW / EDIT EVENT MODAL */}
       {isNewEventModalOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setIsNewEventModalOpen(false)}
           role="dialog"
           aria-modal="true"

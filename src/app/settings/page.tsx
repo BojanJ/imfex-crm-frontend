@@ -707,7 +707,7 @@ export default function SettingsPage() {
       {/* Reset Confirmation Modal */}
       {isSuperAdmin && showResetModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => {
             if (!isResetting) {
               setShowResetModal(false);
@@ -788,7 +788,7 @@ export default function SettingsPage() {
       {/* Create User Modal */}
       {isSuperAdmin && showAddUserModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
           onClick={() => setShowAddUserModal(false)}
           role="dialog"
           aria-modal="true"

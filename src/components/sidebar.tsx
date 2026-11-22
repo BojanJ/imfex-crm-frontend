@@ -155,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer Sign-Out (keeps bottom-left clean of dev indicators) */}
-      <div className="pt-3 border-t border-border/70">
+      <div className={`pt-3 border-t border-border/70 ${isCollapsed ? 'pb-14' : ''}`}>
         {!isCollapsed ? (
           <div className="flex items-center justify-between gap-2 px-2 py-1 text-[11px] text-muted-foreground">
             <div className="flex items-center gap-2 min-w-0">
@@ -201,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile & Tablet Drawer */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex"
+          className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex"
           role="dialog"
           aria-modal="true"
           aria-label="Навигација"

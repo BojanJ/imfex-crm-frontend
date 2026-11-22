@@ -267,7 +267,7 @@ export default function DashboardPage() {
           action={
             <Link
               href="/service"
-              className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5"
+              className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-0.5 whitespace-nowrap"
             >
               {t('nav.service')}
               <ChevronRight className="w-3.5 h-3.5" />

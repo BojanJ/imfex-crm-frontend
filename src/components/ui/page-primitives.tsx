@@ -31,7 +31,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 }) => {
   return (
     <div
-      className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-border/80 ${className}`}
+      className={`flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between pb-5 border-b border-border/80 ${className}`}
     >
       <div className="flex items-start gap-3 min-w-0">
         {backHref ? (
@@ -73,7 +73,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       </div>
 
       {actions && (
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
           {actions}
         </div>
       )}
@@ -218,19 +218,19 @@ export const SectionCard: React.FC<SectionCardProps> = ({
   return (
     <section className={`surface-card rounded-xl overflow-hidden ${className}`}>
       {(title || action) && (
-        <div className="px-5 py-4 border-b border-border/80 flex items-center justify-between gap-3">
-          <div className="min-w-0">
+        <div className="px-5 py-4 border-b border-border/80 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <div className="min-w-0 flex-1">
             {title && (
               <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 leading-snug">
                 {icon && <span className="text-primary shrink-0">{icon}</span>}
-                <span>{title}</span>
+                <span className="break-words">{title}</span>
               </h2>
             )}
             {subtitle && (
               <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
             )}
           </div>
-          {action && <div className="shrink-0">{action}</div>}
+          {action && <div className="shrink-0 whitespace-nowrap">{action}</div>}
         </div>
       )}
       <div className={noPadding ? '' : 'p-5'}>{children}</div>
@@ -320,7 +320,7 @@ export const TabBar: React.FC<TabBarProps> = ({
   return (
     <div
       role="tablist"
-      className={`flex items-center gap-1 border-b border-border overflow-x-auto overflow-y-hidden no-scrollbar ${className}`}
+      className={`flex items-center flex-wrap gap-x-1 gap-y-0.5 border-b border-border ${className}`}
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
@@ -331,7 +331,7 @@ export const TabBar: React.FC<TabBarProps> = ({
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(tab.id)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors cursor-pointer ${
               isActive
                 ? 'border-primary text-primary font-semibold'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
