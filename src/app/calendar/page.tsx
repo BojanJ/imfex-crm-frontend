@@ -8,11 +8,13 @@ import { imfexStore } from '@/lib/store';
 import {
   useCalendarEventsQuery,
   useCustomersQuery,
+  useProfilesQuery,
   useProjectsQuery,
   useServiceTicketsQuery,
   useSaveCalendarEventMutation,
   useDeleteCalendarEventMutation,
 } from '@/lib/queries';
+import { findTechnicianCalendarConflicts } from '@/lib/selectors';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { CustomerSelect, ProjectSelect } from '@/components/ui/entity-selectors';
@@ -82,14 +84,17 @@ export default function CalendarPage() {
   const { t, locale } = useI18n();
   const calendarQuery = useCalendarEventsQuery();
   const customersQuery = useCustomersQuery();
+  const profilesQuery = useProfilesQuery();
   const projectsQuery = useProjectsQuery();
   const serviceTicketsQuery = useServiceTicketsQuery();
   const saveEventMutation = useSaveCalendarEventMutation();
   const deleteEventMutation = useDeleteCalendarEventMutation();
 
+  const profiles = profilesQuery.data ?? imfexStore.getProfiles();
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [filterType, setFilterType] = useState<string>('ALL');
+  const [filterTechnicianId, setFilterTechnicianId] = useState<string>('ALL');
 
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -104,6 +109,7 @@ export default function CalendarPage() {
   const [eventAllDay, setEventAllDay] = useState(false);
   const [eventCustomerId, setEventCustomerId] = useState('');
   const [eventProjectId, setEventProjectId] = useState('');
+  const [eventAssignedUserId, setEventAssignedUserId] = useState('');
   const [eventLocation, setEventLocation] = useState('');
   const [eventDescription, setEventDescription] = useState('');
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -116,8 +122,34 @@ export default function CalendarPage() {
     void customersQuery.data;
     return imfexStore.getCalendarEvents();
   }, [calendarQuery.data, projectsQuery.data, serviceTicketsQuery.data, customersQuery.data]);
-  const filteredEvents =
-    filterType === 'ALL' ? allEvents : allEvents.filter((e) => e.eventType === filterType);
+  const filteredEvents = allEvents.filter((e) => {
+    if (filterType !== 'ALL' && e.eventType !== filterType) return false;
+    if (filterTechnicianId !== 'ALL' && e.assignedUserId !== filterTechnicianId) return false;
+    return true;
+  });
+
+  // Live technician double-booking conflict detector (BIZ-13)
+  const techConflicts = useMemo(() => {
+    if (!isNewEventModalOpen || !eventAssignedUserId || !eventStartDate) return [];
+    const safeEnd = eventEndDate && eventEndDate >= eventStartDate ? eventEndDate : eventStartDate;
+    return findTechnicianCalendarConflicts(allEvents, {
+      id: editingEventId || undefined,
+      assignedUserId: eventAssignedUserId,
+      startDate: eventAllDay ? eventStartDate : `${eventStartDate}T${eventStartTime}`,
+      endDate: eventAllDay ? safeEnd : `${safeEnd}T${eventEndTime}`,
+      allDay: eventAllDay,
+    });
+  }, [
+    isNewEventModalOpen,
+    eventAssignedUserId,
+    eventStartDate,
+    eventEndDate,
+    eventStartTime,
+    eventEndTime,
+    eventAllDay,
+    editingEventId,
+    allEvents,
+  ]);
 
   const handlePrev = () => {
     const d = new Date(currentDate);
@@ -155,6 +187,7 @@ export default function CalendarPage() {
     setEventAllDay(false);
     setEventCustomerId('');
     setEventProjectId('');
+    setEventAssignedUserId('');
     setEventLocation('');
     setEventDescription('');
     setIsNewEventModalOpen(true);
@@ -181,6 +214,7 @@ export default function CalendarPage() {
     setEventAllDay(!!event.allDay);
     setEventCustomerId(event.customerId || '');
     setEventProjectId(event.projectId || '');
+    setEventAssignedUserId(event.assignedUserId || '');
     setEventLocation(event.location || '');
     setEventDescription(event.description || '');
 
@@ -206,6 +240,7 @@ export default function CalendarPage() {
       eventType,
       customerId: eventCustomerId || undefined,
       projectId: eventProjectId || undefined,
+      assignedUserId: eventAssignedUserId || undefined,
       location: eventLocation,
       color: eventType === 'MEETING' ? 'purple' : eventType === 'INSTALLATION' ? 'amber' : 'blue',
     };
@@ -407,24 +442,39 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-2.5 border-t border-border/60">
-          {(['ALL', 'PROJECT', 'SERVICE', 'MEETING', 'INSTALLATION', 'MAINTENANCE'] as const).map(
-            (fid) => (
-              <button
-                key={fid}
-                type="button"
-                onClick={() => setFilterType(fid)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                  filterType === fid
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
-              >
-                {getCalendarEventTypeLabel(fid, locale)}
-              </button>
-            )
-          )}
+        {/* Category & Technician Filter Row (BIZ-13) */}
+        <div className="flex items-center justify-between gap-2 flex-wrap pt-2.5 border-t border-border/60">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(['ALL', 'PROJECT', 'SERVICE', 'MEETING', 'INSTALLATION', 'MAINTENANCE'] as const).map(
+              (fid) => (
+                <button
+                  key={fid}
+                  type="button"
+                  onClick={() => setFilterType(fid)}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                    filterType === fid
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {getCalendarEventTypeLabel(fid, locale)}
+                </button>
+              )
+            )}
+          </div>
+          <select
+            value={filterTechnicianId}
+            onChange={(e) => setFilterTechnicianId(e.target.value)}
+            aria-label={t('calendar.assigned_technician')}
+            className="h-8 px-2.5 text-xs rounded-lg border border-border bg-background text-foreground outline-none"
+          >
+            <option value="ALL">{t('calendar.all_technicians')}</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.fullName}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -946,6 +996,27 @@ export default function CalendarPage() {
                   allowClear
                   clearLabel={locale === 'mk' ? '-- Без поврзан проект --' : '-- None --'}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block font-medium text-muted-foreground">{t('calendar.assigned_technician')}</label>
+                <select
+                  value={eventAssignedUserId}
+                  onChange={(e) => setEventAssignedUserId(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">{t('calendar.unassigned_technician')}</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.fullName}
+                    </option>
+                  ))}
+                </select>
+                {techConflicts.length > 0 && (
+                  <p className="text-[11px] font-medium text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/25 rounded-lg px-2.5 py-1.5 mt-1">
+                    {t('calendar.conflict_warning')}: {techConflicts.map((c) => c.title).join(', ')}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2.5 pt-2 border-t border-border">

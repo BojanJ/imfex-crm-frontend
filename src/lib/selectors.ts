@@ -1,5 +1,7 @@
 import type {
+  CalendarEvent,
   CompanySettings,
+  InstalledItem,
   Offer,
   OfferItem,
   PaymentRecord,
@@ -458,4 +460,109 @@ export function computeAgingAndVatSummary(params: {
       netVatPayable,
     },
   };
+}
+
+export interface WarrantyStatusInfo {
+  status: 'IN_WARRANTY' | 'EXPIRING_SOON' | 'EXPIRED' | 'UNKNOWN';
+  expiresAt: string | null;
+  daysRemaining: number | null;
+}
+
+/**
+ * Pure warranty coverage evaluator for InstalledItem (BIZ-11).
+ * Defaults to 24 months from installationDate when warrantyExpiresAt is absent.
+ */
+export function getWarrantyStatus(
+  item?: InstalledItem | null,
+  referenceDate = new Date()
+): WarrantyStatusInfo {
+  if (!item) return { status: 'UNKNOWN', expiresAt: null, daysRemaining: null };
+  let expiry: Date | null = null;
+  if (item.warrantyExpiresAt) {
+    const parsed = new Date(item.warrantyExpiresAt);
+    if (!Number.isNaN(parsed.getTime())) expiry = parsed;
+  } else if (item.installationDate) {
+    const inst = new Date(item.installationDate);
+    if (!Number.isNaN(inst.getTime())) {
+      const months = Number(item.warrantyMonths ?? 24);
+      expiry = new Date(inst.getFullYear(), inst.getMonth() + months, inst.getDate());
+    }
+  }
+  if (!expiry) return { status: 'UNKNOWN', expiresAt: null, daysRemaining: null };
+  const refDay = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const expDay = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate());
+  const daysRemaining = Math.floor((expDay.getTime() - refDay.getTime()) / 86_400_000);
+  const expiresAt = expDay.toISOString().slice(0, 10);
+  if (daysRemaining < 0) return { status: 'EXPIRED', expiresAt, daysRemaining };
+  if (daysRemaining <= 60) return { status: 'EXPIRING_SOON', expiresAt, daysRemaining };
+  return { status: 'IN_WARRANTY', expiresAt, daysRemaining };
+}
+
+export interface ServiceSlaStatus {
+  targetHours: number;
+  elapsedHours: number;
+  remainingHours: number;
+  breached: boolean;
+}
+
+const SLA_HOURS_BY_PRIORITY: Record<string, number> = {
+  URGENT: 4,
+  HIGH: 24,
+  MEDIUM: 72,
+  LOW: 120,
+};
+
+/**
+ * Computes SLA target & breach status for an open ServiceTicket (BIZ-13).
+ */
+export function getServiceSlaStatus(
+  ticket: Pick<ServiceTicket, 'priority' | 'status' | 'createdAt' | 'closedAt'>,
+  referenceDate = new Date()
+): ServiceSlaStatus {
+  const targetHours = SLA_HOURS_BY_PRIORITY[ticket.priority] ?? 72;
+  const created = new Date(ticket.createdAt);
+  const endTime =
+    ticket.status === 'CLOSED' && ticket.closedAt ? new Date(ticket.closedAt) : referenceDate;
+  const elapsedHours =
+    Number.isNaN(created.getTime()) || Number.isNaN(endTime.getTime())
+      ? 0
+      : Math.max(0, Math.round(((endTime.getTime() - created.getTime()) / 3_600_000) * 10) / 10);
+  const remainingHours = Math.round((targetHours - elapsedHours) * 10) / 10;
+  const breached = ticket.status !== 'CLOSED' && ticket.status !== 'COMPLETED' && elapsedHours > targetHours;
+  return { targetHours, elapsedHours, remainingHours, breached };
+}
+
+/**
+ * Detects overlapping calendar events assigned to the same technician (BIZ-13).
+ */
+export function findTechnicianCalendarConflicts(
+  events: CalendarEvent[],
+  candidate: { id?: string; assignedUserId?: string | null; startDate: string; endDate?: string; allDay?: boolean }
+): CalendarEvent[] {
+  if (!candidate.assignedUserId || !candidate.startDate) return [];
+  const toRange = (start: string, end?: string, allDay?: boolean): [number, number] | null => {
+    const s = new Date(allDay || !start.includes('T') ? `${start.slice(0, 10)}T00:00:00` : start);
+    if (Number.isNaN(s.getTime())) return null;
+    const rawEnd = end || start;
+    const e = new Date(
+      allDay || !rawEnd.includes('T')
+        ? `${rawEnd.slice(0, 10)}T23:59:59`
+        : rawEnd === start
+        ? new Date(s.getTime() + 3_600_000).toISOString()
+        : rawEnd
+    );
+    if (Number.isNaN(e.getTime())) return [s.getTime(), s.getTime() + 3_600_000];
+    return [s.getTime(), Math.max(e.getTime(), s.getTime() + 1_800_000)];
+  };
+
+  const candRange = toRange(candidate.startDate, candidate.endDate, candidate.allDay);
+  if (!candRange) return [];
+
+  return events.filter((ev) => {
+    if (candidate.id && ev.id === candidate.id) return false;
+    if (!ev.assignedUserId || ev.assignedUserId !== candidate.assignedUserId) return false;
+    const evRange = toRange(ev.startDate, ev.endDate, ev.allDay);
+    if (!evRange) return false;
+    return candRange[0] < evRange[1] && evRange[0] < candRange[1];
+  });
 }

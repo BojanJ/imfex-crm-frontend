@@ -7,6 +7,7 @@ import { imfexStore } from '@/lib/store';
 import { useServiceTicketsQuery, useDeleteServiceTicketMutation } from '@/lib/queries';
 import { ServiceTicket, ServiceStatus } from '@/types';
 import { formatDateTime } from '@/lib/date-format';
+import { getServiceSlaStatus } from '@/lib/selectors';
 import { getServicePriorityLabel, getServiceStatusLabel } from '@/lib/enum-labels';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -159,11 +160,25 @@ export default function ServiceDeskPage() {
                         {st.defectDescription}
                       </p>
                     </td>
-                    <td className="px-4 py-3.5 whitespace-nowrap">
+                    <td className="px-4 py-3.5 whitespace-nowrap space-y-1">
                       <StatusBadge variant={priorityVariant(st.priority)}>
                         {st.priority === 'URGENT' && <AlertTriangle className="w-3 h-3" />}
                         {getServicePriorityLabel(st.priority, locale)}
                       </StatusBadge>
+                      {st.status !== 'CLOSED' && st.status !== 'COMPLETED' && (() => {
+                        const sla = getServiceSlaStatus(st);
+                        return (
+                          <span
+                            className={`block text-[10px] font-semibold tabular-nums ${
+                              sla.breached ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'
+                            }`}
+                          >
+                            {sla.breached
+                              ? `SLA +${Math.round(sla.elapsedHours - sla.targetHours)}h`
+                              : `SLA ${Math.max(0, Math.round(sla.remainingHours))}h`}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       <StatusBadge variant={statusVariant(st.status)} dot>

@@ -3,12 +3,18 @@
 import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
-import { ConsumedPart, ServicePriority, ServiceStatus, ServiceTicket } from '@/types';
+import { ConsumedPart, SalesInvoice, ServiceBillingType, ServicePriority, ServiceStatus, ServiceTicket } from '@/types';
 import { imfexStore } from '@/lib/store';
+import { apiClient } from '@/lib/api-client';
+import { getServiceSlaStatus, getWarrantyStatus } from '@/lib/selectors';
+import { generateServiceReportVectorPdf } from '@/lib/pdf-generator';
+import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import {
+  useClientDocumentsQuery,
   useProfilesQuery,
   useServiceTicketQuery,
   useSaveServiceTicketMutation,
+  useSaveCalendarEventMutation,
 } from '@/lib/queries';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { DateTimePicker } from '@/components/ui/date-picker';
@@ -36,6 +42,11 @@ import {
   Printer,
   Loader2,
   X,
+  ShieldCheck,
+  Receipt,
+  CalendarPlus,
+  Camera,
+  Download,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -55,18 +66,26 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
 
   const ticketQuery = useServiceTicketQuery(ticketId);
   const profilesQuery = useProfilesQuery();
+  const docsQuery = useClientDocumentsQuery();
   const saveTicketMutation = useSaveServiceTicketMutation();
+  const saveCalendarMutation = useSaveCalendarEventMutation();
 
   const profiles = profilesQuery.data ?? imfexStore.getProfiles();
   const [ticket, setTicket] = useState<ServiceTicket | null>(null);
   const [status, setStatus] = useState<ServiceStatus>('OPEN');
   const [priority, setPriority] = useState<ServicePriority>('MEDIUM');
+  const [billingType, setBillingType] = useState<ServiceBillingType>('WARRANTY');
+  const [hourlyRate, setHourlyRate] = useState<number>(
+    Number(imfexStore.getCompanySettings().defaultHourlyLaborRate ?? 25)
+  );
   const [assignedTechnicianId, setAssignedTechnicianId] = useState<string>('');
   const [scheduledDate, setScheduledDate] = useState<string>('');
   const [laborHours, setLaborHours] = useState<number>(0);
   const [solution, setSolution] = useState<string>('');
   const [partsConsumed, setPartsConsumed] = useState<ConsumedPart[]>([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [previewServiceInvoice, setPreviewServiceInvoice] = useState<SalesInvoice | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const hydratedIdRef = useRef<string | null>(null);
 
   useEscapeKey(isReportModalOpen, () => setIsReportModalOpen(false));
@@ -82,6 +101,8 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     setTicket(tk);
     setStatus(tk.status);
     setPriority(tk.priority);
+    setBillingType((tk.billingType as ServiceBillingType) || 'WARRANTY');
+    setHourlyRate(Number(tk.hourlyRate ?? imfexStore.getCompanySettings().defaultHourlyLaborRate ?? 25));
     setAssignedTechnicianId(tk.assignedTechnicianId || '');
     const parsedSched = splitIsoDateTime(tk.scheduledDate);
     setScheduledDate(
@@ -104,6 +125,8 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
       assignedTechnician: profiles.find((p) => p.id === assignedTechnicianId),
       scheduledDate: scheduledDate || undefined,
       laborHours,
+      billingType,
+      hourlyRate,
       solution,
       partsConsumed,
       closedAt: nextStatus === 'CLOSED' ? new Date().toISOString() : ticket.closedAt,
@@ -182,6 +205,130 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   }
 
   const addPartCleanLabel = (t('service.add_part') || 'Додај Дел').replace(/^\+\s*/, '');
+  const warrantyInfo = getWarrantyStatus(ticket.installedItem);
+  const slaInfo = getServiceSlaStatus(ticket);
+  const serviceDocs = (docsQuery.data ?? []).filter((d) => d.serviceId === ticket.id);
+  const laborTotalCost = Math.round(Number(laborHours || 0) * Number(hourlyRate || 0) * 100) / 100;
+  const serviceTotalNet = Math.round((totalPartsCost + laborTotalCost) * 100) / 100;
+
+  const handleGenerateServiceInvoice = () => {
+    if (serviceTotalNet <= 0) {
+      toast.error(t('service.invoice_zero_error'));
+      return;
+    }
+    const invoiceItems = [
+      ...partsConsumed.map((p, idx) => ({
+        id: `si-part-${Date.now()}-${idx}`,
+        productId: p.productId,
+        title: `${p.code ? `[${p.code}] ` : ''}${p.name}`,
+        quantity: Number(p.quantity || 1),
+        unitPrice: Number(p.unitCost || 0),
+        totalPrice: Math.round(Number(p.quantity || 1) * Number(p.unitCost || 0) * 100) / 100,
+      })),
+      ...(laborHours > 0
+        ? [
+            {
+              id: `si-labor-${Date.now()}`,
+              title: `${t('service.labor_line_item')} (${ticket.ticketNumber})`,
+              quantity: Number(laborHours),
+              unitPrice: Number(hourlyRate || 0),
+              totalPrice: laborTotalCost,
+            },
+          ]
+        : []),
+    ];
+    const subtotal = Math.round(invoiceItems.reduce((s, i) => s + i.totalPrice, 0) * 100) / 100;
+    const taxRate = 18;
+    const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
+    const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
+    const cs = imfexStore.getCompanySettings();
+
+    const invoice: SalesInvoice = {
+      id: `sinv-${Date.now()}`,
+      invoiceNumber: imfexStore.generateSalesInvoiceNumber('FINAL'),
+      invoiceType: 'FINAL',
+      status: 'ISSUED',
+      customerId: ticket.customerId,
+      customer: ticket.customer,
+      issueDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 15 * 86_400_000).toISOString().split('T')[0],
+      taxRate,
+      discountRate: 0,
+      discountAmount: 0,
+      subtotal,
+      taxAmount,
+      grossTotalAmount: totalAmount,
+      advanceDeductedAmount: 0,
+      totalAmount,
+      paidAmount: 0,
+      exchangeRate: Number(cs.eurToMkdRate ?? 61.5),
+      notes: `Сервисна интервенција ${ticket.ticketNumber}${ticket.installedItem?.title ? ` — ${ticket.installedItem.title}` : ''}`,
+      items: invoiceItems,
+      createdAt: new Date().toISOString(),
+    };
+
+    const savedInv = imfexStore.saveSalesInvoice(invoice);
+    saveTicketMutation.mutate({ ...ticket, billingType, hourlyRate, laborHours, partsConsumed, solution, salesInvoiceId: savedInv.id });
+    setTicket((prev) => (prev ? { ...prev, salesInvoiceId: savedInv.id } : prev));
+    setPreviewServiceInvoice(savedInv);
+    toast.success(t('service.invoice_created'), `${savedInv.invoiceNumber} (${formatCurrency(totalAmount)})`);
+  };
+
+  const handleScheduleAnnualMaintenance = () => {
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    const isoDay = nextYear.toISOString().split('T')[0];
+    saveCalendarMutation.mutate(
+      {
+        title: `Годишен превентивен сервис: ${ticket.installedItem?.title || ticket.ticketNumber}`,
+        description: `Клиент: ${ticket.customer?.companyName || ticket.customer?.name || ''}`,
+        startDate: `${isoDay}T09:00`,
+        endDate: `${isoDay}T11:00`,
+        allDay: false,
+        eventType: 'MAINTENANCE',
+        customerId: ticket.customerId,
+        assignedUserId: assignedTechnicianId || undefined,
+      },
+      {
+        onSuccess: () => {
+          toast.success(t('service.maint_scheduled'), formatDate(isoDay));
+        },
+      }
+    );
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !ticket) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error(t('service.photo_too_large'));
+      return;
+    }
+    setIsUploadingPhoto(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('File read error'));
+        reader.readAsDataURL(file);
+      });
+      await apiClient.documents.save({
+        customerId: ticket.customerId,
+        serviceId: ticket.id,
+        title: file.name,
+        fileType: file.type.startsWith('image/') ? 'IMAGE' : 'PDF',
+        fileName: file.name,
+        fileUrl: dataUrl,
+      });
+      void docsQuery.refetch();
+      toast.success(t('service.photo_uploaded'), file.name);
+    } catch (err) {
+      toast.error(t('service.photo_upload_failed'), err instanceof Error ? err.message : undefined);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   return (
     <div className="space-y-6 pb-16 text-xs">
@@ -189,9 +336,18 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
         backHref="/service"
         title={ticket.ticketNumber}
         badge={
-          <StatusBadge variant={statusBadgeVariant(status)} dot>
-            {getServiceStatusLabel(status, locale)}
-          </StatusBadge>
+          <div className="inline-flex items-center gap-1.5 flex-wrap">
+            <StatusBadge variant={statusBadgeVariant(status)} dot>
+              {getServiceStatusLabel(status, locale)}
+            </StatusBadge>
+            {status !== 'CLOSED' && status !== 'COMPLETED' && (
+              <StatusBadge variant={slaInfo.breached ? 'danger' : 'neutral'}>
+                {slaInfo.breached
+                  ? `SLA +${Math.round(slaInfo.elapsedHours - slaInfo.targetHours)}h`
+                  : `SLA ${Math.max(0, Math.round(slaInfo.remainingHours))}h`}
+              </StatusBadge>
+            )}
+          </div>
         }
         subtitle={`${ticket.customer?.companyName || ticket.customer?.name || 'Клиент'} • ${
           ticket.installedItem?.title || 'Општо одржување'
@@ -200,11 +356,25 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
           <>
             <button
               type="button"
-              onClick={() => setIsReportModalOpen(true)}
+              onClick={() => {
+                void generateServiceReportVectorPdf(
+                  { ...ticket, status, priority, billingType, hourlyRate, laborHours, solution, partsConsumed },
+                  imfexStore.getCompanySettings(),
+                  `Servis-${ticket.ticketNumber}.pdf`
+                ).then(() => toast.success(t('service.pdf_downloaded'), ticket.ticketNumber));
+              }}
               className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Printer className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>Извештај</span>
+              <Printer className="w-3.5 h-3.5 text-primary" />
+              <span>{t('service.btn_pdf_report')}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleScheduleAnnualMaintenance}
+              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+            >
+              <CalendarPlus className="w-3.5 h-3.5 text-muted-foreground" />
+              <span>{t('service.btn_schedule_maint')}</span>
             </button>
             {status !== 'CLOSED' && (
               <button
@@ -260,6 +430,64 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 className="w-full px-3 py-2 rounded-lg border border-border bg-background font-medium text-foreground outline-none"
               />
             </div>
+
+            <div className="space-y-1.5">
+              <label className="block font-medium text-muted-foreground">{t('service.billing_type')}</label>
+              <select
+                value={billingType}
+                onChange={(e) => setBillingType(e.target.value as ServiceBillingType)}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background font-medium text-foreground outline-none"
+              >
+                <option value="WARRANTY">{t('service.billing_warranty')}</option>
+                <option value="BILLABLE">{t('service.billing_billable')}</option>
+                <option value="CONTRACT">{t('service.billing_contract')}</option>
+              </select>
+            </div>
+
+            {warrantyInfo.status !== 'UNKNOWN' && (
+              <div
+                className={`p-3 rounded-lg border text-[11px] flex items-center gap-2 ${
+                  warrantyInfo.status === 'EXPIRED'
+                    ? 'border-rose-500/30 bg-rose-500/[0.06] text-rose-700 dark:text-rose-400'
+                    : warrantyInfo.status === 'EXPIRING_SOON'
+                    ? 'border-amber-500/30 bg-amber-500/[0.06] text-amber-700 dark:text-amber-400'
+                    : 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-700 dark:text-emerald-400'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <div>
+                  <strong className="block font-semibold">
+                    {warrantyInfo.status === 'EXPIRED'
+                      ? t('service.warranty_expired')
+                      : warrantyInfo.status === 'EXPIRING_SOON'
+                      ? t('service.warranty_expiring')
+                      : t('service.warranty_active')}
+                  </strong>
+                  {warrantyInfo.expiresAt && (
+                    <span>
+                      {t('service.warranty_until')}: {formatDate(warrantyInfo.expiresAt)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {billingType === 'BILLABLE' && (
+              <div className="pt-2 border-t border-border/70 space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-muted-foreground">{t('service.billable_total_net')}</span>
+                  <strong className="font-bold text-foreground tabular-nums">{formatCurrency(serviceTotalNet)}</strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateServiceInvoice}
+                  className="w-full h-9 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>{t('service.btn_create_invoice')}</span>
+                </button>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="block font-medium text-muted-foreground">{t('service.technician')}</label>
@@ -412,17 +640,32 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
             icon={<Clock className="w-4 h-4" />}
           >
             <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block font-medium text-muted-foreground">
-                  {t('service.labor_hours')}
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={laborHours}
-                  onChange={(e) => setLaborHours(parseFloat(e.target.value) || 0)}
-                  className="w-32 h-9 px-3 rounded-lg border border-border bg-background font-semibold text-foreground tabular-nums outline-none focus:border-primary"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block font-medium text-muted-foreground">
+                    {t('service.labor_hours')}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={laborHours}
+                    onChange={(e) => setLaborHours(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background font-semibold text-foreground tabular-nums outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block font-medium text-muted-foreground">
+                    {t('service.hourly_rate')} (€/h)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={hourlyRate}
+                    onChange={(e) => setHourlyRate(parseFloat(e.target.value) || 0)}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-background font-semibold text-foreground tabular-nums outline-none focus:border-primary"
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -439,8 +682,74 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
           </SectionCard>
+
+          {/* BIZ-12: Field Photos & Documents (Before/After Proof via ClientDocument.serviceId) */}
+          <SectionCard
+            title={t('service.photos_title')}
+            subtitle={t('service.photos_sub')}
+            icon={<Camera className="w-4 h-4" />}
+            action={
+              <label className="h-8 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer">
+                <Plus className="w-3.5 h-3.5" />
+                <span>{isUploadingPhoto ? '...' : t('service.upload_photo')}</span>
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  onChange={handlePhotoUpload}
+                  disabled={isUploadingPhoto}
+                  className="hidden"
+                />
+              </label>
+            }
+          >
+            {serviceDocs.length === 0 ? (
+              <p className="text-center py-4 text-muted-foreground text-xs">{t('service.no_photos')}</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {serviceDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-2.5 rounded-lg border border-border bg-muted/20 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground truncate">{doc.title}</p>
+                      <span className="text-[10px] text-muted-foreground">{formatDate(doc.createdAt)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const full = await apiClient.documents.getById(doc.id);
+                          if (full.fileUrl) {
+                            const a = document.createElement('a');
+                            a.href = full.fileUrl;
+                            a.download = full.fileName || full.title;
+                            a.rel = 'noopener noreferrer';
+                            a.click();
+                          }
+                        } catch {
+                          toast.error(t('service.photo_upload_failed'));
+                        }
+                      }}
+                      className="h-7 px-2.5 rounded-md border border-border bg-background hover:bg-muted text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>{t('projects.file_download')}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
         </div>
       </div>
+
+      {/* Service Invoice PDF Preview Modal (BIZ-11) */}
+      <FinancePdfModal
+        isOpen={Boolean(previewServiceInvoice)}
+        onClose={() => setPreviewServiceInvoice(null)}
+        invoice={previewServiceInvoice}
+      />
 
       {/* Printable Report Modal */}
       {isReportModalOpen && (

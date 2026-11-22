@@ -2907,9 +2907,12 @@ class ImfexStore {
     if (note.projectId) {
       const prj = this.getProjectById(note.projectId);
       if (prj && !prj.dispatchIssued) {
+        // BIZ-12: Dispatch note moves project to INSTALLATION (not prematurely COMPLETED before site installation & handover)
+        const nextStatus =
+          prj.status === 'COMPLETED' || prj.status === 'CLOSED' ? prj.status : 'INSTALLATION';
         this.saveProject({
           ...prj,
-          status: 'COMPLETED',
+          status: nextStatus,
           dispatchIssued: true,
           dispatchIssuedAt: new Date().toISOString(),
           procurementNotes: `${prj.procurementNotes || ''}\n[ИЗЛЕЗ] Издадена испратница ${note.dispatchNumber} — залихата е раздолжена`.trim(),

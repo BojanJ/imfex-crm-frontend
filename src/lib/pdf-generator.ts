@@ -1,5 +1,14 @@
 import jsPDF from 'jspdf';
-import type { CompanySettings, DispatchNote, Offer, Product, PurchaseInvoice, SalesInvoice } from '@/types';
+import type {
+  CompanySettings,
+  DispatchNote,
+  Offer,
+  Product,
+  Project,
+  PurchaseInvoice,
+  SalesInvoice,
+  ServiceTicket,
+} from '@/types';
 import { formatDate, resolveOfferValidUntil } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { getServiceTypeLabel } from '@/lib/enum-labels';
@@ -1539,4 +1548,280 @@ export async function generatePurchaseOrderVectorPdf(
 
   addPageFooters(pdf, fontName, `${company.companyName} — Нарачка: ${purchase.internalNumber}`, false, margin);
   return finalizePdf(pdf, filename || `${purchase.internalNumber}.pdf`);
+}
+
+/**
+ * Generates an official signed Project Handover Protocol (Примопредавателен записник) vector PDF (BIZ-12).
+ */
+export async function generateHandoverProtocolVectorPdf(
+  project: Project,
+  company: CompanySettings,
+  filename?: string
+): Promise<VectorPdfResult> {
+  const { pdf, fontName } = await createVectorPdfDoc();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 16;
+  const contentWidth = pageWidth - margin * 2;
+
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(0, 0, pageWidth, 34, 'F');
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(13);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text(company.companyName || 'IMFEX', margin, 14);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(`${company.address} | ДДВ: ${company.taxId} | ${company.phone}`, margin, 21);
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(11);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text('ПРИМОПРЕДАВАТЕЛЕН ЗАПИСНИК', pageWidth - margin, 14, { align: 'right' });
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(project.projectNumber, pageWidth - margin, 22, { align: 'right' });
+
+  let y = 44;
+  const clientName = project.customer?.companyName || project.customer?.name || project.customerName || 'Клиент';
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(margin, y, contentWidth, 30, 2, 2, 'FD');
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(`Клиент: ${clientName}`, margin + 4, y + 7);
+  pdf.setFont(fontName, 'normal');
+  pdf.text(`Локација на монтажа: ${project.installationAddress || project.customer?.address || '—'}`, margin + 4, y + 13.5);
+  pdf.text(`Контакт на локација: ${project.installationContact || project.customer?.phone || '—'}`, margin + 4, y + 20);
+  pdf.text(`Тим за монтажа: ${project.installationTeam || '—'}`, margin + 4, y + 26);
+
+  pdf.text(`Датум на монтажа: ${formatDate(project.installationDate || new Date().toISOString())}`, pageWidth - margin - 4, y + 7, {
+    align: 'right',
+  });
+  pdf.text(`Одговорно лице: ${project.responsibleUser?.fullName || '—'}`, pageWidth - margin - 4, y + 13.5, {
+    align: 'right',
+  });
+  pdf.text('Гаранција: 24 месеци', pageWidth - margin - 4, y + 20, { align: 'right' });
+  y += 38;
+
+  // Scope items from linked offer
+  const offerItems = project.offer?.items || [];
+  if (offerItems.length > 0) {
+    pdf.setFont(fontName, 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(...COLORS.slate900);
+    pdf.text('Вградена опрема и изведени работи:', margin, y);
+    y += 5;
+    offerItems.forEach((it, idx) => {
+      const dims = it.widthMm && it.heightMm ? ` (${it.widthMm}x${it.heightMm} mm)` : '';
+      pdf.setFont(fontName, 'normal');
+      pdf.setFontSize(8.5);
+      pdf.setTextColor(...COLORS.slate700);
+      pdf.text(`${idx + 1}. ${it.customTitle || 'Опрема'}${dims} — кол. ${it.quantity || 1}`, margin + 2, y + 4);
+      y += 6;
+    });
+    y += 4;
+  }
+
+  // Handover minutes
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(...COLORS.slate900);
+  pdf.text('Записник и констатации при примопредавање:', margin, y);
+  y += 4;
+  const minutesText =
+    project.installationMinutes?.trim() ||
+    'Опремата е монтирана, тестирана и предадена во целосно исправна функционална состојба без забелешки.';
+  const minLines = pdf.splitTextToSize(minutesText, contentWidth - 8);
+  const minH = Math.max(20, minLines.length * 4.5 + 8);
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(margin, y, contentWidth, minH, 2, 2, 'FD');
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(minLines, margin + 4, y + 6);
+  y += minH + 10;
+
+  // Embedded client digital signature if captured as PNG/JPEG data URI
+  const sigBaseY = Math.max(y + 12, pageHeight - 54);
+  if (project.signatureUrl && /^data:image\/(png|jpeg|jpg);base64,/i.test(project.signatureUrl)) {
+    try {
+      const imgType = project.signatureUrl.toLowerCase().includes('jpeg') || project.signatureUrl.toLowerCase().includes('jpg') ? 'JPEG' : 'PNG';
+      pdf.addImage(project.signatureUrl, imgType, pageWidth - margin - 66, sigBaseY - 22, 60, 20);
+    } catch {
+      // Ignore malformed image data gracefully
+    }
+  }
+
+  pdf.setDrawColor(...COLORS.slate500);
+  pdf.setLineWidth(0.3);
+  pdf.line(margin, sigBaseY, margin + 70, sigBaseY);
+  pdf.line(pageWidth - margin - 70, sigBaseY, pageWidth - margin, sigBaseY);
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text('Предал (Изведувач / Монтер)', margin + 35, sigBaseY + 5, { align: 'center' });
+  pdf.text('Примил (Клиент / Потпис)', pageWidth - margin - 35, sigBaseY + 5, { align: 'center' });
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...COLORS.slate500);
+  pdf.text(project.installationTeam || company.companyName, margin + 35, sigBaseY + 10, { align: 'center' });
+  pdf.text(clientName, pageWidth - margin - 35, sigBaseY + 10, { align: 'center' });
+
+  addPageFooters(pdf, fontName, `${company.companyName} — Примопредавателен записник: ${project.projectNumber}`, false, margin);
+  return finalizePdf(pdf, filename || `Zapisnik-${project.projectNumber}.pdf`);
+}
+
+/**
+ * Generates an official Service Intervention Report (Сервисен Извештај) vector PDF (BIZ-12).
+ */
+export async function generateServiceReportVectorPdf(
+  ticket: ServiceTicket,
+  company: CompanySettings,
+  filename?: string
+): Promise<VectorPdfResult> {
+  const { pdf, fontName } = await createVectorPdfDoc();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 16;
+  const contentWidth = pageWidth - margin * 2;
+
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(0, 0, pageWidth, 34, 'F');
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(13);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text(company.companyName || 'IMFEX', margin, 14);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(`${company.address} | ${company.phone} | ${company.email}`, margin, 21);
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(11);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text('СЕРВИСЕН ИЗВЕШТАЈ', pageWidth - margin, 14, { align: 'right' });
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(ticket.ticketNumber, pageWidth - margin, 22, { align: 'right' });
+
+  let y = 44;
+  const clientName = ticket.customer?.companyName || ticket.customer?.name || ticket.customerName || 'Клиент';
+  const billingLabel =
+    ticket.billingType === 'BILLABLE'
+      ? 'Наплатен сервис'
+      : ticket.billingType === 'CONTRACT'
+      ? 'Договор за одржување'
+      : 'Гарантен сервис';
+
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(margin, y, contentWidth, 26, 2, 2, 'FD');
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...COLORS.slate900);
+  pdf.text(`Клиент: ${clientName}`, margin + 4, y + 7);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(`Опрема: ${ticket.installedItem?.title || 'Општо одржување'}`, margin + 4, y + 13.5);
+  pdf.text(`Техничар: ${ticket.assignedTechnician?.fullName || '—'}`, margin + 4, y + 20);
+
+  pdf.text(`Датум: ${formatDate(ticket.scheduledDate || ticket.createdAt)}`, pageWidth - margin - 4, y + 7, { align: 'right' });
+  pdf.text(`Тип: ${billingLabel}`, pageWidth - margin - 4, y + 13.5, { align: 'right' });
+  pdf.text(`Работни часови: ${Number(ticket.laborHours || 0)} ч.`, pageWidth - margin - 4, y + 20, { align: 'right' });
+  y += 33;
+
+  // Defect & Solution
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...COLORS.slate900);
+  pdf.text('Пријавен дефект:', margin, y);
+  y += 4;
+  const defLines = pdf.splitTextToSize(ticket.defectDescription || '—', contentWidth - 4);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(defLines, margin + 2, y + 2);
+  y += defLines.length * 4 + 8;
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(...COLORS.slate900);
+  pdf.text('Извршена интервенција и решение:', margin, y);
+  y += 4;
+  const solLines = pdf.splitTextToSize(ticket.solution || 'Интервенцијата е во тек / не е внесено решение.', contentWidth - 4);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(solLines, margin + 2, y + 2);
+  y += solLines.length * 4 + 10;
+
+  // Parts Consumed Table
+  const parts = ticket.partsConsumed || [];
+  const partsTotal = parts.reduce((sum, p) => sum + Number(p.unitCost || 0) * Number(p.quantity || 1), 0);
+  const rate = Number(ticket.hourlyRate ?? company.defaultHourlyLaborRate ?? 25);
+  const laborTotal = Math.round(Number(ticket.laborHours || 0) * rate * 100) / 100;
+
+  if (parts.length > 0) {
+    pdf.setFillColor(...COLORS.navy);
+    pdf.rect(margin, y, contentWidth, 7.5, 'F');
+    pdf.setFont(fontName, 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...COLORS.white);
+    pdf.text('Вграден резервен дел', margin + 3, y + 5);
+    pdf.text('Кол.', margin + 115, y + 5, { align: 'right' });
+    pdf.text('Ед. цена', margin + 145, y + 5, { align: 'right' });
+    pdf.text('Вкупно', pageWidth - margin - 3, y + 5, { align: 'right' });
+    y += 9.5;
+    parts.forEach((p) => {
+      pdf.setFont(fontName, 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(...COLORS.slate700);
+      pdf.text(`${p.code ? `[${p.code}] ` : ''}${p.name}`, margin + 3, y + 2);
+      pdf.text(String(p.quantity || 1), margin + 115, y + 2, { align: 'right' });
+      pdf.text(formatCurrency(p.unitCost), margin + 145, y + 2, { align: 'right' });
+      pdf.text(formatCurrency(Number(p.unitCost || 0) * Number(p.quantity || 1)), pageWidth - margin - 3, y + 2, {
+        align: 'right',
+      });
+      y += 6.5;
+    });
+    y += 4;
+  }
+
+  // Cost summary box
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(pageWidth - margin - 80, y, 80, 22, 2, 2, 'FD');
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text('Делови:', pageWidth - margin - 76, y + 6);
+  pdf.text(formatCurrency(partsTotal), pageWidth - margin - 4, y + 6, { align: 'right' });
+  pdf.text(`Работна рака (${ticket.laborHours} ч × €${rate}):`, pageWidth - margin - 76, y + 12);
+  pdf.text(formatCurrency(laborTotal), pageWidth - margin - 4, y + 12, { align: 'right' });
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(9);
+  pdf.setTextColor(...COLORS.navy);
+  pdf.text('ВКУПНО (без ДДВ):', pageWidth - margin - 76, y + 18.5);
+  pdf.text(formatCurrency(partsTotal + laborTotal), pageWidth - margin - 4, y + 18.5, { align: 'right' });
+
+  const sigY = Math.max(y + 36, pageHeight - 36);
+  pdf.setDrawColor(...COLORS.slate500);
+  pdf.setLineWidth(0.3);
+  pdf.line(margin, sigY, margin + 70, sigY);
+  pdf.line(pageWidth - margin - 70, sigY, pageWidth - margin, sigY);
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text('Сервисен техничар', margin + 35, sigY + 5, { align: 'center' });
+  pdf.text('Потпис на клиент', pageWidth - margin - 35, sigY + 5, { align: 'center' });
+
+  addPageFooters(pdf, fontName, `${company.companyName} — Сервисен извештај: ${ticket.ticketNumber}`, false, margin);
+  return finalizePdf(pdf, filename || `Servis-${ticket.ticketNumber}.pdf`);
 }

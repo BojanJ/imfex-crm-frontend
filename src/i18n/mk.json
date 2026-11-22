@@ -542,7 +542,9 @@
     "milestone_accepted": "Прифатена финална понуда",
     "milestone_ordered": "Нарачано кај добавувач",
     "milestone_delivered": "Примено во магацин",
-    "milestone_dispatched": "Издадена испратница"
+    "milestone_dispatched": "Издадена испратница",
+    "btn_handover_pdf": "Записник PDF",
+    "handover_pdf_downloaded": "Примопредавателниот записник е преземен"
   },
   "service": {
     "title": "Сервисен Центар и Одржување",
@@ -586,7 +588,32 @@
     "select_part_placeholder": "Пребарај и додај дел од залиха...",
     "solution_placeholder": "Опис на извршениот сервис, тестирање и дијагностика...",
     "close": "Затвори",
-    "report_title": "IMFEX ИЗВЕШТАЈ ЗА СЕРВИС"
+    "report_title": "IMFEX ИЗВЕШТАЈ ЗА СЕРВИС",
+    "btn_pdf_report": "PDF Извештај",
+    "pdf_downloaded": "Сервисниот извештај (PDF) е преземен",
+    "btn_schedule_maint": "Закажи Годишен Сервис",
+    "maint_scheduled": "Закажан годишен превентивен сервис",
+    "billing_type": "Тип на наплата",
+    "billing_warranty": "Гарантен сервис (Бесплатно)",
+    "billing_billable": "Наплатен сервис (Фактурирање)",
+    "billing_contract": "Договор за одржување",
+    "warranty_active": "Опремата е во гаранција",
+    "warranty_expiring": "Гаранцијата наскоро истекува",
+    "warranty_expired": "Гаранцијата е истечена",
+    "warranty_until": "Важи до",
+    "billable_total_net": "За фактурирање (без ДДВ):",
+    "btn_create_invoice": "Издај Сервисна Фактура",
+    "invoice_zero_error": "Внесете барем делови или работни часови со цена пред фактурирање.",
+    "invoice_created": "Креирана сервисна фактура",
+    "labor_line_item": "Сервисна работна рака",
+    "hourly_rate": "Саатница",
+    "photos_title": "Теренски фотографии и докази (Пред / Потоа)",
+    "photos_sub": "Прикачете фотографии од дефектот, поправката или потпишани документи.",
+    "upload_photo": "Прикачи слика / PDF",
+    "no_photos": "Нема прикачени теренски фотографии.",
+    "photo_too_large": "Фајлот надминува 3MB.",
+    "photo_uploaded": "Фотографијата е прикачена",
+    "photo_upload_failed": "Грешка при прикачување на фајлот"
   },
   "calendar": {
     "subtitle": "Обединет распоред за комерцијални проекти, теренски сервисни тикети и закажани настани.",
@@ -623,7 +650,11 @@
     "next_period": "Следен период",
     "prev": "Претходен",
     "next": "Следен",
-    "close": "Затвори"
+    "close": "Затвори",
+    "assigned_technician": "Доделен техничар / одговорен",
+    "all_technicians": "Сите техничари",
+    "unassigned_technician": "-- Недоделен --",
+    "conflict_warning": "Внимание — преклопување на термин за овој техничар"
   },
   "pdf_modal": {
     "title": "IMFEX Експорт на Документ",

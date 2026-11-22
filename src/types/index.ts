@@ -240,7 +240,12 @@ export interface InstalledItem {
   title: string;
   serialNumber?: string;
   installationDate: string;
+  warrantyMonths?: number;
+  warrantyExpiresAt?: string | null;
+  nextMaintenanceDate?: string | null;
 }
+
+export type ServiceBillingType = 'WARRANTY' | 'BILLABLE' | 'CONTRACT';
 
 export interface ConsumedPart {
   id: string;
@@ -267,6 +272,9 @@ export interface ServiceTicket {
   scheduledDate?: string;
   partsConsumed: ConsumedPart[];
   laborHours: number;
+  billingType?: ServiceBillingType;
+  hourlyRate?: number;
+  salesInvoiceId?: string | null;
   solution?: string;
   closedAt?: string;
   createdAt: string;
@@ -286,6 +294,7 @@ export interface CalendarEvent {
   customer?: Customer;
   projectId?: string;
   serviceTicketId?: string;
+  assignedUserId?: string | null;
   location?: string;
   color?: string;
   isSystemEvent?: boolean;

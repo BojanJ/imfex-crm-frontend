@@ -4,6 +4,9 @@ import {
   computeOfferMarginSummary,
   computeOfferTotals,
   computeProjectFinancialSummary,
+  findTechnicianCalendarConflicts,
+  getServiceSlaStatus,
+  getWarrantyStatus,
 } from '../selectors';
 import { buildCsvString } from '../csv-export';
 import { canDeleteRecords, canViewFinance, canWriteFinance, canWriteSales } from '../rbac';
@@ -325,6 +328,50 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     const csv = buildCsvString(['Name', 'Note'], [['=HYPERLINK("bad")', 'Hello, "World"']]);
     expect(csv.startsWith('\uFEFF')).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""bad"")","Hello, ""World"""`);
+  });
+
+  it('evaluates warranty status, service SLA breaches & technician calendar conflicts (BIZ-11, BIZ-13)', () => {
+    const ref = new Date('2026-11-22T12:00:00Z');
+
+    const activeWarranty = getWarrantyStatus(
+      { id: 'i1', customerId: 'c1', title: 'Door', installationDate: '2026-01-01', warrantyMonths: 24 },
+      ref
+    );
+    expect(activeWarranty.status).toBe('IN_WARRANTY');
+
+    const expiredWarranty = getWarrantyStatus(
+      { id: 'i2', customerId: 'c1', title: 'Old Door', installationDate: '2023-01-01', warrantyMonths: 24 },
+      ref
+    );
+    expect(expiredWarranty.status).toBe('EXPIRED');
+
+    const breachedSla = getServiceSlaStatus(
+      { priority: 'URGENT', status: 'OPEN', createdAt: '2026-11-22T02:00:00Z' },
+      ref
+    );
+    expect(breachedSla.targetHours).toBe(4);
+    expect(breachedSla.breached).toBe(true);
+
+    const conflicts = findTechnicianCalendarConflicts(
+      [
+        {
+          id: 'ev-1',
+          title: 'Install #1',
+          startDate: '2026-11-25T09:00',
+          endDate: '2026-11-25T11:00',
+          eventType: 'INSTALLATION',
+          assignedUserId: 'tech-1',
+          createdAt: '2026-11-20',
+        },
+      ],
+      {
+        assignedUserId: 'tech-1',
+        startDate: '2026-11-25T10:00',
+        endDate: '2026-11-25T12:00',
+      }
+    );
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].id).toBe('ev-1');
   });
 
   it('guarantees full i18n coverage across finance, products, settings, service, builder & fixes MK typos (I18N-08..I18N-12)', () => {

@@ -542,7 +542,9 @@
     "milestone_accepted": "Final offer accepted",
     "milestone_ordered": "Ordered from supplier",
     "milestone_delivered": "Received in warehouse",
-    "milestone_dispatched": "Dispatch note issued"
+    "milestone_dispatched": "Dispatch note issued",
+    "btn_handover_pdf": "Handover PDF",
+    "handover_pdf_downloaded": "Handover protocol PDF downloaded"
   },
   "service": {
     "title": "Service & Maintenance Desk",
@@ -586,7 +588,32 @@
     "select_part_placeholder": "Search & add part from stock...",
     "solution_placeholder": "Describe service performed, testing, and diagnostics...",
     "close": "Close",
-    "report_title": "IMFEX SERVICE REPORT"
+    "report_title": "IMFEX SERVICE REPORT",
+    "btn_pdf_report": "PDF Report",
+    "pdf_downloaded": "Service report PDF downloaded",
+    "btn_schedule_maint": "Schedule Annual Maint.",
+    "maint_scheduled": "Annual preventive maintenance scheduled",
+    "billing_type": "Billing Type",
+    "billing_warranty": "Warranty Service (No charge)",
+    "billing_billable": "Billable Repair (Invoiced)",
+    "billing_contract": "Maintenance Contract",
+    "warranty_active": "Equipment under warranty",
+    "warranty_expiring": "Warranty expiring soon",
+    "warranty_expired": "Warranty expired",
+    "warranty_until": "Valid until",
+    "billable_total_net": "Billable total (ex-VAT):",
+    "btn_create_invoice": "Create Service Invoice",
+    "invoice_zero_error": "Add spare parts or billable labor hours before generating an invoice.",
+    "invoice_created": "Service invoice created",
+    "labor_line_item": "Service technician labor",
+    "hourly_rate": "Hourly rate",
+    "photos_title": "Field Photos & Proof (Before / After)",
+    "photos_sub": "Attach site photos of defects, completed repairs, or signed documents.",
+    "upload_photo": "Upload photo / PDF",
+    "no_photos": "No field photos attached yet.",
+    "photo_too_large": "File exceeds 3MB limit.",
+    "photo_uploaded": "Field photo uploaded",
+    "photo_upload_failed": "Failed to upload file"
   },
   "calendar": {
     "subtitle": "Unified schedule for commercial projects, field service tickets, and custom events.",
@@ -623,7 +650,11 @@
     "next_period": "Next period",
     "prev": "Previous",
     "next": "Next",
-    "close": "Close"
+    "close": "Close",
+    "assigned_technician": "Assigned technician / owner",
+    "all_technicians": "All technicians",
+    "unassigned_technician": "-- Unassigned --",
+    "conflict_warning": "Warning — schedule overlap for this technician"
   },
   "pdf_modal": {
     "title": "IMFEX Document Export",

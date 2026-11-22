@@ -103,6 +103,26 @@ export default function ProjectsPage() {
       },
       {
         onSuccess: () => {
+          // BIZ-11: Auto-register InstalledItem with 24-month warranty & annual maintenance when closing via Kanban too
+          if (newStatus === 'CLOSED' && project.customerId) {
+            const existingInstalled = imfexStore.getAllInstalledItems();
+            const alreadyRegistered = existingInstalled.some((it) => it.projectId === project.id);
+            if (!alreadyRegistered) {
+              const linkedOffer = project.offer || imfexStore.getOffers().find((o) => o.id === project.offerId);
+              const firstItem = linkedOffer?.items?.[0];
+              const installIso = project.installationDate || new Date().toISOString().split('T')[0];
+              imfexStore.saveInstalledItem({
+                id: `inst-${Date.now()}`,
+                customerId: project.customerId,
+                projectId: project.id,
+                productId: firstItem?.productId,
+                title: firstItem?.customTitle || `Инсталирана опрема (${project.projectNumber})`,
+                serialNumber: project.projectNumber,
+                installationDate: installIso,
+                warrantyMonths: 24,
+              });
+            }
+          }
           toast.success(
             'Статусот на проектот е променет!',
             `Проектот ${project.projectNumber} е префрлен во статус „${getStatusLabel(newStatus)}“.`

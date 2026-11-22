@@ -26,6 +26,7 @@ import {
   useProductsQuery,
 } from '@/lib/queries';
 import { computeProjectFinancialSummary } from '@/lib/selectors';
+import { generateHandoverProtocolVectorPdf } from '@/lib/pdf-generator';
 import { formatDate, formatDateTime } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getProjectStatusLabel, getUserRoleLabel } from '@/lib/enum-labels';
@@ -1190,10 +1191,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <label className="block font-semibold mb-1 text-muted-foreground">{t('projects.installation_team')}</label>
                 <input
                   type="text"
+                  list="project-technicians-datalist"
                   value={installationTeam}
                   onChange={(e) => setInstallationTeam(e.target.value)}
+                  placeholder="Избери техничар или внеси тим..."
                   className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none font-bold"
                 />
+                <datalist id="project-technicians-datalist">
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.fullName} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -1232,10 +1240,32 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Card 5: Handover */}
           <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
               <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-primary" /> {t('projects.handover')}
               </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  void generateHandoverProtocolVectorPdf(
+                    {
+                      ...project,
+                      installationTeam,
+                      installationDate: installationDate || project.installationDate,
+                      installationAddress,
+                      installationContact,
+                      installationMinutes,
+                      signatureUrl: project.signatureUrl,
+                    },
+                    imfexStore.getCompanySettings(),
+                    `Zapisnik-${project.projectNumber}.pdf`
+                  ).then(() => toast.success(t('projects.handover_pdf_downloaded'), project.projectNumber));
+                }}
+                className="h-8 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <FileText className="w-3.5 h-3.5 text-primary" />
+                <span>{t('projects.btn_handover_pdf')}</span>
+              </button>
             </div>
 
             <div>
