@@ -386,6 +386,24 @@ export default function CustomersPage() {
                         doc.fileUrl.startsWith('https://') ||
                         doc.fileUrl.startsWith('blob:'));
                     const upperType = (doc.fileType || 'PDF').toUpperCase();
+                    const downloadLabel =
+                      upperType === 'PDF'
+                        ? t('customers.download_pdf')
+                        : upperType === 'IMAGE'
+                        ? locale === 'mk'
+                          ? 'Преземи Слика'
+                          : 'Download Image'
+                        : upperType === 'EXCEL'
+                        ? locale === 'mk'
+                          ? 'Преземи Excel'
+                          : 'Download Excel'
+                        : upperType === 'WORD'
+                        ? locale === 'mk'
+                          ? 'Преземи Word'
+                          : 'Download Word'
+                        : locale === 'mk'
+                        ? 'Преземи Фајл'
+                        : 'Download File';
 
                     return (
                       <div
@@ -443,7 +461,7 @@ export default function CustomersPage() {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground shrink-0 transition-colors"
                           >
-                            <Download className="w-3.5 h-3.5 text-primary" /> {t('customers.download_pdf')}
+                            <Download className="w-3.5 h-3.5 text-primary" /> {downloadLabel}
                           </a>
                         ) : (
                           <button
@@ -453,7 +471,7 @@ export default function CustomersPage() {
                             }
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground shrink-0 cursor-pointer transition-colors"
                           >
-                            <Download className="w-3.5 h-3.5 text-primary" /> {t('customers.download_pdf')}
+                            <Download className="w-3.5 h-3.5 text-primary" /> {downloadLabel}
                           </button>
                         )}
                       </div>

@@ -88,7 +88,7 @@ export const apiClient = {
       ),
     me: () => requestJson<{ user: UserProfile }>('/api/auth/me'),
     changePassword: (currentPassword: string, newPassword: string) =>
-      requestJson<{ success: boolean; user: UserProfile }>('/api/auth/change-password', {
+      requestJson<{ success: boolean; token?: string; user: UserProfile }>('/api/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({ currentPassword, newPassword }),
       }),

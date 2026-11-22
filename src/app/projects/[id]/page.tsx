@@ -13,7 +13,15 @@ import {
   DispatchNote,
 } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { useProjectQuery, useProfilesQuery } from '@/lib/queries';
+import {
+  useProjectQuery,
+  useProfilesQuery,
+  useOffersQuery,
+  useSalesInvoicesQuery,
+  usePurchaseInvoicesQuery,
+  usePaymentsQuery,
+  useProductsQuery,
+} from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getProjectStatusLabel, getUserRoleLabel } from '@/lib/enum-labels';
@@ -125,6 +133,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   useImfexStore(); // Subscribe to multi-step workflow mutations (advance payment, dispatch, attachments)
   const projectQuery = useProjectQuery(projectId);
   const profilesQuery = useProfilesQuery();
+  // Ensure financial & catalog queries are loaded so Financial Summary never displays €0.00 (FE-16)
+  useOffersQuery();
+  useSalesInvoicesQuery();
+  usePurchaseInvoicesQuery();
+  usePaymentsQuery();
+  useProductsQuery();
 
   const [project, setProject] = useState<Project | null>(null);
   const profiles: UserProfile[] = profilesQuery.data ?? imfexStore.getProfiles();
@@ -149,7 +163,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string>('');
   const [signatureData, setSignatureData] = useState<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
-  const isLoading = projectQuery.isLoading && !project;
+  const isLoading =
+    (projectQuery.isPending || projectQuery.isLoading || (Boolean(projectQuery.data) && !project)) &&
+    !project;
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<SalesInvoice | null>(null);
   const [previewDispatch, setPreviewDispatch] = useState<DispatchNote | null>(null);
@@ -597,7 +613,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     });
   };
 
-  if (isLoading && !project && !imfexStore.isLoadedFromBackend) {
+  if (isLoading) {
     return (
       <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -948,7 +964,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Card 2.8: Project Financial Summary */}
           {(() => {
-            const fin = imfexStore.getProjectFinancialSummary(project.id);
+            const fin = imfexStore.getProjectFinancialSummary(project.id, project);
             return (
               <SectionCard
                 title="Финансиски биланс"

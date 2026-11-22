@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import type { CompanySettings, DispatchNote, Offer, Product, SalesInvoice } from '@/types';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, resolveOfferValidUntil } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { getServiceTypeLabel } from '@/lib/enum-labels';
 
@@ -211,10 +211,7 @@ export async function generateOfferVectorPdf(
     .join('  |  ');
 
   const dateCreated = formatDate(offer.createdAt, formatDate(new Date()));
-  const validUntil = formatDate(
-    offer.validUntil,
-    formatDate(new Date((offer.createdAt ? new Date(offer.createdAt).getTime() : Date.now()) + 14 * 24 * 60 * 60 * 1000))
-  );
+  const validUntil = resolveOfferValidUntil(offer);
 
   const firstItem = offer.items?.[0];
   const firstProduct = products.find((p) => p.id === firstItem?.productId);

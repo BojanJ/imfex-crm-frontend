@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatCurrency, formatMkd, formatTime24, TIME_SLOTS_24H } from '../formatters';
-import { formatDate } from '../date-format';
+import { formatDate, toDateInputValue, resolveOfferValidUntil } from '../date-format';
 import {
   getOfferStatusLabel,
   getProjectStatusLabel,
@@ -38,12 +38,24 @@ describe('Currency, Date & 24h Time Formatters (I18N-06)', () => {
     expect(formatDate(null, '—')).toBe('—');
   });
 
-  it('formats 24-hour times and exposes 48 half-hour slots', () => {
+  it('formats 24-hour times, converts legacy AM/PM strings, and exposes 48 half-hour slots (FE-25)', () => {
     expect(formatTime24('2026-11-21T14:30:00')).toBe('14:30');
     expect(formatTime24('9:05')).toBe('09:05');
+    expect(formatTime24('2:15:30 PM')).toBe('14:15');
+    expect(formatTime24('12:05 AM')).toBe('00:05');
     expect(TIME_SLOTS_24H).toHaveLength(48);
     expect(TIME_SLOTS_24H[0]).toBe('00:00');
     expect(TIME_SLOTS_24H[47]).toBe('23:30');
+  });
+
+  it('normalizes ISO dates for <input type="date"> and resolves offer validity consistently (FE-15, FE-22)', () => {
+    expect(toDateInputValue('2026-12-21T00:00:00.000Z')).toBe('2026-12-21');
+    expect(toDateInputValue('21/12/2026')).toBe('2026-12-21');
+    expect(resolveOfferValidUntil({ validUntil: '2026-12-21T00:00:00.000Z', createdAt: '2026-11-12T08:50:37.030Z' })).toBe(
+      '21/12/2026'
+    );
+    // When validUntil is null, anchors deterministically to createdAt + 14 days
+    expect(resolveOfferValidUntil({ validUntil: null, createdAt: '2026-11-12T08:50:37.030Z' })).toBe('26/11/2026');
   });
 });
 

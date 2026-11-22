@@ -59,3 +59,53 @@ export function formatDateTime(val?: string | number | Date | null, fallback: st
     return fallback || String(val);
   }
 }
+
+/**
+ * Normalizes any ISO string, DD/MM/YYYY, or Date to YYYY-MM-DD for HTML <input type="date">.
+ */
+export function toDateInputValue(val?: string | number | Date | null, fallback: string = ''): string {
+  if (!val) return fallback;
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+    }
+    const dmyMatch = trimmed.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    }
+  }
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return fallback;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Single source of truth for Offer validity date across PdfModal, PrintableOfferDocument,
+ * generateOfferVectorPdf, and OfferBuilderForm (FE-22).
+ * Falls back to createdAt + 14 days when validUntil is not set.
+ */
+export function resolveOfferValidUntilDate(offer?: { validUntil?: string | null; createdAt?: string | null } | null): Date {
+  if (offer?.validUntil) {
+    const parsed = new Date(offer.validUntil);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const baseMs = offer?.createdAt ? new Date(offer.createdAt).getTime() : Date.now();
+  const safeBaseMs = Number.isNaN(baseMs) ? Date.now() : baseMs;
+  return new Date(safeBaseMs + 14 * 24 * 60 * 60 * 1000);
+}
+
+export function resolveOfferValidUntil(offer?: { validUntil?: string | null; createdAt?: string | null } | null): string {
+  if (offer?.validUntil) {
+    return formatDate(offer.validUntil, formatDate(resolveOfferValidUntilDate(offer)));
+  }
+  return formatDate(resolveOfferValidUntilDate(offer));
+}

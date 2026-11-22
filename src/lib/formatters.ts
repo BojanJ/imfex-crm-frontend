@@ -28,19 +28,32 @@ export function formatMkd(amount: unknown): string {
 }
 
 /**
- * Formats an ISO timestamp, Date, or "HH:mm" string strictly as 24-hour "HH:mm".
+ * Formats an ISO timestamp, Date, 12h AM/PM string, or "HH:mm" string strictly as 24-hour "HH:mm".
  */
 export function formatTime24(val?: string | Date | null, fallback = ''): string {
   if (!val) return fallback;
   if (typeof val === 'string') {
     const trimmed = val.trim();
+    // Handle legacy 12-hour AM/PM strings (e.g. "2:15:30 PM" or "12:05 AM")
+    const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)$/i);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1], 10);
+      const mins = ampmMatch[2];
+      const meridiem = ampmMatch[3].toUpperCase();
+      if (meridiem === 'PM' && hours < 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      return `${String(hours).padStart(2, '0')}:${mins}`;
+    }
     const hhmmMatch = trimmed.match(/^(\d{1,2}):(\d{2})/);
     if (hhmmMatch) {
       return `${hhmmMatch[1].padStart(2, '0')}:${hhmmMatch[2]}`;
     }
-    const isoTimeMatch = trimmed.match(/T(\d{2}):(\d{2})/);
-    if (isoTimeMatch) {
-      return `${isoTimeMatch[1]}:${isoTimeMatch[2]}`;
+    // Parse full ISO timestamps via Date so local timezone hours are respected
+    if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) {
+      const d = new Date(trimmed);
+      if (!Number.isNaN(d.getTime())) {
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
     }
   }
   try {

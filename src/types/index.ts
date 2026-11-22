@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'USER';
+export type UserRole = 'SUPER_ADMIN' | 'SALES' | 'ACCOUNTANT' | 'TECHNICIAN' | 'USER';
 
 export type SpecInputType = 'SELECT' | 'MULTISELECT' | 'TEXT' | 'NUMBER';
 

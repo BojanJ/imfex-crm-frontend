@@ -808,30 +808,30 @@ function FinancePageContent() {
           icon={<ArrowDownLeft className="w-4 h-4" />}
           helper={
             <>
-              <span>За наплата:</span>
+              <span>Реален прилив (бруто) • За наплата:</span>
               <strong className="text-foreground tabular-nums">{formatCurrency(totalOpenReceivables)}</strong>
             </>
           }
         />
 
         <StatCard
-          label="Набавка на стока"
+          label="Набавка на стока (без ДДВ)"
           value={formatCurrency(totalStockPurchases)}
           tone="primary"
           icon={<Boxes className="w-4 h-4" />}
-          helper="Врати, мотори, шини и делови"
+          helper="Фактурирана нето набавка (вкл. неплатени)"
         />
 
         <StatCard
-          label="Оперативни трошоци"
+          label="Оперативни трошоци (без ДДВ)"
           value={formatCurrency(totalOperationalExpenses)}
           tone="warning"
           icon={<Fuel className="w-4 h-4" />}
-          helper="Гориво, материјал и режии"
+          helper="Фактурирани нето трошоци (гориво, материјал)"
         />
 
         <StatCard
-          label="Нето биланс"
+          label="Нето кеш биланс"
           value={
             <span className={netCashBalance >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}>
               {formatCurrency(netCashBalance)}
@@ -839,7 +839,7 @@ function FinancePageContent() {
           }
           tone={netCashBalance >= 0 ? 'success' : 'danger'}
           icon={<Sparkles className="w-4 h-4" />}
-          helper="Прилив минус одлив"
+          helper="Реални уплати (прилив) минус исплати (одлив)"
         />
       </div>
 
@@ -1183,8 +1183,25 @@ function FinancePageContent() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="p-4 text-right font-black text-sm text-foreground">
-                          €{Number(sinv.totalAmount || 0).toFixed(2)}
+                        <td className="p-4 text-right font-black text-sm text-foreground tabular-nums">
+                          {(() => {
+                            const invTotal = Number(sinv.totalAmount || 0);
+                            const invPaid = Number(sinv.paidAmount || 0);
+                            const remainingDue =
+                              sinv.status === 'PAID' ? 0 : Math.max(0, Math.round((invTotal - invPaid) * 100) / 100);
+                            return (
+                              <div>
+                                <span className={remainingDue === 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}>
+                                  {formatCurrency(remainingDue)}
+                                </span>
+                                {invPaid > 0 && (
+                                  <span className="block text-[10px] font-medium text-muted-foreground">
+                                    од {formatCurrency(invTotal)}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="p-4">
                           <span
@@ -1554,11 +1571,40 @@ function FinancePageContent() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {partnersList.map((partner) => {
               const pName = partner.companyName || partner.name;
-              const partnerPurchases = purchases.filter(
-                (p) => p.supplierName.toLowerCase() === pName.toLowerCase()
-              );
+              const cyrillicToLatin = (str: string) => {
+                const map: Record<string, string> = {
+                  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', ѓ: 'gj', е: 'e', ж: 'zh', з: 'z',
+                  ѕ: 'dz', и: 'i', ј: 'j', к: 'k', л: 'l', љ: 'lj', м: 'm', н: 'n', њ: 'nj',
+                  о: 'o', п: 'p', р: 'r', с: 's', т: 't', ќ: 'kj', у: 'u', ф: 'f', х: 'h',
+                  ц: 'c', ч: 'ch', џ: 'dzh', ш: 'sh',
+                };
+                return str
+                  .toLowerCase()
+                  .split('')
+                  .map((ch) => map[ch] ?? ch)
+                  .join('')
+                  .replace(/ks/g, 'x')
+                  .replace(/[^a-z0-9\s]/g, ' ')
+                  .replace(/\s+/g, ' ')
+                  .trim();
+              };
+              const normPartnerNames = [partner.companyName, partner.name]
+                .filter(Boolean)
+                .map((s) => cyrillicToLatin(String(s)));
+
+              const partnerPurchases = purchases.filter((p) => {
+                if (p.supplierId && p.supplierId === partner.id) return true;
+                const normSup = cyrillicToLatin(p.supplierName || '');
+                if (!normSup) return false;
+                return normPartnerNames.some((np) => {
+                  if (!np) return false;
+                  if (np === normSup || np.includes(normSup) || normSup.includes(np)) return true;
+                  const supTokens = normSup.split(' ').filter((w) => w.length >= 3);
+                  return supTokens.length >= 2 && supTokens.every((tok) => np.includes(tok));
+                });
+              });
               const totalBought = partnerPurchases.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
-              const isSupplier = partnerPurchases.length > 0 || partner.customerType === 'PARTNER';
+              const isSupplier = partnerPurchases.length > 0;
 
               return (
                 <div key={partner.id} className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-sm">

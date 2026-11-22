@@ -33,6 +33,7 @@ import {
 } from '@/types';
 import { formatDate } from './date-format';
 import { toast } from '@/components/ui/toastr';
+import { formatTime24 } from '@/lib/formatters';
 import { getApiUrl, getAuthToken, authFetch, registerUnauthorizedHandler } from './api';
 import { apiClient } from './api-client';
 import { queryClient, queryKeys } from './query-client';
@@ -1073,6 +1074,10 @@ class ImfexStore {
         };
       }
 
+      if (typeof data?.token === 'string' && data.token && typeof window !== 'undefined') {
+        sessionStorage.setItem('imfex_auth_token', data.token);
+      }
+
       const updatedUser: UserProfile | undefined = data?.user;
       if (updatedUser && this.currentUser?.id === updatedUser.id) {
         this.currentUser = { ...this.currentUser, ...updatedUser, mustChangePassword: false };
@@ -1229,7 +1234,7 @@ class ImfexStore {
       projectId: meta?.projectId,
       offerId: meta?.offerId,
       quantity: meta?.quantity,
-      at: new Date().toLocaleTimeString('mk-MK'),
+      at: formatTime24(new Date()),
       createdAt: new Date().toISOString(),
     };
     this.movements.unshift(move);
@@ -3204,9 +3209,9 @@ class ImfexStore {
   }
 
   // 6. Real-time Project Profitability & Financial Balance
-  getProjectFinancialSummary(projectId: string) {
-    const project = this.getProjectById(projectId);
-    const offer = project?.offerId ? this.getOfferById(project.offerId) : undefined;
+  getProjectFinancialSummary(projectId: string, projectOverride?: Project | null) {
+    const project = this.getProjectById(projectId) || projectOverride || undefined;
+    const offer = (project?.offerId ? this.getOfferById(project.offerId) : undefined) || project?.offer;
     const agreedRevenue = Number(offer?.totalAmount || 0);
 
     const projectSalesInvoices = this.salesInvoices.filter(

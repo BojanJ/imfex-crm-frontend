@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PrintableOfferDocument } from './printable-offer-document';
 import { Offer, Product } from '@/types';
-import { formatDate } from '@/lib/date-format';
+import { resolveOfferValidUntil } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
 import { generateOfferVectorPdf } from '@/lib/pdf-generator';
 import { imfexStore } from '@/lib/store';
@@ -94,10 +94,7 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
     }
   };
 
-  const resolvedValidUntil = formatDate(
-    offer.validUntil,
-    formatDate(new Date((offer.createdAt ? new Date(offer.createdAt).getTime() : Date.now()) + 14 * 24 * 60 * 60 * 1000))
-  );
+  const resolvedValidUntil = resolveOfferValidUntil(offer);
 
   return (
     <div

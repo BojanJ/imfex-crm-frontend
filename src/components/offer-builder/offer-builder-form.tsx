@@ -19,6 +19,7 @@ import { useEscapeKey } from '@/components/ui/use-escape-key';
 import { PageHeader, SectionCard } from '@/components/ui/page-primitives';
 import { getOfferStatusLabel, getServiceTypeLabel } from '@/lib/enum-labels';
 import { formatCurrency } from '@/lib/formatters';
+import { resolveOfferValidUntilDate, toDateInputValue } from '@/lib/date-format';
 import {
   Plus,
   Trash2,
@@ -51,7 +52,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
 
-  const customers = useMemo(() => customersQuery.data ?? imfexStore.getCustomers(), [customersQuery.data]);
+  const customers = useMemo(() => {
+    const base = customersQuery.data ?? imfexStore.getCustomers();
+    if (existingOffer?.customer && !base.some((c) => c.id === existingOffer.customer!.id)) {
+      return [existingOffer.customer, ...base];
+    }
+    return base;
+  }, [customersQuery.data, existingOffer?.customer]);
   const products = useMemo(() => productsQuery.data ?? imfexStore.getProducts(), [productsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data ?? imfexStore.getCategories(), [categoriesQuery.data]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
@@ -61,11 +68,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const [status, setStatus] = useState<OfferStatus>(existingOffer?.status || 'DRAFT');
   const [taxRate, setTaxRate] = useState<number>(existingOffer?.taxRate ?? 18.00);
   const [discountRate, setDiscountRate] = useState<number>(existingOffer?.discountRate ?? 0.00);
-  const [validUntil, setValidUntil] = useState<string>(
-    existingOffer?.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const [validUntil, setValidUntil] = useState<string>(() =>
+    existingOffer
+      ? toDateInputValue(existingOffer.validUntil, toDateInputValue(resolveOfferValidUntilDate(existingOffer)))
+      : toDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
   );
-  const [offerDate, setOfferDate] = useState<string>(
-    existingOffer?.createdAt ? existingOffer.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+  const [offerDate, setOfferDate] = useState<string>(() =>
+    toDateInputValue(existingOffer?.createdAt, toDateInputValue(new Date()))
   );
 
   const [items, setItems] = useState<OfferItem[]>(
@@ -132,11 +141,19 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     const prods = products;
 
     if (existingOffer) {
-      if (hydratedOfferIdRef.current !== existingOffer.id) {
+      const needsItemHydration = items.length === 0 && (existingOffer.items?.length ?? 0) > 0;
+      if (hydratedOfferIdRef.current !== existingOffer.id || needsItemHydration) {
         hydratedOfferIdRef.current = existingOffer.id;
         if (existingOffer.customerId) {
           setSelectedCustomerId(existingOffer.customerId);
         }
+        setStatus(existingOffer.status || 'DRAFT');
+        setTaxRate(Number(existingOffer.taxRate ?? 18));
+        setDiscountRate(Number(existingOffer.discountRate ?? 0));
+        setValidUntil(
+          toDateInputValue(existingOffer.validUntil, toDateInputValue(resolveOfferValidUntilDate(existingOffer)))
+        );
+        setOfferDate(toDateInputValue(existingOffer.createdAt, toDateInputValue(new Date())));
         if (existingOffer.items && existingOffer.items.length > 0) {
           setItems(
             existingOffer.items.map((it) => {
@@ -144,13 +161,31 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               const rawSpecs = hasExplicitSpecs
                 ? it.specifications
                 : (it as any).offerItemSpecifications || [];
+              const matchedProd = it.productId ? prods.find((p) => p.id === it.productId) : undefined;
               return {
                 ...it,
+                categoryId: it.categoryId || matchedProd?.categoryId || undefined,
                 specifications: rawSpecs,
               };
             })
           );
         }
+      } else if (prods.length > 0) {
+        // Backfill missing categoryId on hydrated items once catalog products finish loading (FE-15)
+        setItems((prev) => {
+          let changed = false;
+          const next = prev.map((it) => {
+            if (!it.categoryId && it.productId) {
+              const matched = prods.find((p) => p.id === it.productId);
+              if (matched?.categoryId) {
+                changed = true;
+                return { ...it, categoryId: matched.categoryId };
+              }
+            }
+            return it;
+          });
+          return changed ? next : prev;
+        });
       }
     } else if (!initializedNewOfferRef.current) {
       if (urlCustomerId) {
@@ -214,8 +249,7 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       if (key && specSel.specificationOptionId) {
         const option = key.options.find((o) => o.id === specSel.specificationOptionId);
         if (option) price += Number(option.priceModifier || 0);
-      }
-      if (specSel.customPriceModifier) {
+      } else if (specSel.customPriceModifier) {
         price += Number(specSel.customPriceModifier || 0);
       }
     });
@@ -586,6 +620,17 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
       />
 
       {/* Customer Selection & Quote Metadata Box */}
+      {existingOffer &&
+        Math.abs(Number(existingOffer.totalAmount || 0) - totalAmount) > 0.05 && (
+          <div className="px-4 py-3 rounded-xl border border-amber-500/35 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs flex flex-wrap items-center justify-between gap-2">
+            <span>
+              <strong>{locale === 'mk' ? 'Забелешка за пресметка:' : 'Total mismatch notice:'}</strong>{' '}
+              {locale === 'mk'
+                ? `Зачуваниот износ на понудата (${formatCurrency(existingOffer.totalAmount)}) се разликува од моменталниот збир на ставките (${formatCurrency(totalAmount)}). Проверете дали има дупликат ставки пред зачувување.`
+                : `Saved offer total (${formatCurrency(existingOffer.totalAmount)}) differs from the current sum of line items (${formatCurrency(totalAmount)}). Check for duplicate items before saving.`}
+            </span>
+          </div>
+        )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Customer Select Card */}
         <SectionCard

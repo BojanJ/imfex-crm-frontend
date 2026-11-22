@@ -65,8 +65,9 @@ export default function DashboardPage() {
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
 
   const isLoading =
-    !imfexStore.isLoadedFromBackend &&
-    (offersQuery.isLoading || projectsQuery.isLoading || ticketsQuery.isLoading);
+    (offersQuery.isPending && offers.length === 0) ||
+    (projectsQuery.isPending && projects.length === 0) ||
+    (ticketsQuery.isPending && serviceTickets.length === 0);
 
   const totalRevenue = offers
     .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')

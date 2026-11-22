@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { useOffersQuery, useDeleteOfferMutation } from '@/lib/queries';
+import { useOffersQuery, useProjectsQuery, useDeleteOfferMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getOfferStatusLabel } from '@/lib/enum-labels';
@@ -47,9 +47,11 @@ export default function OffersPage() {
   const { t, locale } = useI18n();
   useImfexStore();
   const offersQuery = useOffersQuery();
+  const projectsQuery = useProjectsQuery();
   const deleteOfferMutation = useDeleteOfferMutation();
 
   const offers = offersQuery.data ?? imfexStore.getOffers();
+  const projects = projectsQuery.data ?? imfexStore.getProjects();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
@@ -237,14 +239,16 @@ export default function OffersPage() {
                     </span>
 
                     <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setAdvanceOffer(offer)}
-                        className="p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                        title="Евидентирај аванс"
-                      >
-                        <Euro className="w-3.5 h-3.5" />
-                      </button>
+                      {(offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
+                        <button
+                          type="button"
+                          onClick={() => setAdvanceOffer(offer)}
+                          className="p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="Евидентирај аванс"
+                        >
+                          <Euro className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setSelectedOfferForPdf(offer)}
@@ -343,36 +347,47 @@ export default function OffersPage() {
 
                       <td className="px-3.5 py-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setAdvanceOffer(offer)}
-                            className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
-                            title="Евидентирај уплата на аванс"
-                          >
-                            <Euro className="w-3 h-3 text-muted-foreground" />
-                            <span>Аванс</span>
-                          </button>
+                          {(offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setAdvanceOffer(offer)}
+                                className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium inline-flex items-center gap-1 text-[11px] cursor-pointer transition-colors"
+                                title="Евидентирај уплата на аванс"
+                              >
+                                <Euro className="w-3 h-3 text-muted-foreground" />
+                                <span>Аванс</span>
+                              </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleCreateProforma(offer)}
-                            className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center cursor-pointer transition-colors"
-                            title="Генерирај Про-фактура"
-                            aria-label="Генерирај Про-фактура"
-                          >
-                            <Receipt className="w-3.5 h-3.5" />
-                          </button>
-
-                          {offer.status === 'ACCEPTED' && (
-                            <Link
-                              href="/projects"
-                              className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-primary inline-flex items-center justify-center transition-colors"
-                              title="Отвори Оперативен Проект"
-                              aria-label="Отвори Оперативен Проект"
-                            >
-                              <Briefcase className="w-3.5 h-3.5" />
-                            </Link>
+                              <button
+                                type="button"
+                                onClick={() => handleCreateProforma(offer)}
+                                className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground inline-flex items-center justify-center cursor-pointer transition-colors"
+                                title="Генерирај Про-фактура"
+                                aria-label="Генерирај Про-фактура"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                              </button>
+                            </>
                           )}
+
+                          {offer.status === 'ACCEPTED' && (() => {
+                            const linkedProject = projects.find((p) => p.offerId === offer.id);
+                            return (
+                              <Link
+                                href={linkedProject ? `/projects/${linkedProject.id}` : '/projects'}
+                                className="h-7 w-7 rounded-md border border-border bg-background hover:bg-muted text-primary inline-flex items-center justify-center transition-colors"
+                                title={
+                                  linkedProject
+                                    ? `Отвори Оперативен Проект (${linkedProject.projectNumber})`
+                                    : 'Отвори Оперативен Проект'
+                                }
+                                aria-label="Отвори Оперативен Проект"
+                              >
+                                <Briefcase className="w-3.5 h-3.5" />
+                              </Link>
+                            );
+                          })()}
 
                           <button
                             type="button"

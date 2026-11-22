@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
 export default function EditOfferPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const id = resolvedParams?.id;
-  const { data: offer, isLoading } = useOfferQuery(id);
+  const { data: offer, isLoading, isPending } = useOfferQuery(id);
 
-  if (isLoading && !offer) {
+  if ((isLoading || isPending) && !offer) {
     return (
       <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin text-primary" />

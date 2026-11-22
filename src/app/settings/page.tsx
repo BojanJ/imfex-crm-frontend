@@ -279,7 +279,7 @@ export default function SettingsPage() {
         {
           id: 'USERS',
           label: locale === 'mk' ? 'Корисници' : 'Users',
-          count: profiles.length,
+          count: profilesQuery.isPending && profiles.length === 0 ? undefined : profiles.length,
           icon: <Users className="w-3.5 h-3.5" />,
         },
         {
@@ -839,6 +839,9 @@ export default function SettingsPage() {
                 <label className="block font-medium text-muted-foreground">{t('users.role')}</label>
                 <SearchableSelect
                   options={[
+                    { value: 'SALES', label: getUserRoleLabel('SALES', locale) },
+                    { value: 'ACCOUNTANT', label: getUserRoleLabel('ACCOUNTANT', locale) },
+                    { value: 'TECHNICIAN', label: getUserRoleLabel('TECHNICIAN', locale) },
                     { value: 'USER', label: getUserRoleLabel('USER', locale) },
                     { value: 'SUPER_ADMIN', label: getUserRoleLabel('SUPER_ADMIN', locale) },
                   ]}

@@ -116,19 +116,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
               className={`space-y-0.5 ${gIdx > 0 ? 'pt-3 border-t border-border/60' : ''}`}
             >
               {group.items.map((item) => {
+                const normalizedPath = (pathname || '/').replace(/\/+$/, '') || '/';
                 const isActive =
-                  pathname === item.href ||
-                  (item.href !== '/' && pathname.startsWith(item.href));
+                  item.href === '/'
+                    ? normalizedPath === '/'
+                    : normalizedPath === item.href || normalizedPath.startsWith(`${item.href}/`);
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={onMobileClose}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={(e) => {
+                      e.currentTarget.blur();
+                      onMobileClose?.();
+                    }}
                     title={isCollapsed ? item.label : undefined}
                     className={`flex items-center ${
                       isCollapsed ? 'justify-center py-2.5 px-2' : 'gap-2.5 px-3 py-2'
-                    } rounded-lg text-[13px] transition-colors ${
+                    } rounded-lg text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                       isActive
                         ? 'bg-primary/10 text-blue-700 dark:bg-primary/15 dark:text-blue-400 font-semibold'
                         : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-medium'

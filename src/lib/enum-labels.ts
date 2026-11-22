@@ -26,7 +26,10 @@ const ENUM_TRANSLATIONS: Record<Locale, Record<string, Record<string, string>>> 
     },
     userRole: {
       SUPER_ADMIN: 'Супер Администратор',
-      USER: 'Продажен Агент',
+      SALES: 'Продажба',
+      ACCOUNTANT: 'Финансии / Сметководство',
+      TECHNICIAN: 'Теренски Техничар',
+      USER: 'Корисник',
     },
     serviceType: {
       PRODUCT: 'Производ',
@@ -83,7 +86,10 @@ const ENUM_TRANSLATIONS: Record<Locale, Record<string, Record<string, string>>> 
     },
     userRole: {
       SUPER_ADMIN: 'Super Admin',
-      USER: 'Sales Agent',
+      SALES: 'Sales',
+      ACCOUNTANT: 'Finance / Accountant',
+      TECHNICIAN: 'Field Technician',
+      USER: 'Standard User',
     },
     serviceType: {
       PRODUCT: 'Product',

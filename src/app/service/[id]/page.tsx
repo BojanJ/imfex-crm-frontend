@@ -20,6 +20,7 @@ import {
   getUserRoleLabel,
 } from '@/lib/enum-labels';
 import { toast } from '@/components/ui/toastr';
+import { useEscapeKey } from '@/components/ui/use-escape-key';
 import { PageHeader, SectionCard, StatusBadge, BadgeVariant } from '@/components/ui/page-primitives';
 import {
   Wrench,
@@ -67,7 +68,11 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const hydratedIdRef = useRef<string | null>(null);
 
-  const isLoading = ticketQuery.isLoading && !ticket;
+  useEscapeKey(isReportModalOpen, () => setIsReportModalOpen(false));
+
+  const isLoading =
+    (ticketQuery.isPending || ticketQuery.isLoading || (Boolean(ticketQuery.data) && !ticket)) &&
+    !ticket;
 
   useEffect(() => {
     const tk = ticketQuery.data;
@@ -141,7 +146,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
     0
   );
 
-  if (isLoading && !ticket && !imfexStore.isLoadedFromBackend) {
+  if (isLoading) {
     return (
       <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
         <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -474,10 +479,22 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 {ticket.customer?.companyName || ticket.customer?.name}
               </p>
               <p>
+                <strong className="font-semibold">Статус:</strong> {getServiceStatusLabel(status, locale)}
+              </p>
+              <p>
                 <strong className="font-semibold">Дефект:</strong> {ticket.defectDescription}
               </p>
               <p>
-                <strong className="font-semibold">Решение:</strong> {solution || 'Завршено'}
+                <strong className="font-semibold">Решение:</strong>{' '}
+                {solution.trim()
+                  ? solution
+                  : status === 'COMPLETED' || status === 'CLOSED'
+                  ? locale === 'mk'
+                    ? 'Завршено'
+                    : 'Completed'
+                  : locale === 'mk'
+                  ? 'Во тек (нема внесено решение)'
+                  : 'In progress (no resolution notes yet)'}
               </p>
               <p>
                 <strong className="font-semibold">Работни часови:</strong> {laborHours} ч. •{' '}

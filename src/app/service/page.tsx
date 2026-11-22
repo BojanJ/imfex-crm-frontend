@@ -80,7 +80,7 @@ export default function ServiceDeskPage() {
     return matchesStatus && matchesSearch;
   });
 
-  if (!imfexStore.isLoadedFromBackend && ticketsQuery.isLoading) {
+  if (ticketsQuery.isPending && tickets.length === 0) {
     return <PageLoadingSkeleton cards={0} rows={5} />;
   }
 

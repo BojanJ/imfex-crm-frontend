@@ -8,6 +8,7 @@ import {
   useProductsQuery,
   useCategoriesQuery,
   useProjectsQuery,
+  useOffersQuery,
   useInventoryMovementsQuery,
 } from '@/lib/queries';
 import { ProductEditor } from '@/components/product-spec-builder/product-editor';
@@ -16,6 +17,7 @@ import { FinancePdfModal } from '@/components/pdf/printable-finance-document';
 import { ProductSelect, ProjectSelect } from '@/components/ui/entity-selectors';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDate } from '@/lib/date-format';
+import { formatTime24 } from '@/lib/formatters';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -47,11 +49,13 @@ export default function ProductsPage() {
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
   const projectsQuery = useProjectsQuery();
+  const offersQuery = useOffersQuery();
   useInventoryMovementsQuery();
 
   const products = useMemo(() => productsQuery.data ?? imfexStore.getProducts(), [productsQuery.data]);
   const categories = useMemo(() => categoriesQuery.data ?? imfexStore.getCategories(), [categoriesQuery.data]);
   const projectsList = useMemo(() => projectsQuery.data ?? imfexStore.getProjects(), [projectsQuery.data]);
+  const offersList = useMemo(() => offersQuery.data ?? imfexStore.getOffers(), [offersQuery.data]);
   const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -809,8 +813,9 @@ export default function ProductsPage() {
                         </span>
                         <span className="text-foreground font-medium">{m.detail}</span>
                       </div>
-                      <small className="text-xs text-muted-foreground shrink-0 font-mono">
-                        {formatDate(m.createdAt || m.at)} {m.at?.includes(':') ? m.at : ''}
+                      <small className="text-xs text-muted-foreground shrink-0 font-mono tabular-nums">
+                        {formatDate(m.createdAt || m.at)}{' '}
+                        {formatTime24(m.createdAt || m.at)}
                       </small>
                     </div>
                   );
@@ -838,7 +843,15 @@ export default function ProductsPage() {
                       Проект {activeRealProject.projectNumber} ({activeRealProject.customer?.companyName || activeRealProject.customer?.name || 'Клиент'})
                     </h2>
                     <small className="text-xs text-muted-foreground block mt-0.5">
-                      {activeRealProject.offer?.items?.[0]?.customTitle || 'Производ'} · Поврзана понуда: {activeRealProject.offer?.offerNumber || 'N/A'}
+                      {(() => {
+                        const linkedOffer =
+                          offersList.find((o) => o.id === activeRealProject.offerId) || activeRealProject.offer;
+                        const firstTitle =
+                          linkedOffer?.items?.[0]?.customTitle ||
+                          selectedProduct?.name ||
+                          'Производ';
+                        return `${firstTitle} · Поврзана понуда: ${linkedOffer?.offerNumber || 'N/A'}`;
+                      })()}
                     </small>
                   </div>
 
@@ -885,7 +898,7 @@ export default function ProductsPage() {
                       <button
                         onClick={handleStep1Accept}
                         disabled={isAccepted}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
                         1. Прифати финална понуда
                       </button>
@@ -893,7 +906,7 @@ export default function ProductsPage() {
                       <button
                         onClick={handleStep2Payment}
                         disabled={!isAccepted || isPaid}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
                         2. Евидентирај аванс {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
                       </button>
@@ -920,7 +933,7 @@ export default function ProductsPage() {
                       <button
                         onClick={handleStep3Order}
                         disabled={!isPaid || isOrdered}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
                         3. Нарачај кај добавувач
                       </button>
@@ -928,7 +941,7 @@ export default function ProductsPage() {
                       <button
                         onClick={handleStep4ReceiveDoor}
                         disabled={!isOrdered || isReceived}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
                         4. Прими врата во магацин
                       </button>
@@ -936,7 +949,7 @@ export default function ProductsPage() {
                       <button
                         onClick={handleStep5IssueDispatch}
                         disabled={!isReceived || isIssued}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed block"
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
                       >
                         5. Издај испратница
                       </button>

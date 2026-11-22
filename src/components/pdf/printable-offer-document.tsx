@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Offer, Product } from '@/types';
-import { formatDate } from '@/lib/date-format';
+import { formatDate, resolveOfferValidUntil } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import { getServiceTypeLabel } from '@/lib/enum-labels';
 import { imfexStore } from '@/lib/store';
@@ -37,10 +37,7 @@ export const PrintableOfferDocument: React.FC<PrintableOfferDocumentProps> = ({
 
   const dateCreated = formatDate(offer.createdAt, formatDate(new Date()));
 
-  const validUntil = formatDate(
-    offer.validUntil,
-    formatDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000))
-  );
+  const validUntil = resolveOfferValidUntil(offer);
 
   const firstItem = offer.items?.[0];
   const firstProduct = products.find((p) => p.id === firstItem?.productId);
