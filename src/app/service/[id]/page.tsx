@@ -328,6 +328,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                           ...prev,
                           {
                             id: `part-${Date.now()}`,
+                            productId: prod.id,
                             name: `${prod.name}`,
                             code: prod.code,
                             quantity: 1,

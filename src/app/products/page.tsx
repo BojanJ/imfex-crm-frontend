@@ -93,6 +93,7 @@ export default function ProductsPage() {
   const [newProdType, setNewProdType] = useState<ProductStockType>('STOCK');
   const [newProdStock, setNewProdStock] = useState<number>(10);
   const [newProdPrice, setNewProdPrice] = useState<number>(250);
+  const [newProdPurchasePrice, setNewProdPurchasePrice] = useState<number>(0);
   const [newProdDesc, setNewProdDesc] = useState('');
 
   const refreshProducts = () => {
@@ -354,6 +355,7 @@ export default function ProductsPage() {
       stockType: newProdType,
       stockQuantity: newProdType === 'CUSTOM' ? 0 : Number(newProdStock || 0),
       reservedQuantity: 0,
+      purchasePrice: Math.max(0, Number(newProdPurchasePrice || 0)),
       models: [
         {
           id: `mod-${Date.now()}`,
@@ -371,6 +373,7 @@ export default function ProductsPage() {
     setSelectedProductId(newProd.id);
     setNewProdName('');
     setNewProdCode('');
+    setNewProdPurchasePrice(0);
     setNewProdDesc('');
     setShowAddModal(false);
     toast.success('Артиклот е додаден', `${newProd.code} — ${newProd.name}`);
@@ -503,6 +506,8 @@ export default function ProductsPage() {
                     <th className="py-3 px-5">{t('products.col_code')}</th>
                     <th className="py-3 px-4">{t('products.col_product')}</th>
                     <th className="py-3 px-4">{t('products.col_category')}</th>
+                    <th className="py-3 px-4">{t('products.purchase_cost_short')}</th>
+                    <th className="py-3 px-4">{t('products.base_price_short')}</th>
                     <th className="py-3 px-4">{t('products.col_physical_stock')}</th>
                     <th className="py-3 px-4">{t('products.col_reserved')}</th>
                     <th className="py-3 px-5 text-right">{t('products.col_action')}</th>
@@ -511,7 +516,7 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-border/70">
                   {filteredCatalog.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-muted-foreground">
+                      <td colSpan={8} className="py-10 text-center text-muted-foreground">
                         {t('products.empty_filtered')}
                       </td>
                     </tr>
@@ -521,10 +526,12 @@ export default function ProductsPage() {
                       const isCustom = p.stockType === 'CUSTOM';
                       const stockQty = p.stockQuantity ?? 0;
                       const resQty = p.reservedQuantity ?? 0;
+                      const costPrice = Number(p.purchasePrice ?? 0);
+                      const baseSellPrice = Number(p.models?.[0]?.basePrice ?? 0);
 
                       const stockVariant = isCustom
                         ? 'primary'
-                        : stockQty === 0
+                        : stockQty <= 0
                         ? 'danger'
                         : stockQty <= 3
                         ? 'warning'
@@ -541,9 +548,19 @@ export default function ProductsPage() {
                           <td className="py-3.5 px-4 text-muted-foreground">
                             {catName}
                           </td>
+                          <td className="py-3.5 px-4 tabular-nums text-muted-foreground whitespace-nowrap">
+                            {costPrice > 0 ? `€${costPrice.toFixed(2)}` : '—'}
+                          </td>
+                          <td className="py-3.5 px-4 tabular-nums font-semibold text-foreground whitespace-nowrap">
+                            {baseSellPrice > 0 ? `€${baseSellPrice.toFixed(2)}` : '—'}
+                          </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <StatusBadge variant={stockVariant} dot>
-                              {isCustom ? t('products.badge_custom') : `${stockQty} ${t('products.pcs_short')}`}
+                              {isCustom
+                                ? t('products.badge_custom')
+                                : stockQty <= 0
+                                ? t('products.out_of_stock')
+                                : `${stockQty} ${t('products.pcs_short')}`}
                             </StatusBadge>
                           </td>
                           <td className="py-3.5 px-4 font-medium text-foreground tabular-nums">
@@ -591,8 +608,22 @@ export default function ProductsPage() {
                   <h2 className="text-xl font-extrabold text-foreground">
                     {selectedProduct.name}
                   </h2>
-                  <span className="inline-block rounded-md px-2.5 py-1 text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                    {selectedProduct.stockType === 'CUSTOM' ? t('products.badge_custom') : t('products.badge_stock')}
+                  <span
+                    className={`inline-block rounded-md px-2.5 py-1 text-xs font-semibold border ${
+                      selectedProduct.stockType === 'CUSTOM'
+                        ? 'bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30'
+                        : (selectedProduct.stockQuantity ?? 0) <= 0
+                        ? 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30'
+                        : (selectedProduct.stockQuantity ?? 0) <= 3
+                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                        : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                    }`}
+                  >
+                    {selectedProduct.stockType === 'CUSTOM'
+                      ? t('products.badge_custom')
+                      : (selectedProduct.stockQuantity ?? 0) <= 0
+                      ? t('products.out_of_stock')
+                      : t('products.badge_stock')}
                   </span>
                 </div>
                 <small className="text-xs text-muted-foreground block mt-1">
@@ -1084,18 +1115,31 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              {newProdType === 'STOCK' && (
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold mb-1">{t('products.field_initial_stock')}</label>
+                  <label className="block font-semibold mb-1">{t('products.purchase_cost_ex_vat')} (€)</label>
                   <input
                     type="number"
                     min="0"
-                    value={newProdStock}
-                    onChange={(e) => setNewProdStock(parseInt(e.target.value) || 0)}
+                    step="0.01"
+                    value={newProdPurchasePrice}
+                    onChange={(e) => setNewProdPurchasePrice(parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
                   />
                 </div>
-              )}
+                {newProdType === 'STOCK' && (
+                  <div>
+                    <label className="block font-semibold mb-1">{t('products.field_initial_stock')}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newProdStock}
+                      onChange={(e) => setNewProdStock(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                    />
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="block font-semibold mb-1">{t('products.field_notes')}</label>

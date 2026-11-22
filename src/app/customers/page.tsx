@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer, Offer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { canDeleteRecords } from '@/lib/rbac';
 import { useCustomersQuery, useDeleteCustomerMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { getCustomerTypeLabel, getServiceStatusLabel } from '@/lib/enum-labels';
@@ -228,15 +229,17 @@ export default function CustomersPage() {
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(customer.id)}
-                        className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
-                        title="Избриши клиент"
-                        aria-label="Избриши клиент"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(customer.id)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
+                          title="Избриши клиент"
+                          aria-label="Избриши клиент"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 

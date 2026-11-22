@@ -134,6 +134,18 @@ export default function SettingsPage() {
   const [companyDefaultAdvance, setCompanyDefaultAdvance] = useState(
     String(initialCompany.defaultAdvancePercent ?? 50)
   );
+  const [companyOversizeThreshold, setCompanyOversizeThreshold] = useState(
+    String(initialCompany.oversizeAreaThreshold ?? 8)
+  );
+  const [companyOversizeRate, setCompanyOversizeRate] = useState(
+    String(initialCompany.oversizeRatePerSqm ?? 45)
+  );
+  const [companyHourlyRate, setCompanyHourlyRate] = useState(
+    String(initialCompany.defaultHourlyLaborRate ?? 25)
+  );
+  const [companyMinMargin, setCompanyMinMargin] = useState(
+    String(initialCompany.minMarginPercent ?? 15)
+  );
   const [savedSuccess, setSavedSuccess] = useState(false);
   const companyHydratedRef = React.useRef(false);
 
@@ -152,6 +164,10 @@ export default function SettingsPage() {
       setCompanyPhone(cs.phone);
       setCompanyBankAccount(cs.bankAccount || '');
       setCompanyDefaultAdvance(String(cs.defaultAdvancePercent ?? 50));
+      setCompanyOversizeThreshold(String(cs.oversizeAreaThreshold ?? 8));
+      setCompanyOversizeRate(String(cs.oversizeRatePerSqm ?? 45));
+      setCompanyHourlyRate(String(cs.defaultHourlyLaborRate ?? 25));
+      setCompanyMinMargin(String(cs.minMarginPercent ?? 15));
     }
   }, [companySettingsQuery.data, storeVersion]);
 
@@ -262,6 +278,10 @@ export default function SettingsPage() {
         phone: companyPhone.trim(),
         bankAccount: companyBankAccount.trim() || undefined,
         defaultAdvancePercent: parsedAdvance,
+        oversizeAreaThreshold: Math.max(0, Number(companyOversizeThreshold) || 8),
+        oversizeRatePerSqm: Math.max(0, Number(companyOversizeRate) || 45),
+        defaultHourlyLaborRate: Math.max(0, Number(companyHourlyRate) || 25),
+        minMarginPercent: Math.min(100, Math.max(0, Number(companyMinMargin) || 15)),
       });
       if (saved) {
         setCompanyDefaultAdvance(String(saved.defaultAdvancePercent ?? parsedAdvance));
@@ -548,6 +568,60 @@ export default function SettingsPage() {
                     onChange={(e) => setCompanyDefaultAdvance(e.target.value)}
                     className={`${inputClass} tabular-nums font-medium`}
                   />
+                </div>
+              </div>
+
+              {/* Pricing & Margin Guardrails (BIZ-03) */}
+              <div className="pt-3 border-t border-border/70 space-y-3">
+                <h4 className="text-xs font-semibold text-foreground">
+                  {t('settings.pricing_guardrails_title')}
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.oversize_threshold')}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.5"
+                      value={companyOversizeThreshold}
+                      onChange={(e) => setCompanyOversizeThreshold(e.target.value)}
+                      className={`${inputClass} tabular-nums`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.oversize_rate')}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.5"
+                      value={companyOversizeRate}
+                      onChange={(e) => setCompanyOversizeRate(e.target.value)}
+                      className={`${inputClass} tabular-nums`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.hourly_labor_rate')}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={companyHourlyRate}
+                      onChange={(e) => setCompanyHourlyRate(e.target.value)}
+                      className={`${inputClass} tabular-nums`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.min_margin_pct')}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="1"
+                      value={companyMinMargin}
+                      onChange={(e) => setCompanyMinMargin(e.target.value)}
+                      className={`${inputClass} tabular-nums`}
+                    />
+                  </div>
                 </div>
               </div>
 

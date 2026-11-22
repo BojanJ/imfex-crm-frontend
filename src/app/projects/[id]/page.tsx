@@ -974,7 +974,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </SectionCard>
 
-          {/* Card 2.8: Project Financial Summary (Pure TanStack Query Selector — IMP-08) */}
+          {/* Card 2.8: Project Financial Summary (Pure TanStack Query Selector — IMP-08, BIZ-01 ex-VAT P&L) */}
           {(() => {
             const fin = computeProjectFinancialSummary({
               project,
@@ -983,11 +983,13 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               purchaseInvoices: purchaseInvoicesQuery.data ?? imfexStore.getPurchaseInvoices(),
               payments: paymentsQuery.data ?? imfexStore.getPayments(),
               products: productsQuery.data ?? imfexStore.getProducts(),
+              serviceTickets: imfexStore.getServiceTickets(),
+              companySettings: imfexStore.getCompanySettings(),
             });
             return (
               <SectionCard
-                title="Финансиски биланс"
-                subtitle="Приходи, уплати, трошоци и маржа во реално време"
+                title={t('projects.financial_balance')}
+                subtitle={t('projects.financial_balance_sub')}
                 icon={<TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
                 action={
                   <button
@@ -1027,56 +1029,90 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 tabular-nums">
                   <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
                     <span className="text-[11px] font-medium text-muted-foreground block">
-                      Продажба
+                      {t('projects.fin_sale_gross')}
                     </span>
                     <strong className="text-base font-semibold text-foreground block">
                       {formatCurrency(fin.agreedRevenue)}
                     </strong>
+                    <span className="text-[11px] text-muted-foreground block">
+                      {t('projects.fin_net_short')}: {formatCurrency(fin.netRevenue)} · {t('builder.vat')}: {formatCurrency(fin.vatCollected)}
+                    </span>
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
                     <span className="text-[11px] font-medium text-muted-foreground block">
-                      Уплатено
+                      {t('projects.fin_paid')}
                     </span>
                     <strong className="text-base font-semibold text-emerald-700 dark:text-emerald-400 block">
                       {formatCurrency(fin.paidByCustomer)}
                     </strong>
                     <span className="text-[11px] text-muted-foreground block">
-                      Долг: {formatCurrency(fin.remainingToPay)}
+                      {t('projects.fin_debt')}: {formatCurrency(fin.remainingToPay)}
                     </span>
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
                     <span className="text-[11px] font-medium text-muted-foreground block">
-                      Набавка
+                      {t('projects.fin_purchase_cost')}
                     </span>
                     <strong className="text-base font-semibold text-foreground block">
                       {formatCurrency(fin.stockPurchaseCost)}
                     </strong>
                     <span className="text-[11px] text-muted-foreground block">
-                      {fin.hasActualStockInvoice ? 'Влезна фактура' : 'Пресметана'}
+                      {fin.hasActualStockInvoice ? t('projects.fin_actual_invoice') : t('projects.fin_estimated')}
                     </span>
                   </div>
 
                   <div className="p-3 rounded-lg bg-muted/25 border border-border/80 space-y-1">
                     <span className="text-[11px] font-medium text-muted-foreground block">
-                      Трошоци
+                      {t('projects.fin_expenses')}
                     </span>
                     <strong className="text-base font-semibold text-amber-700 dark:text-amber-400 block">
-                      {formatCurrency(fin.directExpensesCost)}
+                      {formatCurrency(fin.directExpensesCost + fin.serviceCost)}
                     </strong>
                     <span className="text-[11px] text-muted-foreground block">
-                      Директни
+                      {fin.serviceCost > 0
+                        ? `${t('projects.fin_direct_short')} + ${t('nav.service')} (${formatCurrency(fin.serviceCost)})`
+                        : t('projects.fin_direct_short')}
                     </span>
                   </div>
 
-                  <div className="p-3 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 space-y-1 col-span-2 sm:col-span-1">
-                    <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 block">
-                      Добивка ({fin.marginPercent}%)
+                  <div
+                    className={`p-3 rounded-lg border space-y-1 col-span-2 sm:col-span-1 ${
+                      fin.isBelowMinMargin || fin.netProfit < 0
+                        ? 'bg-red-500/[0.07] border-red-500/25'
+                        : fin.hasCostData
+                        ? 'bg-emerald-500/[0.07] border-emerald-500/25'
+                        : 'bg-muted/25 border-border/80'
+                    }`}
+                  >
+                    <span
+                      className={`text-[11px] font-medium block ${
+                        fin.isBelowMinMargin || fin.netProfit < 0
+                          ? 'text-red-700 dark:text-red-400'
+                          : fin.hasCostData
+                          ? 'text-emerald-700 dark:text-emerald-400'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {fin.hasCostData
+                        ? `${t('projects.fin_net_profit')} (${fin.marginPercent}%)`
+                        : t('projects.fin_net_profit')}
                     </span>
-                    <strong className="text-base font-semibold text-emerald-700 dark:text-emerald-400 block">
+                    <strong
+                      className={`text-base font-semibold block ${
+                        fin.isBelowMinMargin || fin.netProfit < 0
+                          ? 'text-red-700 dark:text-red-400'
+                          : fin.hasCostData
+                          ? 'text-emerald-700 dark:text-emerald-400'
+                          : 'text-foreground'
+                      }`}
+                    >
                       {formatCurrency(fin.netProfit)}
                     </strong>
+                    <span className="text-[11px] text-muted-foreground block">
+                      {fin.hasCostData ? t('projects.fin_ex_vat_basis') : t('projects.fin_no_cost_recorded')}
+                    </span>
                   </div>
                 </div>
               </SectionCard>

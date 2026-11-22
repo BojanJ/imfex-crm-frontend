@@ -351,9 +351,8 @@ class ImfexStore {
   }
 
   public ensureWarehouseCatalog() {
-    // Ensure any products from backend have stockType and stockQuantity initialized, plus specification defaults
+    // BIZ-05: Trust Postgres stockQuantity / reservedQuantity / purchasePrice directly (never clobber with stale localStorage overlay)
     this.products = this.products.map((p) => {
-      const overlay = this.stockOverlay[p.code];
       const specOverlay = this.specDefaultsOverlay[p.code] || this.specDefaultsOverlay[p.id] || {};
       const catObj = p.category || this.categories.find((c) => c.id === p.categoryId);
       const isDoorCustom =
@@ -361,7 +360,7 @@ class ImfexStore {
         (catObj?.name || '').toLowerCase().includes('гараж') ||
         p.code.startsWith('GV-') ||
         p.code.startsWith('PROD-GAR');
-      const inferredType: ProductStockType = overlay?.stockType || p.stockType || (isDoorCustom ? 'CUSTOM' : 'STOCK');
+      const inferredType: ProductStockType = p.stockType || (isDoorCustom ? 'CUSTOM' : 'STOCK');
       const mergedKeys = (p.specificationKeys || []).map((k) => {
         const kOverlay = specOverlay[k.id] || specOverlay[k.name];
         const defaultOptId = kOverlay?.defaultOptionId;
@@ -379,9 +378,9 @@ class ImfexStore {
         ...p,
         category: catObj,
         stockType: inferredType,
-        stockQuantity: overlay ? overlay.stockQuantity : (p.stockQuantity ?? 0),
-        reservedQuantity: overlay ? overlay.reservedQuantity : (p.reservedQuantity ?? 0),
-        purchasePrice: overlay?.purchasePrice ?? p.purchasePrice,
+        stockQuantity: p.stockQuantity ?? 0,
+        reservedQuantity: p.reservedQuantity ?? 0,
+        purchasePrice: p.purchasePrice ?? 0,
         specificationKeys: mergedKeys,
       };
     });
@@ -520,8 +519,8 @@ class ImfexStore {
               }
             }
             return {
-              ...pr,
               ...flowOv,
+              ...pr,
               attachments: storedAtts,
             };
           });
@@ -2515,12 +2514,8 @@ class ImfexStore {
               nextRes += Number(item.quantity || 1);
               prod.reservedQuantity = nextRes;
             }
-            this.stockOverlay[prod.code] = {
-              stockType: prod.stockType || 'STOCK',
-              stockQuantity: nextStock,
-              reservedQuantity: nextRes,
-              purchasePrice: prod.purchasePrice,
-            };
+            // BIZ-05: Persist updated stockQuantity, reservedQuantity & purchasePrice directly to Postgres
+            this.syncProductStockToBackend(prod);
             this.addInventoryMovement(
               'ПРИЕМ',
               `Примено по влезна фактура ${inv.supplierInvoiceNumber || inv.internalNumber} од ${inv.supplierName}: +${item.quantity} ${prod.name} (Набавна: €${Number(item.unitCost).toFixed(2)})`,
@@ -2794,7 +2789,7 @@ class ImfexStore {
     return this.nextSequentialNumber('ISP', this.dispatchNotes.map((d) => d.dispatchNumber));
   }
 
-  saveDispatchNote(note: DispatchNote): DispatchNote {
+  saveDispatchNote(note: DispatchNote, options?: { adjustStockOnServer?: boolean }): DispatchNote {
     const snapshot = [...this.dispatchNotes];
     const idx = this.dispatchNotes.findIndex((n) => n.id === note.id);
     if (idx >= 0) {
@@ -2809,7 +2804,10 @@ class ImfexStore {
     authFetch(`${getApiUrl()}/api/dispatch-notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        ...(options?.adjustStockOnServer ? { adjustStockOnServer: true } : {}),
+      }),
     })
       .then((res) => {
         if (!res.ok) {
@@ -2903,7 +2901,8 @@ class ImfexStore {
       status: 'ISSUED',
       stockDeducted: true,
     };
-    this.saveDispatchNote(updatedNote);
+    // BIZ-05: Atomically deduct stockQuantity & reservedQuantity on the server inside the DispatchNote transaction
+    this.saveDispatchNote(updatedNote, { adjustStockOnServer: !note.stockDeducted });
 
     if (note.projectId) {
       const prj = this.getProjectById(note.projectId);

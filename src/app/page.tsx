@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
 import { useOffersQuery, useProjectsQuery, useServiceTicketsQuery } from '@/lib/queries';
+import { canViewFinance, canWriteSales } from '@/lib/rbac';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import {
@@ -55,6 +56,12 @@ function projectBadgeVariant(status: string): BadgeVariant {
 
 export default function DashboardPage() {
   const { t, locale } = useI18n();
+  useImfexStore();
+  const currentUser = imfexStore.getCurrentUser();
+  const currentRole = currentUser?.role ?? imfexStore.getCurrentRole();
+  const showFinance = canViewFinance(currentRole);
+  const allowSalesWrite = canWriteSales(currentRole);
+
   const offersQuery = useOffersQuery();
   const projectsQuery = useProjectsQuery();
   const ticketsQuery = useServiceTicketsQuery();
@@ -69,19 +76,51 @@ export default function DashboardPage() {
     (projectsQuery.isPending && projects.length === 0) ||
     (ticketsQuery.isPending && serviceTickets.length === 0);
 
-  const totalRevenue = offers
-    .filter((o) => o.status === 'ACCEPTED' || o.status === 'SENT')
-    .reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
+  // BIZ-15: Accurate executive KPIs — separate signed ACCEPTED revenue from open SENT pipeline; exclude DRAFTs from win rate
+  const acceptedOffers = offers.filter((o) => o.status === 'ACCEPTED');
+  const sentOffers = offers.filter((o) => o.status === 'SENT');
+  const signedRevenue = acceptedOffers.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
+  const openPipelineRevenue = sentOffers.reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
 
-  const acceptedCount = offers.filter((o) => o.status === 'ACCEPTED').length;
-  const acceptanceRate = offers.length > 0 ? Math.round((acceptedCount / offers.length) * 100) : 0;
+  const acceptedCount = acceptedOffers.length;
+  const nonDraftOffersCount = offers.filter((o) => o.status !== 'DRAFT').length;
+  const acceptanceRate =
+    nonDraftOffersCount > 0 ? Math.round((acceptedCount / nonDraftOffersCount) * 100) : 0;
 
-  const activeProjectsCount = projects.filter(
+  const activeProjects = projects.filter(
     (p) => p.status !== 'CLOSED' && p.status !== 'COMPLETED'
-  ).length;
+  );
+  const activeProjectsCount = activeProjects.length;
   const urgentServiceTickets = serviceTickets.filter(
     (st) => (st.priority === 'URGENT' || st.priority === 'HIGH') && st.status !== 'CLOSED'
   );
+  const myAssignedTickets = serviceTickets.filter(
+    (st) => st.status !== 'CLOSED' && currentUser?.id && st.assignedTechnicianId === currentUser.id
+  );
+
+  // 6-month signed revenue trend for Executive / Sales / Finance roles (BIZ-15)
+  const monthlySeries = (() => {
+    const now = new Date();
+    const buckets: { key: string; label: string; amount: number; count: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString(locale === 'mk' ? 'mk-MK' : 'en-GB', { month: 'short' });
+      buckets.push({ key, label, amount: 0, count: 0 });
+    }
+    for (const o of acceptedOffers) {
+      const dt = new Date(o.createdAt);
+      if (Number.isNaN(dt.getTime())) continue;
+      const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+      const b = buckets.find((x) => x.key === key);
+      if (b) {
+        b.amount += Number(o.totalAmount || 0);
+        b.count += 1;
+      }
+    }
+    const maxVal = Math.max(...buckets.map((b) => b.amount), 1);
+    return { buckets, maxVal };
+  })();
 
   if (isLoading) {
     return <PageLoadingSkeleton cards={4} rows={4} />;
@@ -118,20 +157,24 @@ export default function DashboardPage() {
               <Package className="w-3.5 h-3.5 text-muted-foreground" />
               <span>{t('nav.products')}</span>
             </Link>
-            <Link
-              href="/finance"
-              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
-            >
-              <Euro className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{t('nav.finance') || 'Финансии'}</span>
-            </Link>
-            <Link
-              href="/offers/new"
-              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{t('dashboard.new_offer')}</span>
-            </Link>
+            {showFinance && (
+              <Link
+                href="/finance"
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
+              >
+                <Euro className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{t('nav.finance') || 'Финансии'}</span>
+              </Link>
+            )}
+            {allowSalesWrite && (
+              <Link
+                href="/offers/new"
+                className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{t('dashboard.new_offer')}</span>
+              </Link>
+            )}
           </>
         }
       />
@@ -139,14 +182,18 @@ export default function DashboardPage() {
       {/* Calm 4-Column KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label={t('dashboard.quoted_revenue')}
-          value={formatCurrency(totalRevenue)}
+          label={t('dashboard.signed_revenue')}
+          value={formatCurrency(signedRevenue)}
           tone="success"
           icon={<Euro className="w-4 h-4" />}
           helper={
             <>
               <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>{t('dashboard.pipeline_growth')}</span>
+              <span>
+                {openPipelineRevenue > 0
+                  ? `${t('dashboard.open_pipeline')}: ${formatCurrency(openPipelineRevenue)}`
+                  : t('dashboard.pipeline_growth')}
+              </span>
             </>
           }
         />
@@ -188,6 +235,57 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Role-Tailored Focus Strip & Monthly Signed Revenue Chart (BIZ-15) */}
+      {currentRole === 'TECHNICIAN' ? (
+        <div className="p-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <Wrench className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div>
+              <strong className="font-semibold text-foreground block">{t('dashboard.tech_focus_title')}</strong>
+              <span className="text-muted-foreground">
+                {t('dashboard.tech_focus_sub')}: {myAssignedTickets.length} · {t('dashboard.urgent')}: {urgentServiceTickets.length}
+              </span>
+            </div>
+          </div>
+          <Link
+            href="/service"
+            className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold inline-flex items-center gap-1"
+          >
+            {t('nav.service')}
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      ) : (
+        <SectionCard
+          title={t('dashboard.monthly_revenue_title')}
+          subtitle={t('dashboard.monthly_revenue_sub')}
+          icon={<TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
+        >
+          <div className="grid grid-cols-6 gap-2 sm:gap-4 items-end h-28 pt-2">
+            {monthlySeries.buckets.map((b) => {
+              const pct = Math.max(b.amount > 0 ? 12 : 4, Math.round((b.amount / monthlySeries.maxVal) * 100));
+              return (
+                <div key={b.key} className="flex flex-col items-center gap-1.5 h-full justify-end">
+                  <span className="text-[10px] font-semibold tabular-nums text-muted-foreground truncate max-w-full">
+                    {b.amount > 0 ? formatCurrency(b.amount) : '—'}
+                  </span>
+                  <div className="w-full max-w-[44px] flex-1 flex items-end bg-muted/40 rounded-md overflow-hidden">
+                    <div
+                      className={`w-full rounded-t-md transition-all ${
+                        b.amount > 0 ? 'bg-primary/80' : 'bg-border/60'
+                      }`}
+                      style={{ height: `${pct}%` }}
+                      title={`${b.label}: ${formatCurrency(b.amount)} (${b.count})`}
+                    />
+                  </div>
+                  <span className="text-[11px] font-medium text-muted-foreground capitalize">{b.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      )}
+
       {/* Operational Widgets Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Active Projects Pipeline */}
@@ -206,15 +304,15 @@ export default function DashboardPage() {
             </Link>
           }
         >
-          {projects.length === 0 ? (
+          {activeProjects.length === 0 ? (
             <EmptyState
               icon={<Briefcase className="w-5 h-5" />}
-              title={t('projects.title')}
+              title={t('dashboard.no_active_projects')}
               description={t('dashboard.progress_desc')}
             />
           ) : (
             <div className="divide-y divide-border/70 -mx-5">
-              {projects.slice(0, 4).map((prj) => {
+              {activeProjects.slice(0, 4).map((prj) => {
                 const pct = progressMap[prj.status] || 10;
 
                 return (

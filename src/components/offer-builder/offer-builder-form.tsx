@@ -7,8 +7,8 @@ import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, getApiUrl, authFetch } from '@/lib/store';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-client';
-import { computeOfferTotals } from '@/lib/selectors';
-import { useCustomersQuery, useProductsQuery, useCategoriesQuery } from '@/lib/queries';
+import { computeOfferTotals, computeOfferMarginSummary } from '@/lib/selectors';
+import { useCustomersQuery, useProductsQuery, useCategoriesQuery, useCompanySettingsQuery } from '@/lib/queries';
 import { CustomerModal } from '@/components/customer-form/customer-modal';
 import { PdfModal } from '@/components/pdf/pdf-modal';
 import { AdvancePaymentModal } from '@/components/finance/advance-payment-modal';
@@ -54,6 +54,11 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const customersQuery = useCustomersQuery();
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
+  const companySettingsQuery = useCompanySettingsQuery();
+  const companySettings = companySettingsQuery.data ?? imfexStore.getCompanySettings();
+  const oversizeThreshold = Number(companySettings?.oversizeAreaThreshold ?? 8);
+  const oversizeRate = Number(companySettings?.oversizeRatePerSqm ?? 45);
+  const defaultHourlyRate = Number(companySettings?.defaultHourlyLaborRate ?? 25);
 
   const customers = useMemo(() => {
     const base = customersQuery.data ?? imfexStore.getCustomers();
@@ -207,8 +212,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           const o = k?.options.find((opt) => opt.id === s.specificationOptionId);
           if (o) initUnitPrice += Number(o.priceModifier || 0);
         });
-        // Area > 8m2 for 4000x3000 (12m2)
-        initUnitPrice += (12 - 8) * 45;
+        // Area > oversizeThreshold for 4000x3000 (12m2)
+        if (12 > oversizeThreshold) {
+          initUnitPrice += (12 - oversizeThreshold) * oversizeRate;
+        }
         initUnitPrice = Math.round(initUnitPrice * 100) / 100;
 
         setItems([
@@ -259,9 +266,21 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
 
     if (item.widthMm && item.heightMm) {
       const areaSqM = (item.widthMm * item.heightMm) / 1000000;
-      if (areaSqM > 8) {
-        price += (areaSqM - 8) * 45;
+      if (areaSqM > oversizeThreshold) {
+        price += (areaSqM - oversizeThreshold) * oversizeRate;
       }
+    }
+
+    // BIZ-02: Include selected warehouse accessories (motor, rail) base selling prices in item unit price
+    if (item.selectedAccessories && typeof item.selectedAccessories === 'object') {
+      Object.values(item.selectedAccessories).forEach((accId) => {
+        if (!accId) return;
+        const accProd = products.find((p) => p.id === accId);
+        const accSellPrice = Number(accProd?.models?.[0]?.basePrice || 0);
+        if (accSellPrice > 0) {
+          price += accSellPrice;
+        }
+      });
     }
     return Math.round(price * 100) / 100;
   };
@@ -277,7 +296,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         updatedFields.productModelId !== undefined ||
         updatedFields.specifications !== undefined ||
         updatedFields.widthMm !== undefined ||
-        updatedFields.heightMm !== undefined
+        updatedFields.heightMm !== undefined ||
+        updatedFields.selectedAccessories !== undefined
       ) {
         current.unitPrice = calculateItemUnitPrice(current);
       }
@@ -429,12 +449,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
     handleUpdateItem(itemIndex, { specifications: nextSpecs });
   };
 
-  // Calculations with Discount (Pure Selector — IMP-08)
+  // Calculations with Discount & Internal Margin Guardrails (IMP-08, BIZ-03)
   const qc = useQueryClient();
   const { subtotal, discountAmount, taxAmount, totalAmount } = computeOfferTotals(
     items,
     discountRate,
     taxRate
+  );
+  const marginSummary = useMemo(
+    () => computeOfferMarginSummary({ items, products, discountRate, companySettings }),
+    [items, products, discountRate, companySettings]
   );
 
   const selectedCustomerObj = customers.find((c) => c.id === selectedCustomerId);
@@ -1296,7 +1320,10 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                             const partPrice = Number(partProd?.models?.[0]?.basePrice || 0);
                             handleUpdateItem(idx, {
                               consumedPartProductId: val || undefined,
-                              unitPrice: partPrice > 0 ? partPrice + Number((item.laborHours || 0) * 25) : item.unitPrice,
+                              unitPrice:
+                                partPrice > 0
+                                  ? partPrice + Number((item.laborHours || 0) * defaultHourlyRate)
+                                  : item.unitPrice,
                             });
                           }}
                           products={products}
@@ -1387,6 +1414,41 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
             <div className="pl-4 border-l border-border">
               <span className="text-primary block text-[11px] font-medium">{t('offers.total')}</span>
               <span className="font-semibold text-lg text-primary">{formatCurrency(totalAmount)}</span>
+            </div>
+            {/* Internal Cost & Gross Margin Guardrail Pill (BIZ-03) */}
+            <div
+              className={`pl-4 border-l border-border ${
+                marginSummary.isBelowMinMargin
+                  ? 'text-red-600 dark:text-red-400'
+                  : marginSummary.hasCostData
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-muted-foreground'
+              }`}
+              title={
+                marginSummary.hasCostData
+                  ? `${t('builder.est_cost')}: ${formatCurrency(marginSummary.estimatedCost)} | ${t('builder.est_profit')}: ${formatCurrency(marginSummary.estimatedProfit)}`
+                  : t('builder.no_cost_data_hint')
+              }
+            >
+              <span className="block text-[11px] font-medium">
+                {t('builder.internal_margin')}
+              </span>
+              {marginSummary.hasCostData ? (
+                <span className="font-semibold text-xs inline-flex items-center gap-1.5">
+                  <span>
+                    {formatCurrency(marginSummary.estimatedProfit)} ({marginSummary.marginPercent}%)
+                  </span>
+                  {marginSummary.isBelowMinMargin && (
+                    <span className="px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-[10px] font-bold">
+                      &lt;{marginSummary.minMarginPercent}%
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="text-[11px] font-normal italic">
+                  {t('builder.no_cost_data')}
+                </span>
+              )}
             </div>
           </div>
 

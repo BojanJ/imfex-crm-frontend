@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { canDeleteRecords } from '@/lib/rbac';
 import { useOffersQuery, useProjectsQuery, useDeleteOfferMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
@@ -269,15 +270,17 @@ export default function OffersPage() {
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(offer.id)}
-                        className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        title={t('offers.delete_offer_tooltip')}
-                        aria-label={t('offers.delete_offer_tooltip')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(offer.id)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                          title={t('offers.delete_offer_tooltip')}
+                          aria-label={t('offers.delete_offer_tooltip')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -423,15 +426,17 @@ export default function OffersPage() {
                             <Edit3 className="w-3.5 h-3.5" />
                           </Link>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(offer.id)}
-                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
-                            title={t('offers.delete_offer_tooltip')}
-                            aria-label={t('offers.delete_offer_tooltip')}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(offer.id)}
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
+                              title={t('offers.delete_offer_tooltip')}
+                              aria-label={t('offers.delete_offer_tooltip')}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

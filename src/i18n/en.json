@@ -50,7 +50,14 @@
     "progress_desc": "Progress across procurement, production, and installation.",
     "view_all_pipeline": "View All Projects",
     "urgent_service_alerts": "Urgent Service Alerts",
-    "no_urgent_tickets": "No urgent service requests pending."
+    "no_urgent_tickets": "No urgent service requests pending.",
+    "signed_revenue": "Signed Revenue",
+    "open_pipeline": "Open sent pipeline",
+    "no_active_projects": "No active projects in progress",
+    "tech_focus_title": "Technician Field Focus",
+    "tech_focus_sub": "Assigned open tickets",
+    "monthly_revenue_title": "Monthly Signed Revenue (Last 6 Months)",
+    "monthly_revenue_sub": "Total value of accepted offers per month."
   },
   "login": {
     "platform_tag": "IMFEX Enterprise Platform",
@@ -94,6 +101,11 @@
     "attributes": "Specification Attributes",
     "loading": "Loading product specifications...",
     "edit_details": "Edit Details",
+    "edit_product": "Edit Product",
+    "purchase_cost_ex_vat": "Purchase Cost (ex-VAT)",
+    "purchase_cost_short": "Cost",
+    "base_price_short": "Base Price",
+    "out_of_stock": "Out of stock",
     "save_changes": "Save Changes",
     "active": "Active",
     "inactive": "Inactive",
@@ -468,6 +480,20 @@
     "table_drag_hint": "Drag a table row onto a status badge to update:",
     "no_projects": "No projects",
     "no_projects_found": "No projects found.",
+    "financial_balance": "Financial Summary",
+    "financial_balance_sub": "Net revenue (ex-VAT), payments, real costs, and profit margin",
+    "fin_sale_gross": "Sale (gross)",
+    "fin_net_short": "Net",
+    "fin_paid": "Paid",
+    "fin_debt": "Balance due",
+    "fin_purchase_cost": "Purchase cost (ex-VAT)",
+    "fin_actual_invoice": "Purchase invoice",
+    "fin_estimated": "Catalog estimate",
+    "fin_expenses": "Other costs",
+    "fin_direct_short": "Direct",
+    "fin_net_profit": "Net profit",
+    "fin_ex_vat_basis": "Net (ex-VAT) basis",
+    "fin_no_cost_recorded": "No cost recorded",
     "drop_here": "Drop here",
     "unassigned": "Unassigned",
     "scroll_left": "Scroll left",
@@ -640,7 +666,12 @@
     "audit_showing": "Showing",
     "audit_of": "of",
     "audit_prev": "Previous",
-    "audit_next": "Next"
+    "audit_next": "Next",
+    "pricing_guardrails_title": "Pricing Rules & Margin Guardrails",
+    "oversize_threshold": "Oversize area threshold (m²)",
+    "oversize_rate": "Oversize surcharge (€/m²)",
+    "hourly_labor_rate": "Service hourly rate (€/hr)",
+    "min_margin_pct": "Min margin alert (%)"
   },
   "users": {
     "title": "User Accounts & Permissions",
@@ -723,6 +754,11 @@
     "email_body": "Message Body",
     "attached_pdf": "Attached PDF File",
     "send_now": "Send Email Now",
-    "close": "Close"
+    "close": "Close",
+    "internal_margin": "Internal margin (ex-VAT)",
+    "est_cost": "Est. cost",
+    "est_profit": "Est. profit",
+    "no_cost_data": "No cost data",
+    "no_cost_data_hint": "Enter purchase costs on catalog products to track live quote margin."
   }
 }

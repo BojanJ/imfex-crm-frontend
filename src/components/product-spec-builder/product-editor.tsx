@@ -60,6 +60,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const [editCategoryId, setEditCategoryId] = useState(product.categoryId || null);
   const [editStockType, setEditStockType] = useState<'STOCK' | 'CUSTOM'>(product.stockType || 'STOCK');
   const [editStockQty, setEditStockQty] = useState<number>(product.stockQuantity ?? 0);
+  const [editPurchasePrice, setEditPurchasePrice] = useState<number>(Number(product.purchasePrice ?? 0));
   const [editDesc, setEditDesc] = useState(product.description || '');
   const [editIsActive, setEditIsActive] = useState(product.isActive !== false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     setEditCategoryId(product.categoryId || null);
     setEditStockType(product.stockType || 'STOCK');
     setEditStockQty(product.stockQuantity ?? 0);
+    setEditPurchasePrice(Number(product.purchasePrice ?? 0));
     setEditDesc(product.description || '');
     setEditIsActive(product.isActive !== false);
     setIsEditing(false);
@@ -103,6 +105,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       categoryId: editCategoryId,
       stockType: editStockType,
       stockQuantity: editStockType === 'CUSTOM' ? 0 : Number(editStockQty || 0),
+      purchasePrice: Math.max(0, Number(editPurchasePrice || 0)),
       description: editDesc.trim(),
       isActive: editIsActive,
     };
@@ -410,7 +413,7 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div>
                 <label className="block font-bold mb-1 text-muted-foreground">Тип на залиха</label>
                 <select
@@ -434,6 +437,19 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   />
                 </div>
               )}
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">
+                  {t('products.purchase_cost_ex_vat')} (€)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editPurchasePrice}
+                  onChange={(e) => setEditPurchasePrice(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                />
+              </div>
             </div>
 
             <div className="text-xs">
@@ -510,6 +526,9 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 >
                   {product.isActive !== false ? t('products.active') : t('products.inactive')}
                 </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
+                  {t('products.purchase_cost_short')}: €{Number(product.purchasePrice || 0).toFixed(2)}
+                </span>
                 <h2 className="font-extrabold text-xl">{product.name}</h2>
                 {isSuperAdmin && (
                   <button
@@ -518,6 +537,9 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                       setEditName(product.name);
                       setEditCode(product.code);
                       setEditCategoryId(product.categoryId || null);
+                      setEditStockType(product.stockType || 'STOCK');
+                      setEditStockQty(product.stockQuantity ?? 0);
+                      setEditPurchasePrice(Number(product.purchasePrice ?? 0));
                       setEditDesc(product.description || '');
                       setEditIsActive(product.isActive !== false);
                       setErrorMsg(null);

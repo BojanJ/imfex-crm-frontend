@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeOfferTotals, computeProjectFinancialSummary } from '../selectors';
+import { computeOfferMarginSummary, computeOfferTotals, computeProjectFinancialSummary } from '../selectors';
+import { canDeleteRecords, canViewFinance, canWriteFinance, canWriteSales } from '../rbac';
 import mk from '@/i18n/mk.json';
 import en from '@/i18n/en.json';
 import type { Offer, PaymentRecord, Product, Project, PurchaseInvoice, SalesInvoice } from '@/types';
@@ -113,6 +114,7 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     ];
 
     // Case 1: No actual STOCK purchase invoice -> uses catalog purchasePrice fallback (2 * 1500 = 3000)
+    // BIZ-01: Net revenue = 5000 (ex-VAT), VAT = 900, Gross = 5900 -> Net Profit = 5000 - 3000 = 2000 (40%)
     const estimated = computeProjectFinancialSummary({
       project,
       offers,
@@ -122,12 +124,15 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
       products,
     });
     expect(estimated.agreedRevenue).toBe(5900);
+    expect(estimated.netRevenue).toBe(5000);
+    expect(estimated.vatCollected).toBe(900);
     expect(estimated.paidByCustomer).toBe(2950);
     expect(estimated.remainingToPay).toBe(2950);
     expect(estimated.hasActualStockInvoice).toBe(false);
     expect(estimated.stockPurchaseCost).toBe(3000);
-    expect(estimated.netProfit).toBe(2900);
-    expect(estimated.marginPercent).toBe(49.2);
+    expect(estimated.netProfit).toBe(2000);
+    expect(estimated.marginPercent).toBe(40);
+    expect(estimated.hasCostData).toBe(true);
 
     // Case 2: Actual STOCK + EXPENSE purchase invoice overrides catalog estimate
     const purchaseInvoices: PurchaseInvoice[] = [
@@ -165,7 +170,74 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     expect(actual.stockPurchaseCost).toBe(3200);
     expect(actual.directExpensesCost).toBe(200);
     expect(actual.totalCost).toBe(3400);
-    expect(actual.netProfit).toBe(2500);
+    // BIZ-01: 5000 net revenue - 3400 net cost = 1600 (32%) — never inflated by €900 VAT
+    expect(actual.netProfit).toBe(1600);
+    expect(actual.marginPercent).toBe(32);
+  });
+
+  it('computes Offer Builder pre-sale gross margin & flags low-margin discounts (BIZ-02, BIZ-03)', () => {
+    const products: Product[] = [
+      {
+        id: 'door-1',
+        name: 'Garage Door',
+        code: 'GV-01',
+        isActive: true,
+        stockType: 'CUSTOM',
+        purchasePrice: 600,
+        models: [],
+        specificationKeys: [],
+      },
+      {
+        id: 'motor-1',
+        name: 'Bravo 800',
+        code: 'AV-01',
+        isActive: true,
+        stockType: 'STOCK',
+        purchasePrice: 200,
+        models: [],
+        specificationKeys: [],
+      },
+    ];
+
+    const items = [
+      {
+        id: 'it-1',
+        serviceTypes: ['PRODUCT' as const],
+        productId: 'door-1',
+        selectedAccessories: { motorId: 'motor-1' },
+        quantity: 1,
+        unitPrice: 1000,
+        totalPrice: 1000,
+      },
+    ];
+
+    // No discount: net 1000 - cost (600 + 200) = 200 (20% >= 15% min)
+    const healthy = computeOfferMarginSummary({ items, products, discountRate: 0, companySettings: { minMarginPercent: 15 } });
+    expect(healthy.estimatedCost).toBe(800);
+    expect(healthy.estimatedProfit).toBe(200);
+    expect(healthy.marginPercent).toBe(20);
+    expect(healthy.isBelowMinMargin).toBe(false);
+
+    // 10% discount: net 900 - cost 800 = 100 (11.1% < 15% min -> flagged!)
+    const low = computeOfferMarginSummary({ items, products, discountRate: 10, companySettings: { minMarginPercent: 15 } });
+    expect(low.netRevenue).toBe(900);
+    expect(low.estimatedProfit).toBe(100);
+    expect(low.marginPercent).toBe(11.1);
+    expect(low.isBelowMinMargin).toBe(true);
+  });
+
+  it('enforces frontend RBAC helpers mirroring backend ROLE_GROUPS (BIZ-15)', () => {
+    expect(canViewFinance('SUPER_ADMIN')).toBe(true);
+    expect(canViewFinance('ACCOUNTANT')).toBe(true);
+    expect(canViewFinance('SALES')).toBe(true);
+    expect(canViewFinance('TECHNICIAN')).toBe(false);
+    expect(canWriteFinance('ACCOUNTANT')).toBe(true);
+    expect(canWriteFinance('SALES')).toBe(false);
+    expect(canWriteSales('SALES')).toBe(true);
+    expect(canWriteSales('TECHNICIAN')).toBe(false);
+    expect(canDeleteRecords('SUPER_ADMIN')).toBe(true);
+    expect(canDeleteRecords('ACCOUNTANT')).toBe(false);
+    expect(canDeleteRecords('SALES')).toBe(false);
   });
 
   it('guarantees full i18n coverage across finance, products, settings, service, builder & fixes MK typos (I18N-08..I18N-12)', () => {

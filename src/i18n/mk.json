@@ -50,7 +50,14 @@
     "progress_desc": "Напредок низ набавка, производство и монтажа.",
     "view_all_pipeline": "Види ги сите проекти",
     "urgent_service_alerts": "Итни Сервисни Предупредувања",
-    "no_urgent_tickets": "Нема итни барања за сервис во чекање."
+    "no_urgent_tickets": "Нема итни барања за сервис во чекање.",
+    "signed_revenue": "Потпишан Приход",
+    "open_pipeline": "Отворени понуди",
+    "no_active_projects": "Нема активни проекти во тек",
+    "tech_focus_title": "Теренски преглед за денес",
+    "tech_focus_sub": "Доделени отворени тикети",
+    "monthly_revenue_title": "Месечен потпишан приход (последни 6 месеци)",
+    "monthly_revenue_sub": "Вкупна вредност на прифатени понуди по месец."
   },
   "login": {
     "platform_tag": "IMFEX Корпоративна Платформа",
@@ -94,6 +101,11 @@
     "attributes": "Атрибути на Спецификација",
     "loading": "Се вчитуваат спецификациите за производи...",
     "edit_details": "Уреди детали",
+    "edit_product": "Уреди производ",
+    "purchase_cost_ex_vat": "Набавна цена (без ДДВ)",
+    "purchase_cost_short": "Набавна",
+    "base_price_short": "Продажна",
+    "out_of_stock": "Нема залиха",
     "save_changes": "Зачувај измени",
     "active": "Активен",
     "inactive": "Неактивен",
@@ -468,6 +480,20 @@
     "table_drag_hint": "Повлечете ред од табелата врз статус за промена:",
     "no_projects": "Нема проекти",
     "no_projects_found": "Нема пронајдено проекти.",
+    "financial_balance": "Финансиски биланс",
+    "financial_balance_sub": "Нето приходи (без ДДВ), уплати, реални трошоци и маржа",
+    "fin_sale_gross": "Продажба (бруто)",
+    "fin_net_short": "Нето",
+    "fin_paid": "Уплатено",
+    "fin_debt": "Долг",
+    "fin_purchase_cost": "Набавка (без ДДВ)",
+    "fin_actual_invoice": "Влезна фактура",
+    "fin_estimated": "Каталошка проценка",
+    "fin_expenses": "Останати трошоци",
+    "fin_direct_short": "Директни",
+    "fin_net_profit": "Нето добивка",
+    "fin_ex_vat_basis": "Нето (без ДДВ) основа",
+    "fin_no_cost_recorded": "Нема евидентиран трошок",
     "drop_here": "Пушти тука",
     "unassigned": "Недоделено",
     "scroll_left": "Скролај лево",
@@ -640,7 +666,12 @@
     "audit_showing": "Прикажани",
     "audit_of": "од",
     "audit_prev": "Претходна",
-    "audit_next": "Следна"
+    "audit_next": "Следна",
+    "pricing_guardrails_title": "Правила за цени и минимална маржа",
+    "oversize_threshold": "Праг за голема врата (m²)",
+    "oversize_rate": "Доплата над праг (€/m²)",
+    "hourly_labor_rate": "Сервисна саатница (€/ч)",
+    "min_margin_pct": "Мин. маржа за предупредување (%)"
   },
   "users": {
     "title": "Управување со Кориснички Сметки и Права",
@@ -723,6 +754,11 @@
     "email_body": "Содржина на Порака",
     "attached_pdf": "Прикачен PDF Документ",
     "send_now": "Испрати Сега",
-    "close": "Затвори"
+    "close": "Затвори",
+    "internal_margin": "Интерна маржа (без ДДВ)",
+    "est_cost": "Проц. набавка",
+    "est_profit": "Проц. добивка",
+    "no_cost_data": "Нема набавна цена",
+    "no_cost_data_hint": "Внесете набавна цена кај производите за пресметка на маржа."
   }
 }

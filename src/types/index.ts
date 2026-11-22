@@ -241,6 +241,7 @@ export interface InstalledItem {
 
 export interface ConsumedPart {
   id: string;
+  productId?: string;
   name: string;
   code?: string;
   quantity: number;
@@ -297,6 +298,10 @@ export interface CompanySettings {
   email: string;
   bankAccount?: string | null;
   defaultAdvancePercent: number;
+  oversizeAreaThreshold?: number;
+  oversizeRatePerSqm?: number;
+  defaultHourlyLaborRate?: number;
+  minMarginPercent?: number;
   updatedAt?: string;
 }
 
