@@ -60,6 +60,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
   const [editCategoryId, setEditCategoryId] = useState(product.categoryId || null);
   const [editStockType, setEditStockType] = useState<'STOCK' | 'CUSTOM'>(product.stockType || 'STOCK');
   const [editStockQty, setEditStockQty] = useState<number>(product.stockQuantity ?? 0);
+  const [editMinStockLevel, setEditMinStockLevel] = useState<number>(product.minStockLevel ?? 3);
+  const [editBarcode, setEditBarcode] = useState<string>(product.barcode || '');
   const [editPurchasePrice, setEditPurchasePrice] = useState<number>(Number(product.purchasePrice ?? 0));
   const [editDesc, setEditDesc] = useState(product.description || '');
   const [editIsActive, setEditIsActive] = useState(product.isActive !== false);
@@ -74,6 +76,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
     setEditCategoryId(product.categoryId || null);
     setEditStockType(product.stockType || 'STOCK');
     setEditStockQty(product.stockQuantity ?? 0);
+    setEditMinStockLevel(product.minStockLevel ?? 3);
+    setEditBarcode(product.barcode || '');
     setEditPurchasePrice(Number(product.purchasePrice ?? 0));
     setEditDesc(product.description || '');
     setEditIsActive(product.isActive !== false);
@@ -105,6 +109,8 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
       categoryId: editCategoryId,
       stockType: editStockType,
       stockQuantity: editStockType === 'CUSTOM' ? 0 : Number(editStockQty || 0),
+      minStockLevel: Math.max(0, Number(editMinStockLevel ?? 3)),
+      barcode: editBarcode.trim() || null,
       purchasePrice: Math.max(0, Number(editPurchasePrice || 0)),
       description: editDesc.trim(),
       isActive: editIsActive,
@@ -448,6 +454,32 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                   value={editPurchasePrice}
                   onChange={(e) => setEditPurchasePrice(parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                />
+              </div>
+              {editStockType === 'STOCK' && (
+                <div>
+                  <label className="block font-bold mb-1 text-muted-foreground">
+                    {t('products.min_stock_level')}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editMinStockLevel}
+                    onChange={(e) => setEditMinStockLevel(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-bold"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block font-bold mb-1 text-muted-foreground">
+                  {t('products.barcode_sku')}
+                </label>
+                <input
+                  type="text"
+                  value={editBarcode}
+                  onChange={(e) => setEditBarcode(e.target.value)}
+                  placeholder="EAN / SKU"
+                  className="w-full px-3 py-1.5 rounded-xl border border-border bg-background outline-none focus:ring-2 focus:ring-primary font-mono"
                 />
               </div>
             </div>

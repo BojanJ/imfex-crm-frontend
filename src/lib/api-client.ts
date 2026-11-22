@@ -203,6 +203,11 @@ export const apiClient = {
     listSalesInvoices: () => requestJson<SalesInvoice[]>('/api/sales-invoices'),
     saveSalesInvoice: (payload: SalesInvoice) =>
       requestJson<SalesInvoice>('/api/sales-invoices', { method: 'POST', body: JSON.stringify(payload) }),
+    voidSalesInvoice: (id: string, reason?: string) =>
+      requestJson<SalesInvoice>(`/api/sales-invoices/${id}/void`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
     deleteSalesInvoice: (id: string) =>
       requestJson<{ success: boolean; id: string }>(`/api/sales-invoices/${id}`, { method: 'DELETE' }),
 
@@ -295,13 +300,27 @@ export const apiClient = {
       to: string;
       customerName: string;
       invoiceNumber: string;
-      invoiceType?: 'PROFORMA' | 'ADVANCE' | 'FINAL' | 'DISPATCH';
+      invoiceType?: 'PROFORMA' | 'ADVANCE' | 'FINAL' | 'CREDIT_NOTE' | 'DISPATCH';
       totalAmount?: number;
       dueDate?: string;
       pdfBase64?: string;
       customMessage?: string;
     }) =>
       requestJson<{ success: boolean; id?: string }>('/api/email/send-invoice', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    sendPaymentReminder: (payload: {
+      to: string;
+      customerName?: string;
+      invoiceNumber: string;
+      totalAmount?: number;
+      paidAmount?: number;
+      remainingAmount?: number;
+      dueDate?: string;
+      daysOverdue?: number;
+    }) =>
+      requestJson<{ success: boolean; id?: string }>('/api/email/send-payment-reminder', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),

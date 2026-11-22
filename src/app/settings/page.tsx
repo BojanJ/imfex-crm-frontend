@@ -146,6 +146,9 @@ export default function SettingsPage() {
   const [companyMinMargin, setCompanyMinMargin] = useState(
     String(initialCompany.minMarginPercent ?? 15)
   );
+  const [companyEurToMkd, setCompanyEurToMkd] = useState(
+    String(initialCompany.eurToMkdRate ?? 61.5)
+  );
   const [savedSuccess, setSavedSuccess] = useState(false);
   const companyHydratedRef = React.useRef(false);
 
@@ -168,6 +171,7 @@ export default function SettingsPage() {
       setCompanyOversizeRate(String(cs.oversizeRatePerSqm ?? 45));
       setCompanyHourlyRate(String(cs.defaultHourlyLaborRate ?? 25));
       setCompanyMinMargin(String(cs.minMarginPercent ?? 15));
+      setCompanyEurToMkd(String(cs.eurToMkdRate ?? 61.5));
     }
   }, [companySettingsQuery.data, storeVersion]);
 
@@ -282,6 +286,7 @@ export default function SettingsPage() {
         oversizeRatePerSqm: Math.max(0, Number(companyOversizeRate) || 45),
         defaultHourlyLaborRate: Math.max(0, Number(companyHourlyRate) || 25),
         minMarginPercent: Math.min(100, Math.max(0, Number(companyMinMargin) || 15)),
+        eurToMkdRate: Math.max(1, Number(companyEurToMkd) || 61.5),
       });
       if (saved) {
         setCompanyDefaultAdvance(String(saved.defaultAdvancePercent ?? parsedAdvance));
@@ -556,18 +561,36 @@ export default function SettingsPage() {
                     placeholder="пр. 300000001234567 (Комерцијална Банка)"
                     className={inputClass}
                   />
+                  {!companyBankAccount.trim() && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      {t('settings.bank_account_warning')}
+                    </p>
+                  )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block font-medium text-muted-foreground">{t('settings.default_advance')}</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={companyDefaultAdvance}
-                    onChange={(e) => setCompanyDefaultAdvance(e.target.value)}
-                    className={`${inputClass} tabular-nums font-medium`}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.default_advance')}</label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={companyDefaultAdvance}
+                      onChange={(e) => setCompanyDefaultAdvance(e.target.value)}
+                      className={`${inputClass} tabular-nums font-medium`}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block font-medium text-muted-foreground">{t('settings.eur_to_mkd_rate')}</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step="0.01"
+                      value={companyEurToMkd}
+                      onChange={(e) => setCompanyEurToMkd(e.target.value)}
+                      className={`${inputClass} tabular-nums font-medium`}
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -995,6 +995,21 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <button
                     type="button"
                     onClick={() => {
+                      // BIZ-08: Guard against duplicate FINAL invoices on the same project
+                      const existingFinal = (salesInvoicesQuery.data ?? imfexStore.getSalesInvoices()).find(
+                        (s) =>
+                          s.status !== 'CANCELLED' &&
+                          s.invoiceType === 'FINAL' &&
+                          (s.projectId === project.id || (project.offerId && s.offerId === project.offerId))
+                      );
+                      if (existingFinal) {
+                        setPreviewInvoice(existingFinal);
+                        toast.info(
+                          `Веќе постои Конечна Фактура ${existingFinal.invoiceNumber}`,
+                          'Отворена е постоечката фактура за да се избегне дуплирање.'
+                        );
+                        return;
+                      }
                       setConfirmState({
                         isOpen: true,
                         title: 'Издај Конечна Фактура',

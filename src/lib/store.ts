@@ -2938,23 +2938,30 @@ class ImfexStore {
     };
     this.payments.unshift(record);
 
+    // BIZ-08: Update local optimistic state immediately, and let POST /api/payments atomically recalculate DB invoice totals (no parallel write race)
     if (record.salesInvoiceId) {
-      const sinv = this.getSalesInvoiceById(record.salesInvoiceId);
-      if (sinv) {
+      const idx = this.salesInvoices.findIndex((s) => s.id === record.salesInvoiceId);
+      if (idx >= 0) {
+        const sinv = this.salesInvoices[idx];
         const nextPaid = Math.round((Number(sinv.paidAmount || 0) + Number(record.amount || 0)) * 100) / 100;
-        sinv.paidAmount = nextPaid;
-        sinv.status = nextPaid >= Number(sinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'ISSUED';
-        this.saveSalesInvoice(sinv);
+        this.salesInvoices[idx] = {
+          ...sinv,
+          paidAmount: nextPaid,
+          status: nextPaid >= Number(sinv.totalAmount || 0) - 0.01 ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'ISSUED',
+        };
       }
     }
 
     if (record.purchaseInvoiceId) {
-      const pinv = this.getPurchaseInvoiceById(record.purchaseInvoiceId);
-      if (pinv) {
+      const idx = this.purchaseInvoices.findIndex((p) => p.id === record.purchaseInvoiceId);
+      if (idx >= 0) {
+        const pinv = this.purchaseInvoices[idx];
         const nextPaid = Math.round((Number(pinv.paidAmount || 0) + Number(record.amount || 0)) * 100) / 100;
-        pinv.paidAmount = nextPaid;
-        pinv.status = nextPaid >= Number(pinv.totalAmount || 0) ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'INVOICED';
-        this.savePurchaseInvoice(pinv);
+        this.purchaseInvoices[idx] = {
+          ...pinv,
+          paidAmount: nextPaid,
+          status: nextPaid >= Number(pinv.totalAmount || 0) - 0.01 ? 'PAID' : nextPaid > 0 ? 'PARTIAL_PAID' : 'INVOICED',
+        };
       }
     }
 

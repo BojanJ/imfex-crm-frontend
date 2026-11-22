@@ -234,7 +234,10 @@ export const PrintableSalesInvoice: React.FC<PrintableInvoiceProps> = ({ invoice
                   : 'ВКУПНО ЗА ПЛАЌАЊЕ:'}
               </span>
               <span className="text-[11px] text-slate-300">
-                Во денарска противвредност по среден курс на НБРСМ (1 € = 61.50 МКД: {formatMkd(Number(invoice.totalAmount || 0) * 61.5)})
+                {(() => {
+                  const fx = Number(invoice.exchangeRate || company.eurToMkdRate || 61.5);
+                  return `Во денарска противвредност по среден курс на НБРСМ (1 € = ${fx.toFixed(2)} МКД: ${formatMkd(Number(invoice.totalAmount || 0) * fx)})`;
+                })()}
               </span>
             </div>
             <span className="text-2xl font-black font-mono">

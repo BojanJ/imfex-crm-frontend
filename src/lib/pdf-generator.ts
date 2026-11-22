@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import type { CompanySettings, DispatchNote, Offer, Product, SalesInvoice } from '@/types';
+import type { CompanySettings, DispatchNote, Offer, Product, PurchaseInvoice, SalesInvoice } from '@/types';
 import { formatDate, resolveOfferValidUntil } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { getServiceTypeLabel } from '@/lib/enum-labels';
@@ -1122,8 +1122,9 @@ export async function generateSalesInvoiceVectorPdf(
   pdf.setFont(fontName, 'normal');
   pdf.setFontSize(7.5);
   pdf.setTextColor(...COLORS.slate300);
+  const fxRate = Number(invoice.exchangeRate || company.eurToMkdRate || 61.5);
   pdf.text(
-    `Денарска противвредност (1 € = 61.50 МКД): ${formatMkd(Number(invoice.totalAmount || 0) * 61.5)}`,
+    `Денарска противвредност (1 € = ${fxRate.toFixed(2)} МКД): ${formatMkd(Number(invoice.totalAmount || 0) * fxRate)}`,
     margin + 6,
     y + 13.5
   );
@@ -1398,4 +1399,144 @@ export async function generateDispatchNoteVectorPdf(
 
   addPageFooters(pdf, fontName, `${company.companyName} — Испратница: ${dispatch.dispatchNumber}`, false, margin);
   return finalizePdf(pdf, filename);
+}
+
+/**
+ * Generates an official printable Purchase Order (Нарачка до добавувач) vector PDF (BIZ-06).
+ */
+export async function generatePurchaseOrderVectorPdf(
+  purchase: PurchaseInvoice,
+  company: CompanySettings,
+  filename?: string
+): Promise<VectorPdfResult> {
+  const { pdf, fontName } = await createVectorPdfDoc();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 16;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Header
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(0, 0, pageWidth, 34, 'F');
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(14);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text(company.companyName || 'IMFEX', margin, 14);
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(`${company.address} | ДДВ: ${company.taxId} | ${company.phone}`, margin, 21);
+  if (company.email) pdf.text(company.email, margin, 26.5);
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text('НАРАЧКА / PURCHASE ORDER', pageWidth - margin, 14, { align: 'right' });
+  pdf.setFontSize(10);
+  pdf.setTextColor(...COLORS.slate300);
+  pdf.text(purchase.internalNumber, pageWidth - margin, 22, { align: 'right' });
+
+  let y = 44;
+
+  // Supplier & dates box
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
+
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...COLORS.slate500);
+  pdf.text('ДОБАВУВАЧ / SUPPLIER:', margin + 4, y + 6);
+  pdf.setFontSize(10);
+  pdf.setTextColor(...COLORS.slate900);
+  pdf.text(purchase.supplierName || 'Добавувач', margin + 4, y + 12.5);
+  if (purchase.supplierInvoiceNumber) {
+    pdf.setFont(fontName, 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(...COLORS.slate500);
+    pdf.text(`Реф. бр.: ${purchase.supplierInvoiceNumber}`, margin + 4, y + 18.5);
+  }
+
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text(`Датум: ${formatDate(purchase.issueDate)}`, pageWidth - margin - 4, y + 7, { align: 'right' });
+  if (purchase.expectedDeliveryDate) {
+    pdf.text(`Очекувана испорака (ETA): ${formatDate(purchase.expectedDeliveryDate)}`, pageWidth - margin - 4, y + 13, {
+      align: 'right',
+    });
+  }
+  if (purchase.dueDate) {
+    pdf.text(`Рок на плаќање: ${formatDate(purchase.dueDate)}`, pageWidth - margin - 4, y + 19, { align: 'right' });
+  }
+  y += 30;
+
+  // Table header
+  pdf.setFillColor(...COLORS.navy);
+  pdf.rect(margin, y, contentWidth, 8, 'F');
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(...COLORS.white);
+  pdf.text('#', margin + 3, y + 5.5);
+  pdf.text('Опис / Артикл', margin + 12, y + 5.5);
+  pdf.text('Тип', margin + 108, y + 5.5);
+  pdf.text('Кол.', margin + 128, y + 5.5, { align: 'right' });
+  pdf.text('Ед. цена', margin + 152, y + 5.5, { align: 'right' });
+  pdf.text('Вкупно', pageWidth - margin - 3, y + 5.5, { align: 'right' });
+  y += 10;
+
+  (purchase.items || []).forEach((it, idx) => {
+    if (y > pageHeight - 45) {
+      pdf.addPage();
+      y = 20;
+    }
+    const titleLines = pdf.splitTextToSize(it.title || 'Ставка', 92);
+    const rowH = Math.max(7.5, titleLines.length * 4 + 3);
+    if (idx % 2 === 1) {
+      pdf.setFillColor(...COLORS.slate50);
+      pdf.rect(margin, y - 2, contentWidth, rowH, 'F');
+    }
+    pdf.setFont(fontName, 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(...COLORS.slate700);
+    pdf.text(String(idx + 1), margin + 3, y + 2.5);
+    pdf.text(titleLines, margin + 12, y + 2.5);
+    pdf.text(it.itemType === 'STOCK' ? 'Залиха' : 'Трошок', margin + 108, y + 2.5);
+    pdf.text(String(it.quantity || 1), margin + 128, y + 2.5, { align: 'right' });
+    pdf.text(formatCurrency(it.unitCost), margin + 152, y + 2.5, { align: 'right' });
+    pdf.setFont(fontName, 'bold');
+    pdf.text(formatCurrency(it.totalCost), pageWidth - margin - 3, y + 2.5, { align: 'right' });
+    y += rowH;
+  });
+
+  y += 6;
+  pdf.setFillColor(...COLORS.slate50);
+  pdf.setDrawColor(...COLORS.slate200);
+  pdf.roundedRect(pageWidth - margin - 78, y, 78, 24, 2, 2, 'FD');
+  pdf.setFont(fontName, 'normal');
+  pdf.setFontSize(8);
+  pdf.setTextColor(...COLORS.slate700);
+  pdf.text('Нето (без ДДВ):', pageWidth - margin - 74, y + 6.5);
+  pdf.text(formatCurrency(purchase.subtotal), pageWidth - margin - 4, y + 6.5, { align: 'right' });
+  pdf.text(`ДДВ (${purchase.taxRate}%):`, pageWidth - margin - 74, y + 12.5);
+  pdf.text(formatCurrency(purchase.taxAmount), pageWidth - margin - 4, y + 12.5, { align: 'right' });
+  pdf.setFont(fontName, 'bold');
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(...COLORS.navy);
+  pdf.text('ВКУПНО:', pageWidth - margin - 74, y + 19.5);
+  pdf.text(formatCurrency(purchase.totalAmount), pageWidth - margin - 4, y + 19.5, { align: 'right' });
+
+  if (purchase.notes) {
+    y += 30;
+    pdf.setFont(fontName, 'bold');
+    pdf.setFontSize(7.5);
+    pdf.setTextColor(...COLORS.slate700);
+    pdf.text('ЗАБЕЛЕШКА:', margin, y);
+    pdf.setFont(fontName, 'normal');
+    pdf.setFontSize(8);
+    pdf.text(pdf.splitTextToSize(purchase.notes, contentWidth), margin, y + 4.5);
+  }
+
+  addPageFooters(pdf, fontName, `${company.companyName} — Нарачка: ${purchase.internalNumber}`, false, margin);
+  return finalizePdf(pdf, filename || `${purchase.internalNumber}.pdf`);
 }

@@ -290,3 +290,172 @@ export function computeProjectFinancialSummary(params: {
     isBelowMinMargin,
   };
 }
+
+export interface AgingBuckets {
+  current: number;
+  d1_30: number;
+  d31_60: number;
+  d61_90: number;
+  d90_plus: number;
+  totalOpen: number;
+  overdueTotal: number;
+  overdueCount: number;
+}
+
+export interface VatPeriodSummary {
+  salesNet: number;
+  outputVat: number;
+  purchasesNet: number;
+  inputVat: number;
+  netVatPayable: number;
+}
+
+export interface AgingAndVatSummary {
+  unbilledCompletedProjects: Array<{
+    project: Project;
+    estimatedAmount: number;
+  }>;
+  unbilledCompletedTotal: number;
+  arAging: AgingBuckets;
+  apAging: AgingBuckets;
+  vatSummary: VatPeriodSummary;
+}
+
+export function getInvoiceOverdueDays(dueDate?: string | null, referenceDate = new Date()): number {
+  if (!dueDate) return 0;
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return 0;
+  const refDay = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const diffMs = refDay.getTime() - dueDay.getTime();
+  return diffMs > 0 ? Math.floor(diffMs / 86_400_000) : 0;
+}
+
+function emptyAgingBuckets(): AgingBuckets {
+  return {
+    current: 0,
+    d1_30: 0,
+    d31_60: 0,
+    d61_90: 0,
+    d90_plus: 0,
+    totalOpen: 0,
+    overdueTotal: 0,
+    overdueCount: 0,
+  };
+}
+
+function accumulateAging(buckets: AgingBuckets, amount: number, overdueDays: number) {
+  const safeAmt = Math.max(0, Math.round(amount * 100) / 100);
+  if (safeAmt <= 0.005) return;
+  buckets.totalOpen = Math.round((buckets.totalOpen + safeAmt) * 100) / 100;
+  if (overdueDays <= 0) {
+    buckets.current = Math.round((buckets.current + safeAmt) * 100) / 100;
+  } else {
+    buckets.overdueTotal = Math.round((buckets.overdueTotal + safeAmt) * 100) / 100;
+    buckets.overdueCount += 1;
+    if (overdueDays <= 30) buckets.d1_30 = Math.round((buckets.d1_30 + safeAmt) * 100) / 100;
+    else if (overdueDays <= 60) buckets.d31_60 = Math.round((buckets.d31_60 + safeAmt) * 100) / 100;
+    else if (overdueDays <= 90) buckets.d61_90 = Math.round((buckets.d61_90 + safeAmt) * 100) / 100;
+    else buckets.d90_plus = Math.round((buckets.d90_plus + safeAmt) * 100) / 100;
+  }
+}
+
+/**
+ * Pure selector computing Unbilled Completed Projects, AR/AP 0-30/31-60/61-90/90+ Aging,
+ * and period-filtered Output vs Input DDV (VAT) summary (BIZ-08, BIZ-09).
+ */
+export function computeAgingAndVatSummary(params: {
+  projects: Project[];
+  offers: Offer[];
+  salesInvoices: SalesInvoice[];
+  purchaseInvoices: PurchaseInvoice[];
+  fromDate?: string;
+  toDate?: string;
+  referenceDate?: Date;
+}): AgingAndVatSummary {
+  const { projects, offers, salesInvoices, purchaseInvoices, fromDate, toDate, referenceDate = new Date() } = params;
+
+  const inPeriod = (isoDate?: string | null): boolean => {
+    if (!fromDate && !toDate) return true;
+    if (!isoDate) return false;
+    const d = isoDate.slice(0, 10);
+    if (fromDate && d < fromDate) return false;
+    if (toDate && d > toDate) return false;
+    return true;
+  };
+
+  // 1. Unbilled completed/closed projects (no active FINAL invoice)
+  const unbilledCompletedProjects: Array<{ project: Project; estimatedAmount: number }> = [];
+  for (const project of projects) {
+    if (project.status !== 'COMPLETED' && project.status !== 'CLOSED') continue;
+    const hasFinal = salesInvoices.some(
+      (s) =>
+        s.status !== 'CANCELLED' &&
+        s.invoiceType === 'FINAL' &&
+        (s.projectId === project.id || (project.offerId && s.offerId === project.offerId))
+    );
+    if (!hasFinal) {
+      const offer = offers.find((o) => o.id === project.offerId) || project.offer;
+      unbilledCompletedProjects.push({
+        project,
+        estimatedAmount: Math.round(Number(offer?.totalAmount || 0) * 100) / 100,
+      });
+    }
+  }
+  const unbilledCompletedTotal =
+    Math.round(unbilledCompletedProjects.reduce((sum, x) => sum + x.estimatedAmount, 0) * 100) / 100;
+
+  // 2. AR Aging & Output VAT
+  const arAging = emptyAgingBuckets();
+  let salesNet = 0;
+  let outputVat = 0;
+  for (const inv of salesInvoices) {
+    if (inv.status === 'CANCELLED') continue;
+    if (inv.status !== 'PAID' && inv.invoiceType !== 'CREDIT_NOTE' && inv.invoiceType !== 'PROFORMA') {
+      const remaining = Math.max(0, Number(inv.totalAmount || 0) - Number(inv.paidAmount || 0));
+      accumulateAging(arAging, remaining, getInvoiceOverdueDays(inv.dueDate, referenceDate));
+    }
+    if (inv.invoiceType !== 'PROFORMA' && inPeriod(inv.issueDate)) {
+      const sign = inv.invoiceType === 'CREDIT_NOTE' ? -1 : 1;
+      const net = Math.max(0, Number(inv.subtotal || 0) - Number(inv.discountAmount || 0));
+      salesNet += sign * net;
+      outputVat += sign * Number(inv.taxAmount || 0);
+    }
+  }
+
+  // 3. AP Aging & Input VAT
+  const apAging = emptyAgingBuckets();
+  let purchasesNet = 0;
+  let inputVat = 0;
+  for (const pinv of purchaseInvoices) {
+    if (pinv.status === 'CANCELLED') continue;
+    if (pinv.status !== 'PAID' && pinv.status !== 'DRAFT') {
+      const remaining = Math.max(0, Number(pinv.totalAmount || 0) - Number(pinv.paidAmount || 0));
+      accumulateAging(apAging, remaining, getInvoiceOverdueDays(pinv.dueDate, referenceDate));
+    }
+    if (pinv.status !== 'DRAFT' && inPeriod(pinv.issueDate)) {
+      purchasesNet += Number(pinv.subtotal || 0);
+      inputVat += Number(pinv.taxAmount || 0);
+    }
+  }
+
+  salesNet = Math.round(salesNet * 100) / 100;
+  outputVat = Math.round(outputVat * 100) / 100;
+  purchasesNet = Math.round(purchasesNet * 100) / 100;
+  inputVat = Math.round(inputVat * 100) / 100;
+  const netVatPayable = Math.round((outputVat - inputVat) * 100) / 100;
+
+  return {
+    unbilledCompletedProjects,
+    unbilledCompletedTotal,
+    arAging,
+    apAging,
+    vatSummary: {
+      salesNet,
+      outputVat,
+      purchasesNet,
+      inputVat,
+      netVatPayable,
+    },
+  };
+}

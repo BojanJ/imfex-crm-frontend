@@ -1,9 +1,15 @@
 'use client';
 
 import React, { useState, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useI18n } from '@/lib/i18n-context';
+import { apiClient } from '@/lib/api-client';
+import { computeAgingAndVatSummary, getInvoiceOverdueDays } from '@/lib/selectors';
+import { downloadCsv } from '@/lib/csv-export';
+import { generatePurchaseOrderVectorPdf } from '@/lib/pdf-generator';
+import { canDeleteRecords, canWriteFinance } from '@/lib/rbac';
 import {
   PurchaseInvoice,
   PurchaseInvoiceItem,
@@ -44,7 +50,7 @@ import {
   CustomerSelect,
 } from '@/components/ui/entity-selectors';
 import { formatDate } from '@/lib/date-format';
-import { formatCurrency } from '@/lib/formatters';
+import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { toast } from '@/components/ui/toastr';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
@@ -78,9 +84,13 @@ import {
   Sparkles,
   Percent,
   X,
+  Download,
+  Ban,
+  AlertTriangle,
+  Clock,
 } from 'lucide-react';
 
-type FinanceTab = 'purchases' | 'invoices' | 'dispatches' | 'payments' | 'partners';
+type FinanceTab = 'purchases' | 'invoices' | 'dispatches' | 'payments' | 'partners' | 'aging';
 
 const EXPENSE_CATEGORY_SHORT: Record<ExpenseCategory, string> = {
   ГОРИВО: 'Гориво',
@@ -147,11 +157,20 @@ function FinancePageContent() {
   const [advanceTargetOffer, setAdvanceTargetOffer] = useState<Offer | null>(null);
 
   // --- New Purchase Invoice / Expense Form State ---
+  const [pSupplierId, setPSupplierId] = useState('');
   const [pSupplierName, setPSupplierName] = useState('Doors Impex');
   const [pSupplierInvNum, setPSupplierInvNum] = useState('');
   const [pProjectId, setPProjectId] = useState('');
   const [pIssueDate, setPIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pDueDate, setPDueDate] = useState('');
+  const [pExpectedDeliveryDate, setPExpectedDeliveryDate] = useState('');
   const [pTaxRate, setPTaxRate] = useState<number>(18);
+  // --- VAT & Aging Period Filter State (BIZ-08, BIZ-09) ---
+  const [vatFromDate, setVatFromDate] = useState('');
+  const [vatToDate, setVatToDate] = useState('');
+  const currentRole = imfexStore.getCurrentRole();
+  const allowFinanceWrite = canWriteFinance(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
   const [pReceiveImmediately, setPReceiveImmediately] = useState<boolean>(true);
   const [pPaidImmediately, setPPaidImmediately] = useState<boolean>(false);
   const [pPaymentMethod, setPPaymentMethod] = useState<PaymentMethod>('BANK');
@@ -338,14 +357,21 @@ function FinancePageContent() {
     const totalAmount = Math.round((subtotal + taxAmount) * 100) / 100;
 
     const hasStockItems = validItems.some((i) => i.itemType === 'STOCK');
+    const matchedPartner = customers.find(
+      (c) =>
+        (pSupplierId && c.id === pSupplierId) ||
+        (c.companyName || c.name || '').trim().toLowerCase() === pSupplierName.trim().toLowerCase()
+    );
     const newPurchase: PurchaseInvoice = {
       id: `pinv-${Date.now()}`,
       internalNumber: imfexStore.generatePurchaseNumber(),
       supplierInvoiceNumber: pSupplierInvNum.trim() || undefined,
-      supplierId: 'partner',
-      supplierName: pSupplierName.trim() || 'Добавувач',
+      supplierId: matchedPartner?.id || pSupplierId || '',
+      supplierName: pSupplierName.trim() || matchedPartner?.companyName || matchedPartner?.name || 'Добавувач',
       projectId: pProjectId || undefined,
       issueDate: pIssueDate,
+      dueDate: pDueDate || undefined,
+      expectedDeliveryDate: pExpectedDeliveryDate || undefined,
       status: 'INVOICED',
       receiptStatus: hasStockItems ? 'PENDING' : 'RECEIVED',
       taxRate: pTaxRate,
@@ -856,8 +882,46 @@ function FinancePageContent() {
           { id: 'dispatches', label: t('finance.tab_dispatches'), count: dispatches.length, icon: <Truck className="w-3.5 h-3.5" /> },
           { id: 'payments', label: t('finance.tab_payments'), count: payments.length, icon: <CreditCard className="w-3.5 h-3.5" /> },
           { id: 'partners', label: t('finance.tab_partners'), count: partnersList.length, icon: <Building2 className="w-3.5 h-3.5" /> },
+          { id: 'aging', label: t('finance.tab_aging_vat'), icon: <Clock className="w-3.5 h-3.5" /> },
         ]}
       />
+
+      {/* BIZ-08: Unbilled Completed Projects Alert Banner */}
+      {(() => {
+        const agingSummary = computeAgingAndVatSummary({
+          projects,
+          offers,
+          salesInvoices,
+          purchaseInvoices: purchases,
+          fromDate: vatFromDate || undefined,
+          toDate: vatToDate || undefined,
+        });
+        if (agingSummary.unbilledCompletedProjects.length === 0) return null;
+        return (
+          <div className="p-4 rounded-xl border border-amber-500/35 bg-amber-500/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <strong className="font-semibold text-foreground block">
+                  {t('finance.unbilled_projects_title')} ({agingSummary.unbilledCompletedProjects.length}) — {formatCurrency(agingSummary.unbilledCompletedTotal)}
+                </strong>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {agingSummary.unbilledCompletedProjects.slice(0, 5).map(({ project, estimatedAmount }) => (
+                    <Link
+                      key={project.id}
+                      href={`/projects/${project.id}`}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background/80 border border-amber-500/30 text-foreground hover:border-primary font-medium text-[11px]"
+                    >
+                      <span className="font-mono text-primary">{project.projectNumber}</span>
+                      <span>({formatCurrency(estimatedAmount)})</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ===================================================================== */}
       {/* TAB 1: НАБАВКИ И ТРОШОЦИ (ВЛЕЗ ВО ФИРМАТА)                            */}
@@ -1128,6 +1192,22 @@ function FinancePageContent() {
                                   ? t('finance.status_draft')
                                   : t('finance.status_unpaid')}
                               </StatusBadge>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void generatePurchaseOrderVectorPdf(
+                                    pinv,
+                                    imfexStore.getCompanySettings(),
+                                    `${pinv.internalNumber}.pdf`
+                                  ).then(() => toast.success(t('finance.po_pdf_downloaded'), pinv.internalNumber));
+                                }}
+                                className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                title={t('finance.btn_po_pdf')}
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>PO</span>
+                              </button>
+
                               {hasStock && (
                                 <StatusBadge variant={hasUnreceivedStock ? 'warning' : 'success'}>
                                   {hasUnreceivedStock ? t('finance.status_pending_receipt') : t('finance.status_received')}
@@ -1170,6 +1250,22 @@ function FinancePageContent() {
                                   <span>{t('finance.btn_receive')}</span>
                                 </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void generatePurchaseOrderVectorPdf(
+                                    pinv,
+                                    imfexStore.getCompanySettings(),
+                                    `${pinv.internalNumber}.pdf`
+                                  ).then(() => toast.success(t('finance.po_pdf_downloaded'), pinv.internalNumber));
+                                }}
+                                className="h-7 px-2 rounded-md border border-border bg-background hover:bg-muted text-foreground font-medium text-[11px] cursor-pointer inline-flex items-center gap-1"
+                                title={t('finance.btn_po_pdf')}
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>PO</span>
+                              </button>
 
                               {hasStock && (
                                 <button
@@ -1375,12 +1471,14 @@ function FinancePageContent() {
                         >
                           <Mail className="w-3.5 h-3.5" /> {t('finance.btn_email')}
                         </button>
-                        {sinv.status !== 'PAID' && (
+                        {sinv.status !== 'PAID' && sinv.status !== 'CANCELLED' && (
                           <button
                             type="button"
                             onClick={() => {
                               setPayDirection('IN');
                               setPaySalesInvoiceId(sinv.id);
+                              setPayCustomerId(sinv.customerId || '');
+                              setPayOfferId(sinv.offerId || '');
                               setPayPartnerName(clientDisplay);
                               setPayProjectId(sinv.projectId || '');
                               setPayAmount(
@@ -1393,27 +1491,29 @@ function FinancePageContent() {
                             {t('finance.btn_add_payment')}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setConfirmState({
-                              isOpen: true,
-                              title: 'Избриши Излезна Фактура',
-                              message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${clientDisplay}“?`,
-                              variant: 'danger',
-                              confirmLabel: t('finance.btn_delete'),
-                              onConfirm: () => {
-                                setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                imfexStore.deleteSalesInvoice(sinv.id);
-                                refreshAll();
-                              },
-                            });
-                          }}
-                          className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                          aria-label={t('finance.btn_delete')}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {allowDelete && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmState({
+                                isOpen: true,
+                                title: 'Избриши Излезна Фактура',
+                                message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${clientDisplay}“?`,
+                                variant: 'danger',
+                                confirmLabel: t('finance.btn_delete'),
+                                onConfirm: () => {
+                                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                  imfexStore.deleteSalesInvoice(sinv.id);
+                                  refreshAll();
+                                },
+                              });
+                            }}
+                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                            aria-label={t('finance.btn_delete')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -1512,6 +1612,8 @@ function FinancePageContent() {
                             className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
                               sinv.status === 'PAID'
                                 ? 'bg-emerald-500/15 text-emerald-400'
+                                : sinv.status === 'CANCELLED'
+                                ? 'bg-rose-500/15 text-rose-500 line-through'
                                 : sinv.status === 'PARTIAL_PAID'
                                 ? 'bg-amber-500/15 text-amber-400'
                                 : 'bg-blue-500/15 text-blue-400'
@@ -1519,10 +1621,26 @@ function FinancePageContent() {
                           >
                             {sinv.status === 'PAID'
                               ? t('finance.status_paid_upper')
+                              : sinv.status === 'CANCELLED'
+                              ? t('finance.status_void_upper')
                               : sinv.status === 'PARTIAL_PAID'
                               ? `${t('finance.status_partial_upper')} (€${Number(sinv.paidAmount).toFixed(2)})`
                               : t('finance.status_issued_upper')}
                           </span>
+                          {sinv.dueDate && sinv.status !== 'PAID' && sinv.status !== 'CANCELLED' && (() => {
+                            const overdue = getInvoiceOverdueDays(sinv.dueDate);
+                            return (
+                              <span
+                                className={`block text-[10px] mt-1 font-medium ${
+                                  overdue > 0 ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-muted-foreground'
+                                }`}
+                              >
+                                {overdue > 0
+                                  ? `${t('finance.overdue_days_prefix')} ${overdue}d (${formatDate(sinv.dueDate)})`
+                                  : `${t('finance.due_short')}: ${formatDate(sinv.dueDate)}`}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-4">
                           <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -1547,11 +1665,13 @@ function FinancePageContent() {
                               <Mail className="w-3.5 h-3.5" /> {t('finance.btn_email')}
                             </button>
 
-                            {sinv.status !== 'PAID' && (
+                            {sinv.status !== 'PAID' && sinv.status !== 'CANCELLED' && (
                               <button
                                 onClick={() => {
                                   setPayDirection('IN');
                                   setPaySalesInvoiceId(sinv.id);
+                                  setPayCustomerId(sinv.customerId || '');
+                                  setPayOfferId(sinv.offerId || '');
                                   setPayPartnerName(sinv.customer?.companyName || sinv.customer?.name || t('offers.customer'));
                                   setPayProjectId(sinv.projectId || '');
                                   setPayAmount(
@@ -1565,26 +1685,88 @@ function FinancePageContent() {
                               </button>
                             )}
 
-                            <button
-                              onClick={() => {
-                                setConfirmState({
-                                  isOpen: true,
-                                  title: 'Избриши Излезна Фактура',
-                                  message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${sinv.customer?.companyName || sinv.customer?.name || t('offers.customer')}“?`,
-                                  variant: 'danger',
-                                  confirmLabel: t('finance.btn_delete'),
-                                  onConfirm: () => {
-                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                    imfexStore.deleteSalesInvoice(sinv.id);
-                                    refreshAll();
-                                  },
-                                });
-                              }}
-                              className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                              aria-label={t('finance.btn_delete')}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {allowFinanceWrite &&
+                              sinv.status !== 'PAID' &&
+                              sinv.status !== 'CANCELLED' &&
+                              getInvoiceOverdueDays(sinv.dueDate) > 0 &&
+                              sinv.customer?.email && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await apiClient.email.sendPaymentReminder({
+                                        to: sinv.customer!.email!,
+                                        customerName: sinv.customer?.companyName || sinv.customer?.name,
+                                        invoiceNumber: sinv.invoiceNumber,
+                                        totalAmount: sinv.totalAmount,
+                                        paidAmount: sinv.paidAmount,
+                                        dueDate: formatDate(sinv.dueDate),
+                                        daysOverdue: getInvoiceOverdueDays(sinv.dueDate),
+                                      });
+                                      toast.success(t('finance.reminder_sent'), sinv.customer!.email!);
+                                    } catch (err) {
+                                      toast.error(t('finance.reminder_failed'), err instanceof Error ? err.message : undefined);
+                                    }
+                                  }}
+                                  className="px-2 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold text-[10px] hover:bg-amber-500/20 cursor-pointer"
+                                  title={t('finance.btn_send_reminder')}
+                                >
+                                  {t('finance.btn_send_reminder')}
+                                </button>
+                              )}
+
+                            {allowFinanceWrite && sinv.status !== 'CANCELLED' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmState({
+                                    isOpen: true,
+                                    title: t('finance.void_invoice_title'),
+                                    message: `${t('finance.void_invoice_msg')} „${sinv.invoiceNumber}“?`,
+                                    variant: 'warning',
+                                    confirmLabel: t('finance.btn_void'),
+                                    onConfirm: async () => {
+                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                      try {
+                                        await apiClient.finance.voidSalesInvoice(sinv.id, 'Сторнирана фактура');
+                                        toast.success(t('finance.void_success'), sinv.invoiceNumber);
+                                        refreshAll();
+                                      } catch (err) {
+                                        toast.error(t('finance.void_failed'), err instanceof Error ? err.message : undefined);
+                                      }
+                                    },
+                                  });
+                                }}
+                                className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 rounded-lg cursor-pointer"
+                                title={t('finance.btn_void')}
+                                aria-label={t('finance.btn_void')}
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {allowDelete && (
+                              <button
+                                onClick={() => {
+                                  setConfirmState({
+                                    isOpen: true,
+                                    title: 'Избриши Излезна Фактура',
+                                    message: `Дали сте сигурни дека сакате да ја избришете фактурата „${sinv.invoiceNumber}“ за клиент „${sinv.customer?.companyName || sinv.customer?.name || t('offers.customer')}“?`,
+                                    variant: 'danger',
+                                    confirmLabel: t('finance.btn_delete'),
+                                    onConfirm: () => {
+                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                      imfexStore.deleteSalesInvoice(sinv.id);
+                                      refreshAll();
+                                    },
+                                  });
+                                }}
+                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                                aria-label={t('finance.btn_delete')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2120,6 +2302,219 @@ function FinancePageContent() {
       )}
 
       {/* ===================================================================== */}
+      {/* TAB 6: ДДВ (VAT) & ДОСПЕАНОСТ (AR/AP AGING) + CSV EXPORTS (BIZ-08/09) */}
+      {/* ===================================================================== */}
+      {activeTab === 'aging' && (() => {
+        const av = computeAgingAndVatSummary({
+          projects,
+          offers,
+          salesInvoices,
+          purchaseInvoices: purchases,
+          fromDate: vatFromDate || undefined,
+          toDate: vatToDate || undefined,
+        });
+        const cs = imfexStore.getCompanySettings();
+        const fx = Number(cs.eurToMkdRate || 61.5);
+        return (
+          <div className="space-y-5">
+            {/* Period Filter + Accounting CSV Exports */}
+            <div className="surface-card rounded-xl p-4 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                    {t('finance.period_from')}
+                  </label>
+                  <DatePicker
+                    value={vatFromDate}
+                    onChange={setVatFromDate}
+                    ariaLabel={t('finance.period_from')}
+                    className="h-9 w-40 px-2.5 text-xs rounded-lg border border-border bg-background"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                    {t('finance.period_to')}
+                  </label>
+                  <DatePicker
+                    value={vatToDate}
+                    onChange={setVatToDate}
+                    ariaLabel={t('finance.period_to')}
+                    className="h-9 w-40 px-2.5 text-xs rounded-lg border border-border bg-background"
+                  />
+                </div>
+                {(vatFromDate || vatToDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVatFromDate('');
+                      setVatToDate('');
+                    }}
+                    className="h-9 px-3 text-xs rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground cursor-pointer"
+                  >
+                    {t('finance.filter_all')}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      `imfex-sales-invoices-${new Date().toISOString().slice(0, 10)}.csv`,
+                      ['Invoice #', 'Type', 'Status', 'Customer', 'Issue Date', 'Due Date', 'Net (€)', 'VAT (€)', 'Total (€)', 'Paid (€)', 'Total (MKD)'],
+                      salesInvoices.map((s) => [
+                        s.invoiceNumber,
+                        s.invoiceType,
+                        s.status,
+                        s.customer?.companyName || s.customer?.name || s.customerName || '',
+                        formatDate(s.issueDate),
+                        s.dueDate ? formatDate(s.dueDate) : '',
+                        Number(s.subtotal || 0).toFixed(2),
+                        Number(s.taxAmount || 0).toFixed(2),
+                        Number(s.totalAmount || 0).toFixed(2),
+                        Number(s.paidAmount || 0).toFixed(2),
+                        (Number(s.totalAmount || 0) * Number(s.exchangeRate || fx)).toFixed(2),
+                      ])
+                    )
+                  }
+                  className="h-9 px-3 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  <span>{t('finance.export_sales_csv')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      `imfex-purchases-${new Date().toISOString().slice(0, 10)}.csv`,
+                      ['Internal #', 'Supplier Inv #', 'Supplier', 'Status', 'Issue Date', 'Due Date', 'ETA', 'Net (€)', 'VAT (€)', 'Total (€)', 'Paid (€)'],
+                      purchases.map((p) => [
+                        p.internalNumber,
+                        p.supplierInvoiceNumber || '',
+                        p.supplierName,
+                        p.status,
+                        formatDate(p.issueDate),
+                        p.dueDate ? formatDate(p.dueDate) : '',
+                        p.expectedDeliveryDate ? formatDate(p.expectedDeliveryDate) : '',
+                        Number(p.subtotal || 0).toFixed(2),
+                        Number(p.taxAmount || 0).toFixed(2),
+                        Number(p.totalAmount || 0).toFixed(2),
+                        Number(p.paidAmount || 0).toFixed(2),
+                      ])
+                    )
+                  }
+                  className="h-9 px-3 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  <span>{t('finance.export_purchases_csv')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      `imfex-payments-${new Date().toISOString().slice(0, 10)}.csv`,
+                      ['Payment #', 'Direction', 'Date', 'Method', 'Partner', 'Amount (€)', 'Advance', 'Notes'],
+                      payments.map((p) => [
+                        p.paymentNumber,
+                        p.direction,
+                        formatDate(p.date),
+                        p.method,
+                        p.partnerName || '',
+                        Number(p.amount || 0).toFixed(2),
+                        p.isAdvance ? 'YES' : 'NO',
+                        p.notes || '',
+                      ])
+                    )
+                  }
+                  className="h-9 px-3 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  <span>{t('finance.export_payments_csv')}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* DDV (VAT) Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 tabular-nums">
+              <div className="surface-card rounded-xl p-4 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground block">{t('finance.vat_output')}</span>
+                <strong className="text-xl font-bold text-foreground block">{formatCurrency(av.vatSummary.outputVat)}</strong>
+                <span className="text-[11px] text-muted-foreground block">
+                  {t('finance.vat_base')}: {formatCurrency(av.vatSummary.salesNet)} · {formatMkd(av.vatSummary.outputVat * fx)}
+                </span>
+              </div>
+              <div className="surface-card rounded-xl p-4 space-y-1">
+                <span className="text-xs font-medium text-muted-foreground block">{t('finance.vat_input')}</span>
+                <strong className="text-xl font-bold text-emerald-600 dark:text-emerald-400 block">
+                  {formatCurrency(av.vatSummary.inputVat)}
+                </strong>
+                <span className="text-[11px] text-muted-foreground block">
+                  {t('finance.vat_base')}: {formatCurrency(av.vatSummary.purchasesNet)} · {formatMkd(av.vatSummary.inputVat * fx)}
+                </span>
+              </div>
+              <div
+                className={`surface-card rounded-xl p-4 space-y-1 border ${
+                  av.vatSummary.netVatPayable > 0
+                    ? 'border-amber-500/35 bg-amber-500/[0.06]'
+                    : 'border-emerald-500/35 bg-emerald-500/[0.06]'
+                }`}
+              >
+                <span className="text-xs font-medium text-muted-foreground block">{t('finance.vat_net_payable')}</span>
+                <strong className="text-xl font-bold text-foreground block">
+                  {formatCurrency(av.vatSummary.netVatPayable)}
+                </strong>
+                <span className="text-[11px] text-muted-foreground block">
+                  1 € = {fx.toFixed(2)} МКД · {formatMkd(av.vatSummary.netVatPayable * fx)}
+                </span>
+              </div>
+            </div>
+
+            {/* AR & AP Aging Tables */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 tabular-nums">
+              {[
+                { title: t('finance.ar_aging_title'), data: av.arAging, accent: 'text-emerald-600 dark:text-emerald-400' },
+                { title: t('finance.ap_aging_title'), data: av.apAging, accent: 'text-amber-600 dark:text-amber-400' },
+              ].map((block) => (
+                <div key={block.title} className="surface-card rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <h3 className="text-sm font-semibold text-foreground">{block.title}</h3>
+                    <span className={`text-sm font-bold ${block.accent}`}>{formatCurrency(block.data.totalOpen)}</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                    {[
+                      { label: t('finance.aging_current'), val: block.data.current, danger: false },
+                      { label: '1–30d', val: block.data.d1_30, danger: block.data.d1_30 > 0 },
+                      { label: '31–60d', val: block.data.d31_60, danger: block.data.d31_60 > 0 },
+                      { label: '61–90d', val: block.data.d61_90, danger: block.data.d61_90 > 0 },
+                      { label: '90+d', val: block.data.d90_plus, danger: block.data.d90_plus > 0 },
+                    ].map((col) => (
+                      <div
+                        key={col.label}
+                        className={`p-2.5 rounded-lg border ${
+                          col.danger ? 'border-rose-500/30 bg-rose-500/[0.06]' : 'border-border bg-muted/20'
+                        }`}
+                      >
+                        <span className="block text-[10px] text-muted-foreground mb-1">{col.label}</span>
+                        <strong className={`text-xs font-bold ${col.danger ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'}`}>
+                          {formatCurrency(col.val)}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t('finance.overdue_summary')}: <strong>{formatCurrency(block.data.overdueTotal)}</strong> ({block.data.overdueCount})
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===================================================================== */}
       {/* MODAL 1: НОВА ВЛЕЗНА ФАКТУРА / НАБАВКА / ТРОШОК                       */}
       {/* ===================================================================== */}
       {showPurchaseModal && (
@@ -2200,6 +2595,26 @@ function FinancePageContent() {
                 </div>
 
                 <div>
+                  <label className="block font-bold mb-1">Рок на плаќање</label>
+                  <DatePicker
+                    value={pDueDate}
+                    onChange={(val) => setPDueDate(val)}
+                    ariaLabel="Рок на плаќање"
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1">Очекувана испорака (ETA)</label>
+                  <DatePicker
+                    value={pExpectedDeliveryDate}
+                    onChange={(val) => setPExpectedDeliveryDate(val)}
+                    ariaLabel="Очекувана испорака"
+                    className="w-full px-3 py-2 rounded-lg border border-border bg-background outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
                   <label className="block font-bold mb-1">Поврзи со Проект (Опционално)</label>
                   <ProjectSelect
                     value={pProjectId}
@@ -2554,6 +2969,7 @@ function FinancePageContent() {
                     <option value="FINAL">Конечна Фактура (FAK)</option>
                     <option value="PROFORMA">Про-Фактура (PRO)</option>
                     <option value="ADVANCE">Авансна Фактура (AVN)</option>
+                    <option value="CREDIT_NOTE">Книжно Одобрение (CRN)</option>
                   </select>
                 </div>
 
@@ -3118,6 +3534,7 @@ function FinancePageContent() {
                   <option value="BANK">Банкарска сметка (Извод)</option>
                   <option value="CASH">Готовина / Благајна</option>
                   <option value="CARD">Картичка</option>
+                  <option value="COMPENSATION">Компензација</option>
                 </select>
               </div>
 

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { computeOfferMarginSummary, computeOfferTotals, computeProjectFinancialSummary } from '../selectors';
+import {
+  computeAgingAndVatSummary,
+  computeOfferMarginSummary,
+  computeOfferTotals,
+  computeProjectFinancialSummary,
+} from '../selectors';
+import { buildCsvString } from '../csv-export';
 import { canDeleteRecords, canViewFinance, canWriteFinance, canWriteSales } from '../rbac';
 import mk from '@/i18n/mk.json';
 import en from '@/i18n/en.json';
@@ -238,6 +244,87 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     expect(canDeleteRecords('SUPER_ADMIN')).toBe(true);
     expect(canDeleteRecords('ACCOUNTANT')).toBe(false);
     expect(canDeleteRecords('SALES')).toBe(false);
+  });
+
+  it('computes unbilled completed projects, AR/AP aging buckets, VAT summary & safe CSV export (BIZ-08, BIZ-09, BIZ-10)', () => {
+    const refDate = new Date('2026-11-22T12:00:00Z');
+    const summary = computeAgingAndVatSummary({
+      projects: [
+        { id: 'p-1', projectNumber: 'PRJ-1', offerId: 'o-1', customerId: 'c-1', status: 'COMPLETED', createdAt: '2026-10-01' },
+      ],
+      offers: [
+        {
+          id: 'o-1',
+          offerNumber: 'OFF-1',
+          customerId: 'c-1',
+          status: 'ACCEPTED',
+          taxRate: 18,
+          discountRate: 0,
+          discountAmount: 0,
+          subtotal: 2000,
+          taxAmount: 360,
+          totalAmount: 2360,
+          createdAt: '2026-10-01',
+          items: [],
+        },
+      ],
+      salesInvoices: [
+        {
+          id: 's-1',
+          invoiceNumber: 'AVN-1',
+          invoiceType: 'ADVANCE',
+          status: 'ISSUED',
+          customerId: 'c-1',
+          projectId: 'p-1',
+          issueDate: '2026-10-05',
+          dueDate: '2026-10-10', // 43 days overdue -> d31_60
+          taxRate: 18,
+          discountRate: 0,
+          discountAmount: 0,
+          subtotal: 1000,
+          taxAmount: 180,
+          grossTotalAmount: 1180,
+          advanceDeductedAmount: 0,
+          totalAmount: 1180,
+          paidAmount: 180,
+          items: [],
+          createdAt: '2026-10-05',
+        },
+      ],
+      purchaseInvoices: [
+        {
+          id: 'pi-1',
+          internalNumber: 'NAB-1',
+          supplierId: 'sup-1',
+          supplierName: 'Doors Impex',
+          issueDate: '2026-10-15',
+          dueDate: '2026-11-10', // 12 days overdue -> d1_30
+          status: 'INVOICED',
+          receiptStatus: 'RECEIVED',
+          taxRate: 18,
+          subtotal: 500,
+          taxAmount: 90,
+          totalAmount: 590,
+          paidAmount: 0,
+          items: [],
+          createdAt: '2026-10-15',
+        },
+      ],
+      referenceDate: refDate,
+    });
+
+    expect(summary.unbilledCompletedProjects).toHaveLength(1);
+    expect(summary.unbilledCompletedTotal).toBe(2360);
+    expect(summary.arAging.d31_60).toBe(1000);
+    expect(summary.arAging.overdueCount).toBe(1);
+    expect(summary.apAging.d1_30).toBe(590);
+    expect(summary.vatSummary.outputVat).toBe(180);
+    expect(summary.vatSummary.inputVat).toBe(90);
+    expect(summary.vatSummary.netVatPayable).toBe(90);
+
+    const csv = buildCsvString(['Name', 'Note'], [['=HYPERLINK("bad")', 'Hello, "World"']]);
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    expect(csv).toContain(`"'=HYPERLINK(""bad"")","Hello, ""World"""`);
   });
 
   it('guarantees full i18n coverage across finance, products, settings, service, builder & fixes MK typos (I18N-08..I18N-12)', () => {

@@ -58,7 +58,7 @@ export interface ProductCategory {
 
 export type ProductStockType = 'STOCK' | 'CUSTOM';
 
-export type InventoryMoveKind = 'ПРИЕМ' | 'ИЗЛЕЗ' | 'РЕЗЕРВАЦИЈА' | 'УПЛАТА' | 'НАБАВКА';
+export type InventoryMoveKind = 'ПРИЕМ' | 'ИЗЛЕЗ' | 'РЕЗЕРВАЦИЈА' | 'УПЛАТА' | 'НАБАВКА' | 'КОРЕКЦИЈА';
 
 export interface InventoryMovement {
   id: string;
@@ -83,6 +83,9 @@ export interface Product {
   stockType?: ProductStockType; // 'STOCK' (Залиха) | 'CUSTOM' (По нарачка)
   stockQuantity?: number;
   reservedQuantity?: number;
+  minStockLevel?: number;
+  primarySupplierId?: string | null;
+  barcode?: string | null;
   purchasePrice?: number; // Набавна цена (€)
   linkedAccessoryCategories?: string[]; // e.g. ['Автоматика', 'Шини', 'Додатоци']
   defaultAccessories?: Record<string, string>; // categoryName -> productId
@@ -302,6 +305,7 @@ export interface CompanySettings {
   oversizeRatePerSqm?: number;
   defaultHourlyLaborRate?: number;
   minMarginPercent?: number;
+  eurToMkdRate?: number;
   updatedAt?: string;
 }
 
@@ -319,7 +323,7 @@ export type ExpenseCategory =
   | 'АЛАТ_И_ОПРЕМА'
   | 'ОСТАНАТО';
 
-export type PurchaseInvoiceStatus = 'DRAFT' | 'INVOICED' | 'PARTIAL_PAID' | 'PAID';
+export type PurchaseInvoiceStatus = 'DRAFT' | 'INVOICED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
 export type WarehouseReceiptStatus = 'PENDING' | 'PARTIAL' | 'RECEIVED';
 
 export interface PurchaseInvoiceItem {
@@ -347,6 +351,7 @@ export interface PurchaseInvoice {
   offerId?: string;
   issueDate: string;
   dueDate?: string;
+  expectedDeliveryDate?: string;
   status: PurchaseInvoiceStatus;
   receiptStatus: WarehouseReceiptStatus;
   taxRate: number; // 18% or 5% or 0%
@@ -359,7 +364,7 @@ export interface PurchaseInvoice {
   createdAt: string;
 }
 
-export type SalesInvoiceType = 'PROFORMA' | 'ADVANCE' | 'FINAL';
+export type SalesInvoiceType = 'PROFORMA' | 'ADVANCE' | 'FINAL' | 'CREDIT_NOTE';
 export type SalesInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PARTIAL_PAID' | 'PAID' | 'CANCELLED';
 
 export interface SalesInvoiceItem {
@@ -397,12 +402,15 @@ export interface SalesInvoice {
   advanceDeductedAmount: number; // Износ на веќе платен аванс што се одбива
   totalAmount: number; // Конечен износ за доплата (grossTotalAmount - advanceDeductedAmount)
   paidAmount: number;
+  exchangeRate?: number;
+  voidReason?: string | null;
+  relatedInvoiceId?: string | null;
   notes?: string;
   items: SalesInvoiceItem[];
   createdAt: string;
 }
 
-export type DispatchNoteStatus = 'DRAFT' | 'ISSUED';
+export type DispatchNoteStatus = 'DRAFT' | 'ISSUED' | 'DELIVERED' | 'CANCELLED';
 
 export interface DispatchNoteItem {
   id: string;
@@ -434,7 +442,7 @@ export interface DispatchNote {
 }
 
 export type PaymentDirection = 'IN' | 'OUT';
-export type PaymentMethod = 'BANK' | 'CASH' | 'CARD';
+export type PaymentMethod = 'BANK' | 'CASH' | 'CARD' | 'COMPENSATION' | 'OTHER';
 
 export interface PaymentRecord {
   id: string;

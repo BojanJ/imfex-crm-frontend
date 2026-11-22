@@ -454,6 +454,74 @@ export default function ProductsPage() {
         />
       </div>
 
+      {/* BIZ-07: Per-SKU Low-Stock Alert Banner with 1-Click Draft PO Reorder */}
+      {(() => {
+        const lowStockItems = products.filter((p) => {
+          if (p.stockType === 'CUSTOM') return false;
+          const available = (p.stockQuantity ?? 0) - (p.reservedQuantity ?? 0);
+          const threshold = p.minStockLevel ?? 3;
+          return available <= threshold;
+        });
+        if (lowStockItems.length === 0) return null;
+        return (
+          <div className="p-4 rounded-xl border border-amber-500/35 bg-amber-500/[0.07] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div>
+              <strong className="font-semibold text-foreground block">
+                {t('products.low_stock_alert_title')} ({lowStockItems.length})
+              </strong>
+              <span className="text-muted-foreground">
+                {lowStockItems
+                  .slice(0, 4)
+                  .map((p) => `${p.code} (${Math.max(0, (p.stockQuantity ?? 0) - (p.reservedQuantity ?? 0))}/${p.minStockLevel ?? 3})`)
+                  .join(' · ')}
+                {lowStockItems.length > 4 ? ` +${lowStockItems.length - 4}` : ''}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const poItems = lowStockItems.map((p, idx) => {
+                  const targetQty = Math.max(1, (p.minStockLevel ?? 3) * 2 - Math.max(0, (p.stockQuantity ?? 0) - (p.reservedQuantity ?? 0)));
+                  const unitCost = Number(p.purchasePrice || 0);
+                  return {
+                    id: `pi-low-${Date.now()}-${idx}`,
+                    itemType: 'STOCK' as const,
+                    productId: p.id,
+                    title: `${p.code} — ${p.name}`,
+                    quantity: targetQty,
+                    unitCost,
+                    totalCost: Math.round(unitCost * targetQty * 100) / 100,
+                  };
+                });
+                const subtotal = Math.round(poItems.reduce((s, it) => s + it.totalCost, 0) * 100) / 100;
+                const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
+                const po = imfexStore.savePurchaseInvoice({
+                  id: `pinv-${Date.now()}`,
+                  internalNumber: imfexStore.generatePurchaseNumber(),
+                  supplierId: '',
+                  supplierName: 'Добавувач (Дополнување залиха)',
+                  issueDate: new Date().toISOString().split('T')[0],
+                  status: 'DRAFT',
+                  receiptStatus: 'PENDING',
+                  taxRate: 18,
+                  subtotal,
+                  taxAmount,
+                  totalAmount: Math.round((subtotal + taxAmount) * 100) / 100,
+                  paidAmount: 0,
+                  notes: 'Автоматски нацрт-нарачка од аларм за ниска залиха.',
+                  items: poItems,
+                  createdAt: new Date().toISOString(),
+                });
+                toast.success(t('products.reorder_po_created'), `${po.internalNumber} (${poItems.length})`);
+              }}
+              className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 cursor-pointer shrink-0"
+            >
+              {t('products.btn_create_reorder_po')}
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Unified Horizontal Tab Bar */}
       <TabBar
         activeTab={activeTab}
@@ -529,11 +597,12 @@ export default function ProductsPage() {
                       const costPrice = Number(p.purchasePrice ?? 0);
                       const baseSellPrice = Number(p.models?.[0]?.basePrice ?? 0);
 
+                      const minLevel = p.minStockLevel ?? 3;
                       const stockVariant = isCustom
                         ? 'primary'
                         : stockQty <= 0
                         ? 'danger'
-                        : stockQty <= 3
+                        : stockQty <= minLevel
                         ? 'warning'
                         : 'success';
 
