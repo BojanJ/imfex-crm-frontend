@@ -19,19 +19,19 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const isPublicAuthPage = pathname === '/login' || pathname === '/reset-password';
   const currentUser = imfexStore.getCurrentUser();
+  const isAuthedNow = imfexStore.isAuthenticated();
 
   useEffect(() => {
-    const isAuthed = imfexStore.isAuthenticated();
-    setIsAuthenticated(isAuthed);
+    setIsAuthenticated(isAuthedNow);
 
-    if (!isAuthed && !isPublicAuthPage) {
+    if (!isAuthedNow && !isPublicAuthPage) {
       router.replace('/login');
-    } else if (isAuthed && pathname === '/login') {
+    } else if (isAuthedNow && pathname === '/login') {
       router.replace('/');
     }
 
     setIsAuthChecking(false);
-  }, [pathname, isPublicAuthPage, router]);
+  }, [pathname, isPublicAuthPage, isAuthedNow, router]);
 
   if (isAuthChecking) {
     return (
@@ -47,7 +47,7 @@ export const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   }
 
-  if (!isAuthenticated && !isPublicAuthPage) {
+  if ((!isAuthenticated || !isAuthedNow) && !isPublicAuthPage) {
     return null;
   }
 

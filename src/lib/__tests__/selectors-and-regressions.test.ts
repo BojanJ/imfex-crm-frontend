@@ -11,7 +11,22 @@ import {
   isOfferExpired,
 } from '../selectors';
 import { buildCsvString } from '../csv-export';
-import { canDeleteRecords, canViewFinance, canWriteFinance, canWriteSales } from '../rbac';
+import {
+  canDeleteRecords,
+  canEmailInvoices,
+  canEmailOffers,
+  canManageCatalog,
+  canManageSettings,
+  canViewFinance,
+  canViewOffers,
+  canViewPurchaseCosts,
+  canWriteCustomers,
+  canWriteFinance,
+  canWriteOffers,
+  canWriteOperations,
+  canWriteSales,
+  canWriteSalesFinance,
+} from '../rbac';
 import mk from '@/i18n/mk.json';
 import en from '@/i18n/en.json';
 import type { Offer, PaymentRecord, Product, Project, PurchaseInvoice, SalesInvoice } from '@/types';
@@ -237,18 +252,81 @@ describe('Pure Selectors & R2 Regression Guards (IMP-08, IMP-12)', () => {
     expect(low.isBelowMinMargin).toBe(true);
   });
 
-  it('enforces frontend RBAC helpers mirroring backend ROLE_GROUPS (BIZ-15)', () => {
+  it('enforces frontend RBAC helpers mirroring backend ROLE_GROUPS across all 5 roles (BIZ-15)', () => {
+    // Finance visibility & purchase cost visibility
     expect(canViewFinance('SUPER_ADMIN')).toBe(true);
     expect(canViewFinance('ACCOUNTANT')).toBe(true);
     expect(canViewFinance('SALES')).toBe(true);
     expect(canViewFinance('TECHNICIAN')).toBe(false);
+    expect(canViewFinance('USER')).toBe(false);
+
+    expect(canViewPurchaseCosts('SUPER_ADMIN')).toBe(true);
+    expect(canViewPurchaseCosts('ACCOUNTANT')).toBe(true);
+    expect(canViewPurchaseCosts('SALES')).toBe(true);
+    expect(canViewPurchaseCosts('TECHNICIAN')).toBe(false);
+    expect(canViewPurchaseCosts('USER')).toBe(false);
+
+    // Finance write (procurement/void/reminders) vs Sales-Finance write (sales invoices/advances/dispatches)
+    expect(canWriteFinance('SUPER_ADMIN')).toBe(true);
     expect(canWriteFinance('ACCOUNTANT')).toBe(true);
     expect(canWriteFinance('SALES')).toBe(false);
+    expect(canWriteFinance('TECHNICIAN')).toBe(false);
+    expect(canWriteFinance('USER')).toBe(false);
+
+    expect(canWriteSalesFinance('SUPER_ADMIN')).toBe(true);
+    expect(canWriteSalesFinance('ACCOUNTANT')).toBe(true);
+    expect(canWriteSalesFinance('SALES')).toBe(true);
+    expect(canWriteSalesFinance('TECHNICIAN')).toBe(false);
+    expect(canWriteSalesFinance('USER')).toBe(false);
+
+    // Offers read vs write
+    expect(canViewOffers('SUPER_ADMIN')).toBe(true);
+    expect(canViewOffers('SALES')).toBe(true);
+    expect(canViewOffers('ACCOUNTANT')).toBe(true);
+    expect(canViewOffers('USER')).toBe(true);
+    expect(canViewOffers('TECHNICIAN')).toBe(false);
+
+    expect(canWriteOffers('SUPER_ADMIN')).toBe(true);
+    expect(canWriteOffers('SALES')).toBe(true);
+    expect(canWriteOffers('USER')).toBe(true);
+    expect(canWriteOffers('ACCOUNTANT')).toBe(false);
+    expect(canWriteOffers('TECHNICIAN')).toBe(false);
     expect(canWriteSales('SALES')).toBe(true);
     expect(canWriteSales('TECHNICIAN')).toBe(false);
+
+    // Customers, Catalog, Operations, Email, Settings & Delete
+    expect(canWriteCustomers('ACCOUNTANT')).toBe(true);
+    expect(canWriteCustomers('TECHNICIAN')).toBe(false);
+
+    expect(canManageCatalog('SUPER_ADMIN')).toBe(true);
+    expect(canManageCatalog('SALES')).toBe(true);
+    expect(canManageCatalog('ACCOUNTANT')).toBe(false);
+    expect(canManageCatalog('TECHNICIAN')).toBe(false);
+    expect(canManageCatalog('USER')).toBe(false);
+
+    expect(canWriteOperations('SUPER_ADMIN')).toBe(true);
+    expect(canWriteOperations('SALES')).toBe(true);
+    expect(canWriteOperations('TECHNICIAN')).toBe(true);
+    expect(canWriteOperations('USER')).toBe(true);
+    expect(canWriteOperations('ACCOUNTANT')).toBe(false);
+
+    expect(canEmailOffers('SALES')).toBe(true);
+    expect(canEmailOffers('ACCOUNTANT')).toBe(false);
+    expect(canEmailOffers('USER')).toBe(false);
+
+    expect(canEmailInvoices('ACCOUNTANT')).toBe(true);
+    expect(canEmailInvoices('SALES')).toBe(true);
+    expect(canEmailInvoices('USER')).toBe(false);
+
     expect(canDeleteRecords('SUPER_ADMIN')).toBe(true);
     expect(canDeleteRecords('ACCOUNTANT')).toBe(false);
     expect(canDeleteRecords('SALES')).toBe(false);
+    expect(canDeleteRecords('TECHNICIAN')).toBe(false);
+    expect(canDeleteRecords('USER')).toBe(false);
+
+    expect(canManageSettings('SUPER_ADMIN')).toBe(true);
+    expect(canManageSettings('SALES')).toBe(false);
+    expect(canManageSettings('ACCOUNTANT')).toBe(false);
   });
 
   it('computes unbilled completed projects, AR/AP aging buckets, VAT summary & safe CSV export (BIZ-08, BIZ-09, BIZ-10)', () => {

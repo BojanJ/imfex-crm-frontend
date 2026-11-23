@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canDeleteRecords, canWriteOperations } from '@/lib/rbac';
 import { useServiceTicketsQuery, useDeleteServiceTicketMutation } from '@/lib/queries';
 import { ServiceTicket, ServiceStatus } from '@/types';
 import { formatDateTime } from '@/lib/date-format';
@@ -61,6 +62,10 @@ function statusVariant(status: ServiceStatus): BadgeVariant {
 
 export default function ServiceDeskPage() {
   const { t, locale } = useI18n();
+  useImfexStore();
+  const currentRole = imfexStore.getCurrentRole();
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
   const ticketsQuery = useServiceTicketsQuery();
   const deleteTicketMutation = useDeleteServiceTicketMutation();
 
@@ -92,13 +97,15 @@ export default function ServiceDeskPage() {
         subtitle={t('service.subtitle')}
         icon={<Wrench className="w-5 h-5" />}
         actions={
-          <Link
-            href="/service/new"
-            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('service.new_ticket')}</span>
-          </Link>
+          allowOpsWrite ? (
+            <Link
+              href="/service/new"
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('service.new_ticket')}</span>
+            </Link>
+          ) : undefined
         }
       />
 
@@ -205,15 +212,17 @@ export default function ServiceDeskPage() {
                         >
                           {t('service.open')} <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => setTicketToDelete(st)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
-                          title={t('service.delete_ticket')}
-                          aria-label={t('service.delete_ticket')}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {allowDelete && (
+                          <button
+                            type="button"
+                            onClick={() => setTicketToDelete(st)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                            title={t('service.delete_ticket')}
+                            aria-label={t('service.delete_ticket')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

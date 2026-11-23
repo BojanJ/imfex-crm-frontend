@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useI18n, Locale } from '@/lib/i18n-context';
 import { useTheme } from '@/lib/theme-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import { getUserRoleLabel } from '@/lib/enum-labels';
 import { UserProfile } from '@/types';
 import { Menu, LogOut, Sun, Moon } from 'lucide-react';
 
@@ -98,10 +99,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onMobileMenuToggle }) => {
             {currentUser?.fullName ? currentUser.fullName.slice(0, 2) : 'IM'}
           </div>
           <div className="hidden md:block text-left leading-tight">
-            <p className="text-xs font-medium text-foreground max-w-[140px] truncate">
-              {currentUser?.fullName || ''}
-            </p>
-            <p className="text-[11px] text-muted-foreground max-w-[140px] truncate">
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs font-medium text-foreground max-w-[140px] truncate">
+                {currentUser?.fullName || ''}
+              </p>
+              {currentUser?.role && (
+                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-semibold whitespace-nowrap">
+                  {getUserRoleLabel(currentUser.role, locale)}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground max-w-[180px] truncate">
               {currentUser?.email || ''}
             </p>
           </div>

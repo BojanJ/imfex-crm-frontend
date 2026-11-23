@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { useOffersQuery, useProjectsQuery, useServiceTicketsQuery } from '@/lib/queries';
-import { canViewFinance, canWriteSales } from '@/lib/rbac';
+import { canViewFinance, canViewOffers, canWriteCustomers, canWriteOffers } from '@/lib/rbac';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
 import {
@@ -60,21 +60,23 @@ export default function DashboardPage() {
   const currentUser = imfexStore.getCurrentUser();
   const currentRole = currentUser?.role ?? imfexStore.getCurrentRole();
   const showFinance = canViewFinance(currentRole);
-  const allowSalesWrite = canWriteSales(currentRole);
+  const showOffers = canViewOffers(currentRole);
+  const allowOfferWrite = canWriteOffers(currentRole);
+  const allowCustomerWrite = canWriteCustomers(currentRole);
 
   const offersQuery = useOffersQuery();
   const projectsQuery = useProjectsQuery();
   const ticketsQuery = useServiceTicketsQuery();
 
-  const offers = offersQuery.data ?? imfexStore.getOffers();
+  const offers = showOffers ? (offersQuery.data ?? imfexStore.getOffers()) : [];
   const projects = projectsQuery.data ?? imfexStore.getProjects();
   const serviceTickets = ticketsQuery.data ?? imfexStore.getServiceTickets();
   const [selectedOfferForPdf, setSelectedOfferForPdf] = useState<Offer | null>(null);
 
   const isLoading =
-    (offersQuery.isPending && offers.length === 0) ||
-    (projectsQuery.isPending && projects.length === 0) ||
-    (ticketsQuery.isPending && serviceTickets.length === 0);
+    (showOffers && offersQuery.isLoading && offers.length === 0) ||
+    (projectsQuery.isLoading && projects.length === 0) ||
+    (ticketsQuery.isLoading && serviceTickets.length === 0);
 
   // BIZ-15: Accurate executive KPIs — separate signed ACCEPTED revenue from open SENT pipeline; exclude DRAFTs from win rate
   const acceptedOffers = offers.filter((o) => o.status === 'ACCEPTED');
@@ -143,13 +145,15 @@ export default function DashboardPage() {
         subtitle={t('dashboard.subtitle')}
         actions={
           <>
-            <Link
-              href="/customers"
-              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
-            >
-              <Users className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{t('dashboard.new_customer')}</span>
-            </Link>
+            {allowCustomerWrite && (
+              <Link
+                href="/customers"
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
+              >
+                <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{t('dashboard.new_customer')}</span>
+              </Link>
+            )}
             <Link
               href="/products"
               className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors"
@@ -166,7 +170,7 @@ export default function DashboardPage() {
                 <span>{t('nav.finance') || 'Финансии'}</span>
               </Link>
             )}
-            {allowSalesWrite && (
+            {allowOfferWrite && (
               <Link
                 href="/offers/new"
                 className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
@@ -179,24 +183,26 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Calm 4-Column KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label={t('dashboard.signed_revenue')}
-          value={formatCurrency(signedRevenue)}
-          tone="success"
-          icon={<Euro className="w-4 h-4" />}
-          helper={
-            <>
-              <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>
-                {openPipelineRevenue > 0
-                  ? `${t('dashboard.open_pipeline')}: ${formatCurrency(openPipelineRevenue)}`
-                  : t('dashboard.pipeline_growth')}
-              </span>
-            </>
-          }
-        />
+      {/* Role-Tailored KPI Strip (Financial revenue KPIs hidden for non-finance roles) */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 ${showFinance ? 'lg:grid-cols-4' : 'lg:grid-cols-2'} gap-4`}>
+        {showFinance && (
+          <StatCard
+            label={t('dashboard.signed_revenue')}
+            value={formatCurrency(signedRevenue)}
+            tone="success"
+            icon={<Euro className="w-4 h-4" />}
+            helper={
+              <>
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  {openPipelineRevenue > 0
+                    ? `${t('dashboard.open_pipeline')}: ${formatCurrency(openPipelineRevenue)}`
+                    : t('dashboard.pipeline_growth')}
+                </span>
+              </>
+            }
+          />
+        )}
 
         <StatCard
           label={t('dashboard.active_projects')}
@@ -226,13 +232,15 @@ export default function DashboardPage() {
           helper={t('dashboard.field_dispatch')}
         />
 
-        <StatCard
-          label={t('dashboard.accepted_ratio')}
-          value={`${acceptanceRate}%`}
-          tone="primary"
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          helper={`${acceptedCount} ${t('dashboard.quotes_signed')}`}
-        />
+        {showFinance && (
+          <StatCard
+            label={t('dashboard.accepted_ratio')}
+            value={`${acceptanceRate}%`}
+            tone="primary"
+            icon={<CheckCircle2 className="w-4 h-4" />}
+            helper={`${acceptedCount} ${t('dashboard.quotes_signed')}`}
+          />
+        )}
       </div>
 
       {/* Role-Tailored Focus Strip & Monthly Signed Revenue Chart (BIZ-15) */}
@@ -255,7 +263,7 @@ export default function DashboardPage() {
             <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
-      ) : (
+      ) : showFinance ? (
         <SectionCard
           title={t('dashboard.monthly_revenue_title')}
           subtitle={t('dashboard.monthly_revenue_sub')}
@@ -284,7 +292,7 @@ export default function DashboardPage() {
             })}
           </div>
         </SectionCard>
-      )}
+      ) : null}
 
       {/* Operational Widgets Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -405,7 +413,8 @@ export default function DashboardPage() {
         </SectionCard>
       </div>
 
-      {/* Recent Offers Table */}
+      {/* Recent Offers Table (hidden for roles without Offers access e.g. TECHNICIAN) */}
+      {showOffers && (
       <SectionCard
         title={t('dashboard.recent_offers')}
         subtitle={t('dashboard.latest_quotes_desc')}
@@ -524,6 +533,7 @@ export default function DashboardPage() {
           </>
         )}
       </SectionCard>
+      )}
 
       {/* PDF Export Modal */}
       {selectedOfferForPdf && (

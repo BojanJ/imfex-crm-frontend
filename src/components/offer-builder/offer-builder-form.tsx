@@ -5,6 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Offer, OfferItem, OfferItemSpecSelection, OfferStatus, Product, ServiceType } from '@/types';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, getApiUrl, authFetch } from '@/lib/store';
+import {
+  canEmailOffers,
+  canViewFinance,
+  canViewPurchaseCosts,
+  canWriteCustomers,
+  canWriteOffers,
+  canWriteSalesFinance,
+} from '@/lib/rbac';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query-client';
 import { computeCustomerFinancialProfile, computeOfferTotals, computeOfferMarginSummary } from '@/lib/selectors';
@@ -51,6 +59,13 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   const urlCustomerId = searchParams ? searchParams.get('customerId') : null;
   const urlProductId = searchParams ? searchParams.get('productId') : null;
   const { t, locale } = useI18n();
+  const currentRole = imfexStore.getCurrentRole();
+  const allowOfferWrite = canWriteOffers(currentRole);
+  const allowCustomerWrite = canWriteCustomers(currentRole);
+  const allowSalesFinance = canWriteSalesFinance(currentRole);
+  const allowEmailOffer = canEmailOffers(currentRole);
+  const showPurchaseCost = canViewPurchaseCosts(currentRole);
+  const showFinance = canViewFinance(currentRole);
   const customersQuery = useCustomersQuery();
   const productsQuery = useProductsQuery();
   const categoriesQuery = useCategoriesQuery();
@@ -529,12 +544,17 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
   };
 
   const handleSaveAndRedirect = () => {
+    if (!allowOfferWrite) return;
     handleSaveOffer();
     router.push('/offers');
   };
 
   const handlePreviewPdf = () => {
-    handleSaveOffer();
+    if (allowOfferWrite) {
+      handleSaveOffer();
+    } else if (existingOffer) {
+      setSavedOfferForPdf(existingOffer);
+    }
     setIsPdfModalOpen(true);
   };
 
@@ -622,12 +642,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
         subtitle={t('builder.subtitle')}
         actions={
           <>
-            {(existingOffer || savedOfferForPdf) && (
+            {allowSalesFinance && (existingOffer || savedOfferForPdf) && (
               <button
                 type="button"
                 onClick={() => {
-                  const saved = handleSaveOffer('ACCEPTED');
-                  setSavedOfferForPdf(saved);
+                  if (allowOfferWrite) {
+                    const saved = handleSaveOffer('ACCEPTED');
+                    setSavedOfferForPdf(saved);
+                  } else if (existingOffer) {
+                    setSavedOfferForPdf(existingOffer);
+                  }
                   setIsAdvanceModalOpen(true);
                 }}
                 className="h-9 px-3 text-xs font-medium rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
@@ -635,14 +659,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                 <span>{t('offers.advance')}</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setIsEmailModalOpen(true)}
-              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Mail className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>{t('builder.send_email')}</span>
-            </button>
+            {allowEmailOffer && (
+              <button
+                type="button"
+                onClick={() => setIsEmailModalOpen(true)}
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Mail className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>{t('builder.send_email')}</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePreviewPdf}
@@ -651,17 +677,25 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               <FileText className="w-3.5 h-3.5 text-primary" />
               <span>{t('builder.export_pdf')}</span>
             </button>
-            <button
-              type="button"
-              onClick={handleSaveAndRedirect}
-              className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{t('builder.save_quote')}</span>
-            </button>
+            {allowOfferWrite && (
+              <button
+                type="button"
+                onClick={handleSaveAndRedirect}
+                className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{t('builder.save_quote')}</span>
+              </button>
+            )}
           </>
         }
       />
+
+      {!allowOfferWrite && (
+        <div className="px-4 py-3 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs font-medium">
+          {t('rbac.read_only_notice')}
+        </div>
+      )}
 
       {/* Customer Selection & Quote Metadata Box */}
       {existingOffer &&
@@ -682,14 +716,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
           title={t('builder.target_customer')}
           icon={<Building2 className="w-4 h-4" />}
           action={
-            <button
-              type="button"
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>{t('builder.new_customer')}</span>
-            </button>
+            allowOfferWrite && allowCustomerWrite ? (
+              <button
+                type="button"
+                onClick={() => setIsCustomerModalOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>{t('builder.new_customer')}</span>
+              </button>
+            ) : undefined
           }
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -730,8 +766,8 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
                     {[selectedCustomerObj.address, selectedCustomerObj.city].filter(Boolean).join(', ')}
                   </p>
                 )}
-                {/* BIZ-14: Inline Overdue Balance / Credit Limit Warning */}
-                {(() => {
+                {/* BIZ-14: Inline Overdue Balance / Credit Limit Warning (Finance-visible roles only) */}
+                {showFinance && (() => {
                   const custFin = computeCustomerFinancialProfile({
                     customer: selectedCustomerObj,
                     offers: imfexStore.getOffers(),
@@ -1509,41 +1545,43 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               <span className="text-primary block text-[11px] font-medium">{t('offers.total')}</span>
               <span className="font-semibold text-lg text-primary">{formatCurrency(totalAmount)}</span>
             </div>
-            {/* Internal Cost & Gross Margin Guardrail Pill (BIZ-03) */}
-            <div
-              className={`pl-4 border-l border-border ${
-                marginSummary.isBelowMinMargin
-                  ? 'text-red-600 dark:text-red-400'
-                  : marginSummary.hasCostData
-                  ? 'text-emerald-700 dark:text-emerald-400'
-                  : 'text-muted-foreground'
-              }`}
-              title={
-                marginSummary.hasCostData
-                  ? `${t('builder.est_cost')}: ${formatCurrency(marginSummary.estimatedCost)} | ${t('builder.est_profit')}: ${formatCurrency(marginSummary.estimatedProfit)}`
-                  : t('builder.no_cost_data_hint')
-              }
-            >
-              <span className="block text-[11px] font-medium">
-                {t('builder.internal_margin')}
-              </span>
-              {marginSummary.hasCostData ? (
-                <span className="font-semibold text-xs inline-flex items-center gap-1.5">
-                  <span>
-                    {formatCurrency(marginSummary.estimatedProfit)} ({marginSummary.marginPercent}%)
-                  </span>
-                  {marginSummary.isBelowMinMargin && (
-                    <span className="px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-[10px] font-bold">
-                      &lt;{marginSummary.minMarginPercent}%
+            {/* Internal Cost & Gross Margin Guardrail Pill (BIZ-03 — visible only to purchase-cost roles) */}
+            {showPurchaseCost && (
+              <div
+                className={`pl-4 border-l border-border ${
+                  marginSummary.isBelowMinMargin
+                    ? 'text-red-600 dark:text-red-400'
+                    : marginSummary.hasCostData
+                    ? 'text-emerald-700 dark:text-emerald-400'
+                    : 'text-muted-foreground'
+                }`}
+                title={
+                  marginSummary.hasCostData
+                    ? `${t('builder.est_cost')}: ${formatCurrency(marginSummary.estimatedCost)} | ${t('builder.est_profit')}: ${formatCurrency(marginSummary.estimatedProfit)}`
+                    : t('builder.no_cost_data_hint')
+                }
+              >
+                <span className="block text-[11px] font-medium">
+                  {t('builder.internal_margin')}
+                </span>
+                {marginSummary.hasCostData ? (
+                  <span className="font-semibold text-xs inline-flex items-center gap-1.5">
+                    <span>
+                      {formatCurrency(marginSummary.estimatedProfit)} ({marginSummary.marginPercent}%)
                     </span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-[11px] font-normal italic">
-                  {t('builder.no_cost_data')}
-                </span>
-              )}
-            </div>
+                    {marginSummary.isBelowMinMargin && (
+                      <span className="px-1.5 py-0.5 rounded bg-red-500/15 border border-red-500/30 text-[10px] font-bold">
+                        &lt;{marginSummary.minMarginPercent}%
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-normal italic">
+                    {t('builder.no_cost_data')}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
@@ -1555,14 +1593,16 @@ export const OfferBuilderForm: React.FC<OfferBuilderFormProps> = ({ existingOffe
               <FileText className="w-3.5 h-3.5 text-primary" />
               <span>{t('builder.export_pdf')}</span>
             </button>
-            <button
-              type="button"
-              onClick={handleSaveAndRedirect}
-              className="h-9 px-5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{t('builder.save_quote')}</span>
-            </button>
+            {allowOfferWrite && (
+              <button
+                type="button"
+                onClick={handleSaveAndRedirect}
+                className="h-9 px-5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{t('builder.save_quote')}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

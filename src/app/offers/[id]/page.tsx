@@ -4,6 +4,9 @@ import React, { use } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { useOfferQuery } from '@/lib/queries';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canViewOffers } from '@/lib/rbac';
+import { AccessDenied } from '@/components/ui/access-denied';
 import { OfferBuilderForm } from '@/components/offer-builder/offer-builder-form';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 
@@ -11,9 +14,15 @@ export const dynamic = 'force-dynamic';
 
 export default function EditOfferPage({ params }: { params: Promise<{ id: string }> }) {
   const { t } = useI18n();
+  useImfexStore();
   const resolvedParams = use(params);
   const id = resolvedParams?.id;
-  const { data: offer, isLoading, isPending } = useOfferQuery(id);
+  const allowViewOffers = canViewOffers(imfexStore.getCurrentRole());
+  const { data: offer, isLoading, isPending } = useOfferQuery(allowViewOffers ? id : undefined);
+
+  if (!allowViewOffers) {
+    return <AccessDenied />;
+  }
 
   if ((isLoading || isPending) && !offer) {
     return (

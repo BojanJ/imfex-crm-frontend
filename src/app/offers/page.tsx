@@ -8,7 +8,13 @@ import { Offer, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import { apiClient } from '@/lib/api-client';
 import { isOfferExpired } from '@/lib/selectors';
-import { canDeleteRecords } from '@/lib/rbac';
+import {
+  canDeleteRecords,
+  canViewOffers,
+  canWriteOffers,
+  canWriteSalesFinance,
+} from '@/lib/rbac';
+import { AccessDenied } from '@/components/ui/access-denied';
 import { useOffersQuery, useProjectsQuery, useDeleteOfferMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
@@ -26,12 +32,13 @@ import {
   Euro,
   Receipt,
   Copy,
+  Eye,
 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { toast } from '@/components/ui/toastr';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PageLoadingSkeleton } from '@/components/ui/loading-skeleton';
-import { PageHeader, FilterBar, EmptyState } from '@/components/ui/page-primitives';
+import { PageHeader, FilterBar, EmptyState, StatusBadge } from '@/components/ui/page-primitives';
 
 function offerStatusSelectStyle(status: string) {
   switch (status) {
@@ -167,6 +174,16 @@ export default function OffersPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const currentRole = imfexStore.getCurrentRole();
+  const allowViewOffers = canViewOffers(currentRole);
+  const allowOfferWrite = canWriteOffers(currentRole);
+  const allowSalesFinance = canWriteSalesFinance(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
+
+  if (!allowViewOffers) {
+    return <AccessDenied />;
+  }
+
   if (!imfexStore.isLoadedFromBackend) {
     return <PageLoadingSkeleton cards={0} rows={6} />;
   }
@@ -178,13 +195,15 @@ export default function OffersPage() {
         subtitle={t('offers.subtitle')}
         icon={<FileSpreadsheet className="w-5 h-5" />}
         actions={
-          <Link
-            href="/offers/new"
-            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('offers.create_offer')}</span>
-          </Link>
+          allowOfferWrite ? (
+            <Link
+              href="/offers/new"
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('offers.create_offer')}</span>
+            </Link>
+          ) : undefined
         }
       />
 
@@ -236,15 +255,32 @@ export default function OffersPage() {
                       </Link>
                       <p className="text-[11px] text-muted-foreground">{formatDate(offer.createdAt)}</p>
                     </div>
-                    <div className="w-32 shrink-0">
-                      <SearchableSelect
-                        options={statusOptions}
-                        value={offer.status}
-                        onChange={(val) => handleSetStatus(offer.id, val)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
-                          offer.status
-                        )}`}
-                      />
+                    <div className="w-32 shrink-0 flex justify-end">
+                      {allowOfferWrite ? (
+                        <SearchableSelect
+                          options={statusOptions}
+                          value={offer.status}
+                          onChange={(val) => handleSetStatus(offer.id, val)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
+                            offer.status
+                          )}`}
+                        />
+                      ) : (
+                        <StatusBadge
+                          variant={
+                            offer.status === 'ACCEPTED'
+                              ? 'success'
+                              : offer.status === 'REJECTED'
+                              ? 'danger'
+                              : offer.status === 'SENT'
+                              ? 'primary'
+                              : 'warning'
+                          }
+                          dot
+                        >
+                          {getOfferStatusLabel(offer.status, locale)}
+                        </StatusBadge>
+                      )}
                     </div>
                   </div>
 
@@ -263,7 +299,7 @@ export default function OffersPage() {
                     </span>
 
                     <div className="flex items-center gap-1">
-                      {(offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
+                      {allowSalesFinance && (offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
                         <button
                           type="button"
                           onClick={() => setAdvanceOffer(offer)}
@@ -285,12 +321,12 @@ export default function OffersPage() {
                       <Link
                         href={`/offers/${offer.id}`}
                         className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg"
-                        title={t('offers.edit_offer_tooltip')}
-                        aria-label={t('offers.edit_offer_tooltip')}
+                        title={allowOfferWrite ? t('offers.edit_offer_tooltip') : t('rbac.view_details')}
+                        aria-label={allowOfferWrite ? t('offers.edit_offer_tooltip') : t('rbac.view_details')}
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        {allowOfferWrite ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </Link>
-                      {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                      {allowDelete && (
                         <button
                           type="button"
                           onClick={() => handleDelete(offer.id)}
@@ -364,14 +400,31 @@ export default function OffersPage() {
 
                       <td className="px-2 xl:px-2.5 py-3 whitespace-nowrap">
                         <div className="w-24 xl:w-28">
-                          <SearchableSelect
-                            options={statusOptions}
-                            value={offer.status}
-                            onChange={(val) => handleSetStatus(offer.id, val)}
-                            className={`px-2 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
-                              offer.status
-                            )}`}
-                          />
+                          {allowOfferWrite ? (
+                            <SearchableSelect
+                              options={statusOptions}
+                              value={offer.status}
+                              onChange={(val) => handleSetStatus(offer.id, val)}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-medium border outline-none cursor-pointer ${offerStatusSelectStyle(
+                                offer.status
+                              )}`}
+                            />
+                          ) : (
+                            <StatusBadge
+                              variant={
+                                offer.status === 'ACCEPTED'
+                                  ? 'success'
+                                  : offer.status === 'REJECTED'
+                                  ? 'danger'
+                                  : offer.status === 'SENT'
+                                  ? 'primary'
+                                  : 'warning'
+                              }
+                              dot
+                            >
+                              {getOfferStatusLabel(offer.status, locale)}
+                            </StatusBadge>
+                          )}
                         </div>
                       </td>
 
@@ -396,7 +449,7 @@ export default function OffersPage() {
 
                       <td className="px-2.5 xl:px-3.5 py-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1">
-                          {(offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
+                          {allowSalesFinance && (offer.status === 'SENT' || offer.status === 'ACCEPTED') && (
                             <>
                               <button
                                 type="button"
@@ -452,24 +505,26 @@ export default function OffersPage() {
                           <Link
                             href={`/offers/${offer.id}`}
                             className="h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center justify-center transition-colors"
-                            title={t('offers.edit_offer_tooltip')}
-                            aria-label={t('offers.edit_offer_tooltip')}
+                            title={allowOfferWrite ? t('offers.edit_offer_tooltip') : t('rbac.view_details')}
+                            aria-label={allowOfferWrite ? t('offers.edit_offer_tooltip') : t('rbac.view_details')}
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            {allowOfferWrite ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                           </Link>
 
-                          <button
-                            type="button"
-                            disabled={cloningId === offer.id}
-                            onClick={() => void handleCloneOffer(offer.id)}
-                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-muted inline-flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50"
-                            title={t('offers.clone_offer_tooltip')}
-                            aria-label={t('offers.clone_offer_tooltip')}
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
+                          {allowOfferWrite && (
+                            <button
+                              type="button"
+                              disabled={cloningId === offer.id}
+                              onClick={() => void handleCloneOffer(offer.id)}
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:text-primary hover:bg-muted inline-flex items-center justify-center cursor-pointer transition-colors disabled:opacity-50"
+                              title={t('offers.clone_offer_tooltip')}
+                              aria-label={t('offers.clone_offer_tooltip')}
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          )}
 
-                          {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                          {allowDelete && (
                             <button
                               type="button"
                               onClick={() => handleDelete(offer.id)}

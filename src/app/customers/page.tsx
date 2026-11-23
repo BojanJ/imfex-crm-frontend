@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Customer, Offer } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { canDeleteRecords } from '@/lib/rbac';
+import {
+  canDeleteRecords,
+  canViewFinance,
+  canViewOffers,
+  canWriteCustomers,
+  canWriteOffers,
+} from '@/lib/rbac';
 import { useCustomersQuery, useDeleteCustomerMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency } from '@/lib/formatters';
@@ -74,8 +80,17 @@ export default function CustomersPage() {
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [previewOffer, setPreviewOffer] = useState<Offer | null>(null);
 
+  const currentRole = imfexStore.getCurrentRole();
+  const allowCustomerWrite = canWriteCustomers(currentRole);
+  const allowOfferWrite = canWriteOffers(currentRole);
+  const showOffers = canViewOffers(currentRole);
+  const showFinance = canViewFinance(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
+
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(null);
-  const [detailTab, setDetailTab] = useState<'OFFERS' | 'PROJECTS' | 'INVOICES' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>('OFFERS');
+  const [detailTab, setDetailTab] = useState<'OFFERS' | 'PROJECTS' | 'INVOICES' | 'DOCS' | 'EQUIPMENT' | 'SERVICE'>(
+    showOffers ? 'OFFERS' : 'PROJECTS'
+  );
 
   useEscapeKey(Boolean(activeCustomerDetail) && !previewOffer, () => setActiveCustomerDetail(null));
 
@@ -116,26 +131,29 @@ export default function CustomersPage() {
     ? imfexStore.getServiceTickets().filter((st) => st.customerId === activeCustomerDetail.id)
     : [];
 
-  const offersForActiveCust = activeCustomerDetail
-    ? imfexStore.getOffers().filter((o) => o.customerId === activeCustomerDetail.id)
-    : [];
+  const offersForActiveCust =
+    activeCustomerDetail && showOffers
+      ? imfexStore.getOffers().filter((o) => o.customerId === activeCustomerDetail.id)
+      : [];
 
   const projectsForActiveCust = activeCustomerDetail
     ? imfexStore.getProjects().filter((p) => p.customerId === activeCustomerDetail.id)
     : [];
 
-  const invoicesForActiveCust = activeCustomerDetail
-    ? imfexStore.getSalesInvoices().filter((s) => s.customerId === activeCustomerDetail.id)
-    : [];
+  const invoicesForActiveCust =
+    activeCustomerDetail && showFinance
+      ? imfexStore.getSalesInvoices().filter((s) => s.customerId === activeCustomerDetail.id)
+      : [];
 
-  const activeCustFinance = activeCustomerDetail
-    ? computeCustomerFinancialProfile({
-        customer: activeCustomerDetail,
-        offers: imfexStore.getOffers(),
-        salesInvoices: imfexStore.getSalesInvoices(),
-        payments: imfexStore.getPayments(),
-      })
-    : null;
+  const activeCustFinance =
+    activeCustomerDetail && showFinance
+      ? computeCustomerFinancialProfile({
+          customer: activeCustomerDetail,
+          offers: imfexStore.getOffers(),
+          salesInvoices: imfexStore.getSalesInvoices(),
+          payments: imfexStore.getPayments(),
+        })
+      : null;
 
   if (!imfexStore.isLoadedFromBackend) {
     return <PageLoadingSkeleton cards={0} rows={6} />;
@@ -150,17 +168,19 @@ export default function CustomersPage() {
         subtitle={t('customers.subtitle')}
         icon={<Users className="w-5 h-5" />}
         actions={
-          <button
-            type="button"
-            onClick={() => {
-              setEditingCustomer(null);
-              setIsModalOpen(true);
-            }}
-            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('customers.add_customer')}</span>
-          </button>
+          allowCustomerWrite ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingCustomer(null);
+                setIsModalOpen(true);
+              }}
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('customers.add_customer')}</span>
+            </button>
+          ) : undefined
         }
       />
 
@@ -247,19 +267,21 @@ export default function CustomersPage() {
                       className="flex items-center gap-0.5 shrink-0"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingCustomer(customer);
-                          setIsModalOpen(true);
-                        }}
-                        className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                        title="Уреди клиент"
-                        aria-label="Уреди клиент"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                      {allowCustomerWrite && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCustomer(customer);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted cursor-pointer transition-colors"
+                          title="Уреди клиент"
+                          aria-label="Уреди клиент"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {allowDelete && (
                         <button
                           type="button"
                           onClick={() => handleDelete(customer.id)}
@@ -302,14 +324,16 @@ export default function CustomersPage() {
                     {t('customers.view_history')}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </span>
-                  <Link
-                    href={`/offers/new?customerId=${customer.id}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="font-medium text-primary hover:underline inline-flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{t('offers.create_offer')}</span>
-                  </Link>
+                  {allowOfferWrite && (
+                    <Link
+                      href={`/offers/new?customerId=${customer.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-medium text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{t('offers.create_offer')}</span>
+                    </Link>
+                  )}
                 </div>
               </div>
             );
@@ -350,13 +374,15 @@ export default function CustomersPage() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <Link
-                  href={`/offers/new?customerId=${activeCustomerDetail.id}`}
-                  className="h-8 px-3 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>{t('offers.create_offer')}</span>
-                </Link>
+                {allowOfferWrite && (
+                  <Link
+                    href={`/offers/new?customerId=${activeCustomerDetail.id}`}
+                    className="h-8 px-3 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{t('offers.create_offer')}</span>
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => setActiveCustomerDetail(null)}
@@ -406,24 +432,32 @@ export default function CustomersPage() {
                 setDetailTab(id as 'OFFERS' | 'PROJECTS' | 'INVOICES' | 'DOCS' | 'EQUIPMENT' | 'SERVICE')
               }
               tabs={[
-                {
-                  id: 'OFFERS',
-                  label: t('nav.offers'),
-                  count: offersForActiveCust.length,
-                  icon: <FileText className="w-3.5 h-3.5" />,
-                },
+                ...(showOffers
+                  ? [
+                      {
+                        id: 'OFFERS',
+                        label: t('nav.offers'),
+                        count: offersForActiveCust.length,
+                        icon: <FileText className="w-3.5 h-3.5" />,
+                      },
+                    ]
+                  : []),
                 {
                   id: 'PROJECTS',
                   label: t('nav.projects'),
                   count: projectsForActiveCust.length,
                   icon: <Briefcase className="w-3.5 h-3.5" />,
                 },
-                {
-                  id: 'INVOICES',
-                  label: t('customers.tab_invoices'),
-                  count: invoicesForActiveCust.length,
-                  icon: <Receipt className="w-3.5 h-3.5" />,
-                },
+                ...(showFinance
+                  ? [
+                      {
+                        id: 'INVOICES',
+                        label: t('customers.tab_invoices'),
+                        count: invoicesForActiveCust.length,
+                        icon: <Receipt className="w-3.5 h-3.5" />,
+                      },
+                    ]
+                  : []),
                 {
                   id: 'DOCS',
                   label: t('customers.documentation'),
@@ -446,7 +480,7 @@ export default function CustomersPage() {
             />
 
             {/* Tab: Offers (Customer 360 — BIZ-14) */}
-            {detailTab === 'OFFERS' && (
+            {showOffers && detailTab === 'OFFERS' && (
               <div className="space-y-2.5">
                 {offersForActiveCust.length === 0 ? (
                   <div className="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
@@ -505,7 +539,7 @@ export default function CustomersPage() {
             )}
 
             {/* Tab: Sales Invoices & Balance (Customer 360 — BIZ-14) */}
-            {detailTab === 'INVOICES' && (
+            {showFinance && detailTab === 'INVOICES' && (
               <div className="space-y-2.5">
                 {invoicesForActiveCust.length === 0 ? (
                   <div className="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">

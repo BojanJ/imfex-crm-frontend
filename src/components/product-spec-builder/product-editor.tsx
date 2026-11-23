@@ -12,9 +12,15 @@ interface ProductEditorProps {
   product: Product;
   onUpdate: () => void;
   isSuperAdmin: boolean;
+  canViewCost?: boolean;
 }
 
-export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate, isSuperAdmin }) => {
+export const ProductEditor: React.FC<ProductEditorProps> = ({
+  product,
+  onUpdate,
+  isSuperAdmin,
+  canViewCost = isSuperAdmin,
+}) => {
   const { t } = useI18n();
   useImfexStore(); // Auto-subscribe to store state changes
 
@@ -558,9 +564,11 @@ export const ProductEditor: React.FC<ProductEditorProps> = ({ product, onUpdate,
                 >
                   {product.isActive !== false ? t('products.active') : t('products.inactive')}
                 </span>
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
-                  {t('products.purchase_cost_short')}: €{Number(product.purchasePrice || 0).toFixed(2)}
-                </span>
+                {canViewCost && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400">
+                    {t('products.purchase_cost_short')}: €{Number(product.purchasePrice || 0).toFixed(2)}
+                  </span>
+                )}
                 <h2 className="font-extrabold text-xl">{product.name}</h2>
                 {isSuperAdmin && (
                   <button

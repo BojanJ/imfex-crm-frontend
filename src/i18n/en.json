@@ -851,5 +851,13 @@
     "delivery_terms_placeholder": "e.g. 4–6 weeks from advance",
     "warranty_terms": "Warranty Terms",
     "warranty_terms_placeholder": "e.g. 24 months on door & motor"
+  },
+  "rbac": {
+    "access_denied_title": "Access Restricted",
+    "access_denied_desc": "Your user role does not have permission to view this module or perform this action.",
+    "current_role": "Current role",
+    "back_to_dashboard": "Back to Dashboard",
+    "read_only_notice": "Read-only mode — your role can view this section without editing.",
+    "view_details": "View Details"
   }
 }

@@ -9,7 +9,8 @@ import { apiClient } from '@/lib/api-client';
 import { computeAgingAndVatSummary, getInvoiceOverdueDays } from '@/lib/selectors';
 import { downloadCsv } from '@/lib/csv-export';
 import { generatePurchaseOrderVectorPdf } from '@/lib/pdf-generator';
-import { canDeleteRecords, canWriteFinance } from '@/lib/rbac';
+import { canDeleteRecords, canViewFinance, canWriteFinance } from '@/lib/rbac';
+import { AccessDenied } from '@/components/ui/access-denied';
 import {
   PurchaseInvoice,
   PurchaseInvoiceItem,
@@ -169,6 +170,7 @@ function FinancePageContent() {
   const [vatFromDate, setVatFromDate] = useState('');
   const [vatToDate, setVatToDate] = useState('');
   const currentRole = imfexStore.getCurrentRole();
+  const allowFinanceView = canViewFinance(currentRole);
   const allowFinanceWrite = canWriteFinance(currentRole);
   const allowDelete = canDeleteRecords(currentRole);
   const [pReceiveImmediately, setPReceiveImmediately] = useState<boolean>(true);
@@ -769,6 +771,10 @@ function FinancePageContent() {
   useEscapeKey(showDispatchModal && !confirmState.isOpen, () => setShowDispatchModal(false));
   useEscapeKey(showPaymentModal && !confirmState.isOpen, () => setShowPaymentModal(false));
 
+  if (!allowFinanceView) {
+    return <AccessDenied />;
+  }
+
   if (
     !imfexStore.isLoadedFromBackend &&
     (purchasesQuery.isLoading || salesInvoicesQuery.isLoading || dispatchesQuery.isLoading || paymentsQuery.isLoading)
@@ -816,14 +822,16 @@ function FinancePageContent() {
               <span>{t('finance.btn_dispatch')}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setShowPurchaseModal(true)}
-              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('finance.btn_purchase')}</span>
-            </button>
+            {allowFinanceWrite && (
+              <button
+                type="button"
+                onClick={() => setShowPurchaseModal(true)}
+                className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t('finance.btn_purchase')}</span>
+              </button>
+            )}
           </>
         }
       />
@@ -1026,7 +1034,7 @@ function FinancePageContent() {
                           {formatCurrency(pinv.totalAmount)}
                         </span>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {hasUnreceivedStock && (
+                          {allowFinanceWrite && hasUnreceivedStock && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1062,7 +1070,7 @@ function FinancePageContent() {
                               {t('finance.btn_invoice')}
                             </button>
                           )}
-                          {pinv.status !== 'PAID' && (
+                          {allowFinanceWrite && pinv.status !== 'PAID' && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1080,27 +1088,29 @@ function FinancePageContent() {
                               {t('finance.btn_pay')}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setConfirmState({
-                                isOpen: true,
-                                title: 'Избриши Влезна Фактура / Трошок',
-                                message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
-                                variant: 'danger',
-                                confirmLabel: t('finance.btn_delete'),
-                                onConfirm: () => {
-                                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                  imfexStore.deletePurchaseInvoice(pinv.id);
-                                  refreshAll();
-                                },
-                              });
-                            }}
-                            className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer"
-                            aria-label={t('finance.btn_delete')}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {allowDelete && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfirmState({
+                                  isOpen: true,
+                                  title: 'Избриши Влезна Фактура / Трошок',
+                                  message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
+                                  variant: 'danger',
+                                  confirmLabel: t('finance.btn_delete'),
+                                  onConfirm: () => {
+                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                    imfexStore.deletePurchaseInvoice(pinv.id);
+                                    refreshAll();
+                                  },
+                                });
+                              }}
+                              className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer"
+                              aria-label={t('finance.btn_delete')}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1222,7 +1232,7 @@ function FinancePageContent() {
 
                           <td className="px-4 py-3.5 text-right whitespace-nowrap align-top">
                             <div className="inline-flex items-center justify-end gap-1">
-                              {hasUnreceivedStock && (
+                              {allowFinanceWrite && hasUnreceivedStock && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1278,7 +1288,7 @@ function FinancePageContent() {
                                 </button>
                               )}
 
-                              {pinv.status !== 'PAID' && (
+                              {allowFinanceWrite && pinv.status !== 'PAID' && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1297,28 +1307,30 @@ function FinancePageContent() {
                                 </button>
                               )}
 
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setConfirmState({
-                                    isOpen: true,
-                                    title: 'Избриши Влезна Фактура / Трошок',
-                                    message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
-                                    variant: 'danger',
-                                    confirmLabel: t('finance.btn_delete'),
-                                    onConfirm: () => {
-                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                      imfexStore.deletePurchaseInvoice(pinv.id);
-                                      refreshAll();
-                                    },
-                                  });
-                                }}
-                                className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
-                                title={t('finance.btn_delete')}
-                                aria-label={t('finance.btn_delete')}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {allowDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfirmState({
+                                      isOpen: true,
+                                      title: 'Избриши Влезна Фактура / Трошок',
+                                      message: `Дали сте сигурни дека сакате да ја избришете влезната фактура / трошок „${pinv.internalNumber}“ (${pinv.supplierName})?`,
+                                      variant: 'danger',
+                                      confirmLabel: t('finance.btn_delete'),
+                                      onConfirm: () => {
+                                        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                        imfexStore.deletePurchaseInvoice(pinv.id);
+                                        refreshAll();
+                                      },
+                                    });
+                                  }}
+                                  className="h-7 w-7 rounded-md text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 inline-flex items-center justify-center cursor-pointer transition-colors"
+                                  title={t('finance.btn_delete')}
+                                  aria-label={t('finance.btn_delete')}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1870,27 +1882,29 @@ function FinancePageContent() {
                       >
                         <Printer className="w-3.5 h-3.5" /> PDF
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmState({
-                            isOpen: true,
-                            title: 'Избриши Испратница',
-                            message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
-                            variant: 'danger',
-                            confirmLabel: t('finance.btn_delete'),
-                            onConfirm: () => {
-                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                              imfexStore.deleteDispatchNote(d.id);
-                              refreshAll();
-                            },
-                          });
-                        }}
-                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        aria-label={t('finance.btn_delete')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {allowDelete && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmState({
+                              isOpen: true,
+                              title: 'Избриши Испратница',
+                              message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
+                              variant: 'danger',
+                              confirmLabel: t('finance.btn_delete'),
+                              onConfirm: () => {
+                                setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                imfexStore.deleteDispatchNote(d.id);
+                                refreshAll();
+                              },
+                            });
+                          }}
+                          className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                          aria-label={t('finance.btn_delete')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
@@ -1976,26 +1990,28 @@ function FinancePageContent() {
                             >
                               <Printer className="w-3.5 h-3.5" /> {t('finance.btn_pdf_dispatch')}
                             </button>
-                            <button
-                              onClick={() => {
-                                setConfirmState({
-                                  isOpen: true,
-                                  title: 'Избриши Испратница',
-                                  message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
-                                  variant: 'danger',
-                                  confirmLabel: t('finance.btn_delete'),
-                                  onConfirm: () => {
-                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                    imfexStore.deleteDispatchNote(d.id);
-                                    refreshAll();
-                                  },
-                                });
-                              }}
-                              className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                              aria-label={t('finance.btn_delete')}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {allowDelete && (
+                              <button
+                                onClick={() => {
+                                  setConfirmState({
+                                    isOpen: true,
+                                    title: 'Избриши Испратница',
+                                    message: `Дали сте сигурни дека сакате да ја избришете испратницата „${d.dispatchNumber}“?`,
+                                    variant: 'danger',
+                                    confirmLabel: t('finance.btn_delete'),
+                                    onConfirm: () => {
+                                      setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                      imfexStore.deleteDispatchNote(d.id);
+                                      refreshAll();
+                                    },
+                                  });
+                                }}
+                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                                aria-label={t('finance.btn_delete')}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -2090,27 +2106,29 @@ function FinancePageContent() {
                       >
                         {pay.direction === 'IN' ? '+' : '-'}€{Number(pay.amount || 0).toFixed(2)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmState({
-                            isOpen: true,
-                            title: 'Избриши Трансакција / Уплата',
-                            message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
-                            variant: 'danger',
-                            confirmLabel: t('finance.btn_delete'),
-                            onConfirm: () => {
-                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                              imfexStore.deletePayment(pay.id);
-                              refreshAll();
-                            },
-                          });
-                        }}
-                        className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                        aria-label={t('finance.btn_delete')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {allowDelete && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmState({
+                              isOpen: true,
+                              title: 'Избриши Трансакција / Уплата',
+                              message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
+                              variant: 'danger',
+                              confirmLabel: t('finance.btn_delete'),
+                              onConfirm: () => {
+                                setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                imfexStore.deletePayment(pay.id);
+                                refreshAll();
+                              },
+                            });
+                          }}
+                          className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                          aria-label={t('finance.btn_delete')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
@@ -2174,25 +2192,29 @@ function FinancePageContent() {
                           {pay.direction === 'IN' ? '+' : '-'}€{Number(pay.amount || 0).toFixed(2)}
                         </td>
                         <td className="p-4 text-center">
-                          <button
-                            onClick={() => {
-                              setConfirmState({
-                                isOpen: true,
-                                title: 'Избриши Трансакција / Уплата',
-                                message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
-                                variant: 'danger',
-                                confirmLabel: 'Избриши',
-                                onConfirm: () => {
-                                  setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                                  imfexStore.deletePayment(pay.id);
-                                  refreshAll();
-                                },
-                              });
-                            }}
-                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {allowDelete ? (
+                            <button
+                              onClick={() => {
+                                setConfirmState({
+                                  isOpen: true,
+                                  title: 'Избриши Трансакција / Уплата',
+                                  message: `Дали сте сигурни дека сакате да ја избришете трансакцијата „${pay.paymentNumber}“ (${pay.partnerName || '—'}, €${Number(pay.amount || 0).toFixed(2)})?`,
+                                  variant: 'danger',
+                                  confirmLabel: 'Избриши',
+                                  onConfirm: () => {
+                                    setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                                    imfexStore.deletePayment(pay.id);
+                                    refreshAll();
+                                  },
+                                });
+                              }}
+                              className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -2285,15 +2307,17 @@ function FinancePageContent() {
                     <span className="text-muted-foreground">{t('finance.total_purchases_label')}</span>
                     <strong className="text-foreground">€{totalBought.toFixed(2)} ({partnerPurchases.length} {t('finance.invoices_short')})</strong>
                   </div>
-                  <button
-                    onClick={() => {
-                      setPSupplierName(pName);
-                      setShowPurchaseModal(true);
-                    }}
-                    className="w-full py-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground font-bold text-xs transition-all cursor-pointer"
-                  >
-                    {t('finance.btn_add_purchase_from')} {pName}
-                  </button>
+                  {allowFinanceWrite && (
+                    <button
+                      onClick={() => {
+                        setPSupplierName(pName);
+                        setShowPurchaseModal(true);
+                      }}
+                      className="w-full py-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground font-bold text-xs transition-all cursor-pointer"
+                    >
+                      {t('finance.btn_add_purchase_from')} {pName}
+                    </button>
+                  )}
                 </div>
               );
             })}

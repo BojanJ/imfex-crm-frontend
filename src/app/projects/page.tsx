@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { Project, ProjectStatus } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canWriteOperations } from '@/lib/rbac';
 import { useProjectsQuery, useSaveProjectMutation } from '@/lib/queries';
 import { formatDate } from '@/lib/date-format';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -29,6 +30,8 @@ import {
 
 export default function ProjectsPage() {
   const { t, locale } = useI18n();
+  useImfexStore();
+  const allowOpsWrite = canWriteOperations(imfexStore.getCurrentRole());
   const projectsQuery = useProjectsQuery();
   const saveProjectMutation = useSaveProjectMutation();
 
@@ -89,6 +92,7 @@ export default function ProjectsPage() {
     statuses.find((s) => s.key === st)?.label || st;
 
   const requestProjectStatusChange = (prj: Project, targetStatus: ProjectStatus) => {
+    if (!allowOpsWrite) return;
     if (prj.status === targetStatus) return;
     setPendingStatusChange({ project: prj, newStatus: targetStatus });
   };
@@ -134,6 +138,7 @@ export default function ProjectsPage() {
   };
 
   const handleDragStart = (e: React.DragEvent, projectId: string) => {
+    if (!allowOpsWrite) return;
     setDraggedProjectId(projectId);
     e.dataTransfer.setData('text/plain', projectId);
     e.dataTransfer.effectAllowed = 'move';
@@ -145,6 +150,7 @@ export default function ProjectsPage() {
   };
 
   const handleDragOverColumn = (e: React.DragEvent, statusKey: ProjectStatus) => {
+    if (!allowOpsWrite) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dragOverStatus !== statusKey) {
@@ -153,6 +159,7 @@ export default function ProjectsPage() {
   };
 
   const handleDropOnStatus = (e: React.DragEvent, targetStatus: ProjectStatus) => {
+    if (!allowOpsWrite) return;
     e.preventDefault();
     const pId = e.dataTransfer.getData('text/plain') || draggedProjectId;
     setDraggedProjectId(null);
@@ -240,7 +247,7 @@ export default function ProjectsPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-[11px] text-muted-foreground">
-              {t('projects.kanban_hint')}
+              {allowOpsWrite ? t('projects.kanban_hint') : t('rbac.read_only_notice')}
             </p>
             <div className="inline-flex items-center gap-1 shrink-0">
               <button
@@ -311,16 +318,20 @@ export default function ProjectsPage() {
                         return (
                           <div
                             key={prj.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, prj.id)}
-                            onDragEnd={handleDragEnd}
-                            className={`surface-card rounded-lg p-3 space-y-2 transition-all group cursor-grab active:cursor-grabbing hover:border-primary/50 ${
+                            draggable={allowOpsWrite}
+                            onDragStart={allowOpsWrite ? (e) => handleDragStart(e, prj.id) : undefined}
+                            onDragEnd={allowOpsWrite ? handleDragEnd : undefined}
+                            className={`surface-card rounded-lg p-3 space-y-2 transition-all group hover:border-primary/50 ${
+                              allowOpsWrite ? 'cursor-grab active:cursor-grabbing' : ''
+                            } ${
                               isDragging ? 'opacity-40 border-primary border-dashed' : ''
                             }`}
                           >
                             <div className="flex items-center justify-between gap-1 text-xs">
                               <div className="flex items-center gap-1 min-w-0">
-                                <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary shrink-0" />
+                                {allowOpsWrite && (
+                                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50 group-hover:text-primary shrink-0" />
+                                )}
                                 <Link
                                   href={`/projects/${prj.id}`}
                                   className="font-mono font-semibold text-primary hover:underline truncate"
@@ -367,6 +378,7 @@ export default function ProjectsPage() {
       ) : (
         /* View Mode 2: Table View with Process Drop Zones */
         <div className="space-y-4">
+          {allowOpsWrite && (
           <div className="surface-card rounded-xl p-3.5 space-y-2.5 hidden md:block">
             <p className="text-[11px] font-medium text-muted-foreground">
               {t('projects.table_drag_hint')}
@@ -400,6 +412,7 @@ export default function ProjectsPage() {
               })}
             </div>
           </div>
+          )}
 
           <div className="surface-card rounded-xl overflow-hidden text-xs">
             {/* Mobile Stacked Cards */}
@@ -421,20 +434,29 @@ export default function ProjectsPage() {
                           {p.customer?.companyName || p.customer?.name}
                         </p>
                       </div>
-                      <select
-                        value={p.status}
-                        onChange={(e) =>
-                          requestProjectStatusChange(p, e.target.value as ProjectStatus)
-                        }
-                        aria-label={`Статус за ${p.projectNumber}`}
-                        className="px-2 py-1 rounded-lg text-[11px] font-medium bg-background text-foreground border border-border outline-none focus:border-primary cursor-pointer shrink-0"
-                      >
-                        {statuses.map((st) => (
-                          <option key={st.key} value={st.key} className="bg-card text-foreground">
-                            {st.label}
-                          </option>
-                        ))}
-                      </select>
+                      {allowOpsWrite ? (
+                        <select
+                          value={p.status}
+                          onChange={(e) =>
+                            requestProjectStatusChange(p, e.target.value as ProjectStatus)
+                          }
+                          aria-label={`Статус за ${p.projectNumber}`}
+                          className="px-2 py-1 rounded-lg text-[11px] font-medium bg-background text-foreground border border-border outline-none focus:border-primary cursor-pointer shrink-0"
+                        >
+                          {statuses.map((st) => (
+                            <option key={st.key} value={st.key} className="bg-card text-foreground">
+                              {st.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <StatusBadge
+                          variant={statuses.find((s) => s.key === p.status)?.variant || 'primary'}
+                          dot
+                        >
+                          {getStatusLabel(p.status)}
+                        </StatusBadge>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1 truncate">
@@ -483,17 +505,21 @@ export default function ProjectsPage() {
                     return (
                       <tr
                         key={p.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, p.id)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(e) => handleDragOverColumn(e, p.status)}
-                        onDrop={(e) => handleDropOnStatus(e, p.status)}
-                        className={`hover:bg-muted/30 transition-colors cursor-grab active:cursor-grabbing ${
+                        draggable={allowOpsWrite}
+                        onDragStart={allowOpsWrite ? (e) => handleDragStart(e, p.id) : undefined}
+                        onDragEnd={allowOpsWrite ? handleDragEnd : undefined}
+                        onDragOver={allowOpsWrite ? (e) => handleDragOverColumn(e, p.status) : undefined}
+                        onDrop={allowOpsWrite ? (e) => handleDropOnStatus(e, p.status) : undefined}
+                        className={`hover:bg-muted/30 transition-colors ${
+                          allowOpsWrite ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${
                           isDragging ? 'opacity-40 bg-primary/5' : ''
                         }`}
                       >
                         <td className="px-3 py-3.5 text-muted-foreground">
-                          <GripVertical className="w-4 h-4 text-muted-foreground/60 hover:text-primary" />
+                          {allowOpsWrite && (
+                            <GripVertical className="w-4 h-4 text-muted-foreground/60 hover:text-primary" />
+                          )}
                         </td>
                         <td className="px-4 py-3.5 font-mono font-semibold text-primary whitespace-nowrap">
                           <Link href={`/projects/${p.id}`} className="hover:underline">
@@ -507,19 +533,28 @@ export default function ProjectsPage() {
                           {p.responsibleUser?.fullName || t('projects.unassigned')}
                         </td>
                         <td className="px-4 py-3.5">
-                          <select
-                            value={p.status}
-                            onChange={(e) =>
-                              requestProjectStatusChange(p, e.target.value as ProjectStatus)
-                            }
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-background text-foreground border border-border outline-none focus:border-primary cursor-pointer"
-                          >
-                            {statuses.map((st) => (
-                              <option key={st.key} value={st.key} className="bg-card text-foreground">
-                                {st.label}
-                              </option>
-                            ))}
-                          </select>
+                          {allowOpsWrite ? (
+                            <select
+                              value={p.status}
+                              onChange={(e) =>
+                                requestProjectStatusChange(p, e.target.value as ProjectStatus)
+                              }
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-background text-foreground border border-border outline-none focus:border-primary cursor-pointer"
+                            >
+                              {statuses.map((st) => (
+                                <option key={st.key} value={st.key} className="bg-card text-foreground">
+                                  {st.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <StatusBadge
+                              variant={statuses.find((s) => s.key === p.status)?.variant || 'primary'}
+                              dot
+                            >
+                              {getStatusLabel(p.status)}
+                            </StatusBadge>
+                          )}
                         </td>
                         <td className="px-4 py-3.5 text-amber-700 dark:text-amber-400 font-medium tabular-nums whitespace-nowrap">
                           {formatDate(p.targetDeliveryDate, '—')}

@@ -9,6 +9,7 @@ import {
 import { formatDate } from '@/lib/date-format';
 import { formatCurrency, formatMkd } from '@/lib/formatters';
 import { imfexStore } from '@/lib/store';
+import { canEmailInvoices } from '@/lib/rbac';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { toast } from '@/components/ui/toastr';
 import { useEscapeKey } from '@/components/ui/use-escape-key';
@@ -543,23 +544,25 @@ export const FinancePdfModal: React.FC<FinancePdfModalProps> = ({
             >
               <Printer className="w-4 h-4" /> Печати
             </button>
-            <button
-              type="button"
-              onClick={() => setShowEmailForm((prev) => !prev)}
-              disabled={emailStatus === 'sending'}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
-                showEmailForm
-                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                  : 'border-border bg-card hover:bg-muted text-foreground'
-              }`}
-            >
-              <Mail className="w-4 h-4 text-blue-500" />
-              {emailStatus === 'sending'
-                ? 'Се испраќа...'
-                : emailStatus === 'sent'
-                ? 'Испратено!'
-                : 'Испрати по е-пошта'}
-            </button>
+            {canEmailInvoices(imfexStore.getCurrentRole()) && (
+              <button
+                type="button"
+                onClick={() => setShowEmailForm((prev) => !prev)}
+                disabled={emailStatus === 'sending'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
+                  showEmailForm
+                    ? 'border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                    : 'border-border bg-card hover:bg-muted text-foreground'
+                }`}
+              >
+                <Mail className="w-4 h-4 text-blue-500" />
+                {emailStatus === 'sending'
+                  ? 'Се испраќа...'
+                  : emailStatus === 'sent'
+                  ? 'Испратено!'
+                  : 'Испрати по е-пошта'}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleDownload}

@@ -5,6 +5,7 @@ import { apiClient, ApiError } from './api-client';
 import { getAuthToken } from './api';
 import { queryKeys } from './query-client';
 import { imfexStore } from './store';
+import { canViewFinance, canViewOffers } from './rbac';
 import { toast } from '@/components/ui/toastr';
 import type {
   CalendarEvent,
@@ -41,7 +42,7 @@ export function useOffersQuery() {
       imfexStore.syncCollectionFromQuery('offers', data);
       return data;
     },
-    enabled: isAuthed(),
+    enabled: isAuthed() && canViewOffers(imfexStore.getCurrentRole()),
   });
 }
 
@@ -58,7 +59,7 @@ export function useOfferQuery(id?: string) {
       const list = qc.getQueryData<Offer[]>(queryKeys.offers);
       return list?.find((o) => o.id === id) || imfexStore.getOfferById(id);
     },
-    enabled: Boolean(id) && isAuthed(),
+    enabled: Boolean(id) && isAuthed() && canViewOffers(imfexStore.getCurrentRole()),
   });
 }
 
@@ -198,7 +199,7 @@ export function usePurchaseInvoicesQuery() {
       imfexStore.syncCollectionFromQuery('purchaseInvoices', data);
       return data;
     },
-    enabled: isAuthed(),
+    enabled: isAuthed() && canViewFinance(imfexStore.getCurrentRole()),
   });
 }
 
@@ -210,7 +211,7 @@ export function useSalesInvoicesQuery() {
       imfexStore.syncCollectionFromQuery('salesInvoices', data);
       return data;
     },
-    enabled: isAuthed(),
+    enabled: isAuthed() && canViewFinance(imfexStore.getCurrentRole()),
   });
 }
 
@@ -222,7 +223,7 @@ export function useDispatchNotesQuery() {
       imfexStore.syncCollectionFromQuery('dispatchNotes', data);
       return data;
     },
-    enabled: isAuthed(),
+    enabled: isAuthed() && canViewFinance(imfexStore.getCurrentRole()),
   });
 }
 
@@ -234,7 +235,7 @@ export function usePaymentsQuery() {
       imfexStore.syncCollectionFromQuery('payments', data);
       return data;
     },
-    enabled: isAuthed(),
+    enabled: isAuthed() && canViewFinance(imfexStore.getCurrentRole()),
   });
 }
 

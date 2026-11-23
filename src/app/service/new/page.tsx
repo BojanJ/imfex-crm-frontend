@@ -4,7 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { ServicePriority, ServiceTicket } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canWriteCustomers, canWriteOperations } from '@/lib/rbac';
+import { AccessDenied } from '@/components/ui/access-denied';
 import {
   useCustomersQuery,
   useInstalledItemsQuery,
@@ -28,6 +30,10 @@ import {
 export default function NewServiceTicketPage() {
   const router = useRouter();
   const { locale } = useI18n();
+  useImfexStore();
+  const currentRole = imfexStore.getCurrentRole();
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const allowCustomerWrite = canWriteCustomers(currentRole);
   const customersQuery = useCustomersQuery();
   const installedItemsQuery = useInstalledItemsQuery();
   const saveTicketMutation = useSaveServiceTicketMutation();
@@ -111,6 +117,10 @@ export default function NewServiceTicketPage() {
 
   const selectedCustObj = customers.find((c) => c.id === selectedCustomerId);
 
+  if (!allowOpsWrite) {
+    return <AccessDenied backHref="/service" />;
+  }
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-16">
       <PageHeader
@@ -124,14 +134,16 @@ export default function NewServiceTicketPage() {
           title="1. Клиент"
           icon={<Building2 className="w-4 h-4" />}
           action={
-            <button
-              type="button"
-              onClick={() => setIsCustomerModalOpen(true)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>Нов клиент</span>
-            </button>
+            allowCustomerWrite ? (
+              <button
+                type="button"
+                onClick={() => setIsCustomerModalOpen(true)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Нов клиент</span>
+              </button>
+            ) : undefined
           }
         >
           <div className="space-y-3">

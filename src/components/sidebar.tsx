@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { imfexStore, useImfexStore } from '@/lib/store';
-import { canViewFinance } from '@/lib/rbac';
+import { canViewFinance, canViewOffers } from '@/lib/rbac';
 import {
   LayoutDashboard,
   Package,
@@ -41,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   useImfexStore();
   const currentRole = imfexStore.getCurrentRole();
   const showFinanceNav = canViewFinance(currentRole);
+  const showOffersNav = canViewOffers(currentRole);
 
   const handleSignOut = () => {
     imfexStore.logout();
@@ -60,7 +61,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       label: null,
       items: [
-        { label: t('nav.offers'), href: '/offers', icon: FileSpreadsheet },
+        ...(showOffersNav
+          ? [{ label: t('nav.offers'), href: '/offers', icon: FileSpreadsheet }]
+          : []),
         { label: t('nav.projects'), href: '/projects', icon: Briefcase },
         ...(showFinanceNav
           ? [{ label: t('nav.finance') || 'Финансии и Набавки', href: '/finance', icon: Landmark }]

@@ -14,6 +14,12 @@ import {
 } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
 import {
+  canDeleteRecords,
+  canViewFinance,
+  canWriteOperations,
+  canWriteSalesFinance,
+} from '@/lib/rbac';
+import {
   useProjectQuery,
   useProjectNotesQuery,
   useAddProjectNoteMutation,
@@ -152,6 +158,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const productsQuery = useProductsQuery();
   const [newNoteContent, setNewNoteContent] = useState('');
   const currentUser = imfexStore.getCurrentUser();
+  const currentRole = currentUser?.role ?? imfexStore.getCurrentRole();
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const showFinance = canViewFinance(currentRole);
+  const allowSalesFinance = canWriteSalesFinance(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
 
   const [project, setProject] = useState<Project | null>(null);
   const profiles: UserProfile[] = profilesQuery.data ?? imfexStore.getProfiles();
@@ -680,28 +691,36 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           project.offer?.offerNumber ? ` • ${t('offers.offer_number')}: ${project.offer.offerNumber}` : ''
         }`}
         actions={
-          <>
-            {status !== 'CLOSED' && (
+          allowOpsWrite ? (
+            <>
+              {status !== 'CLOSED' && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveProject('CLOSED')}
+                  className="h-9 px-3 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{t('projects.close_project')}</span>
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => handleSaveProject('CLOSED')}
-                className="h-9 px-3 text-xs font-medium rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                onClick={() => handleSaveProject()}
+                className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>{t('projects.close_project')}</span>
+                <Save className="w-3.5 h-3.5" />
+                <span>{t('projects.save_changes')}</span>
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => handleSaveProject()}
-              className="h-9 px-4 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{t('projects.save_changes')}</span>
-            </button>
-          </>
+            </>
+          ) : undefined
         }
       />
+
+      {!allowOpsWrite && (
+        <div className="px-4 py-3 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs font-medium">
+          {t('rbac.read_only_notice')}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="space-y-5 lg:sticky lg:top-20">
@@ -821,35 +840,39 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     Понуда → теренско мерење → финална потврда. При прифаќање се резервираат достапните додатоци.
                   </p>
                   <div className="space-y-2 pt-1">
-                    <button
-                      type="button"
-                      disabled={Boolean(project.acceptedAt || project.offerId)}
-                      onClick={() => {
-                        setConfirmState({
-                          isOpen: true,
-                          title: 'Прифати Финална Понуда',
-                          message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${project.projectNumber}“?`,
-                          variant: 'primary',
-                          confirmLabel: 'Потврди Понуда',
-                          onConfirm: () => {
-                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                            const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
-                            applyProjectData(updated);
-                          },
-                        });
-                      }}
-                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
-                    >
-                      1. Прифати финална понуда
-                    </button>
-                    <button
-                      type="button"
-                      disabled={Boolean(project.advancePaid)}
-                      onClick={() => setShowAdvanceModal(true)}
-                      className="w-full h-8 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold disabled:opacity-45 cursor-pointer text-left transition-colors"
-                    >
-                      2. Евидентирај уплата на аванс
-                    </button>
+                    {allowOpsWrite && (
+                      <button
+                        type="button"
+                        disabled={Boolean(project.acceptedAt || project.offerId)}
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Прифати Финална Понуда',
+                            message: `Дали сте сигурни дека сакате да ја потврдите финалната понуда за проектот „${project.projectNumber}“?`,
+                            variant: 'primary',
+                            confirmLabel: 'Потврди Понуда',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              const updated = imfexStore.saveProject({ ...project, acceptedAt: new Date().toISOString() });
+                              applyProjectData(updated);
+                            },
+                          });
+                        }}
+                        className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                      >
+                        1. Прифати финална понуда
+                      </button>
+                    )}
+                    {allowSalesFinance && (
+                      <button
+                        type="button"
+                        disabled={Boolean(project.advancePaid)}
+                        onClick={() => setShowAdvanceModal(true)}
+                        className="w-full h-8 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold disabled:opacity-45 cursor-pointer text-left transition-colors"
+                      >
+                        2. Евидентирај уплата на аванс
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -869,93 +892,99 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     </StatusBadge>
                   </div>
                   <div className="space-y-2 pt-1">
-                    <button
-                      type="button"
-                      disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
-                      onClick={() => {
-                        setConfirmState({
-                          isOpen: true,
-                          title: 'Нарачај кај Добавувач',
-                          message: `Дали сте сигурни дека сакате да го промените статусот во Нарачано кај добавувач за проектот „${project.projectNumber}“?`,
-                          variant: 'warning',
-                          confirmLabel: 'Потврди Нарачка',
-                          onConfirm: () => {
-                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                            const updated = imfexStore.projectStepOrderSupplier(project.id);
-                            if (updated) applyProjectData(updated);
-                          },
-                        });
-                      }}
-                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
-                    >
-                      3. Нарачај кај добавувач
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
-                      onClick={() => {
-                        setConfirmState({
-                          isOpen: true,
-                          title: 'Прими Врата во Магацин',
-                          message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${project.projectNumber}“?`,
-                          variant: 'success',
-                          confirmLabel: 'Потврди Прием',
-                          onConfirm: () => {
-                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                            const updated = imfexStore.projectStepReceiveWarehouse(project.id);
-                            if (updated) applyProjectData(updated);
-                          },
-                        });
-                      }}
-                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
-                    >
-                      4. Прими врата во магацин
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
-                      onClick={() => {
-                        setConfirmState({
-                          isOpen: true,
-                          title: 'Издај Испратница и Раздолжи Залиха',
-                          message: `Дали сте сигурни дека сакате да издадете испратница и да ја раздолжите залихата од магацин за проектот „${project.projectNumber}“?`,
-                          variant: 'warning',
-                          confirmLabel: 'Издај Испратница',
-                          onConfirm: () => {
-                            setConfirmState((prev) => ({ ...prev, isOpen: false }));
-                            const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
-                            const draftNote = imfexStore.saveDispatchNote({
-                              id: `disp-${Date.now()}`,
-                              dispatchNumber: imfexStore.generateDispatchNumber(),
-                              status: 'DRAFT',
-                              customerId: project.customerId,
-                              customer: project.customer,
-                              projectId: project.id,
-                              offerId: project.offerId,
-                              issueDate: new Date().toISOString().split('T')[0],
-                              deliveryAddress: project.installationAddress || project.customer?.address,
-                              receivedBy: project.customer?.companyName || project.customer?.name,
-                              issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
-                              items: (offer?.items || []).map((it, i) => ({
-                                id: `di-${Date.now()}-${i}`,
-                                productId: it.productId,
-                                title: it.customTitle || 'Врата и опрема',
-                                quantity: Number(it.quantity || 1),
-                              })),
-                              stockDeducted: false,
-                              createdAt: new Date().toISOString(),
-                            });
-                            const issuedNote = imfexStore.confirmAndIssueDispatchNote(draftNote.id) || draftNote;
-                            const freshProj = imfexStore.getProjectById(project.id);
-                            if (freshProj) applyProjectData(freshProj);
-                            setPreviewDispatch(issuedNote);
-                          },
-                        });
-                      }}
-                      className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
-                    >
-                      5. Издај испратница (PDF + залиха)
-                    </button>
+                    {allowOpsWrite && (
+                      <button
+                        type="button"
+                        disabled={!project.advancePaid || Boolean(project.supplierOrdered || procurementStatus === 'ORDERED' || procurementStatus === 'DELIVERED')}
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Нарачај кај Добавувач',
+                            message: `Дали сте сигурни дека сакате да го промените статусот во Нарачано кај добавувач за проектот „${project.projectNumber}“?`,
+                            variant: 'warning',
+                            confirmLabel: 'Потврди Нарачка',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              const updated = imfexStore.projectStepOrderSupplier(project.id);
+                              if (updated) applyProjectData(updated);
+                            },
+                          });
+                        }}
+                        className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                      >
+                        3. Нарачај кај добавувач
+                      </button>
+                    )}
+                    {allowOpsWrite && (
+                      <button
+                        type="button"
+                        disabled={!(project.supplierOrdered || procurementStatus === 'ORDERED') || Boolean(project.warehouseReceived || procurementStatus === 'DELIVERED')}
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Прими Врата во Магацин',
+                            message: `Дали сте сигурни дека сакате да потврдите прием на вратата во магацин за проектот „${project.projectNumber}“?`,
+                            variant: 'success',
+                            confirmLabel: 'Потврди Прием',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              const updated = imfexStore.projectStepReceiveWarehouse(project.id);
+                              if (updated) applyProjectData(updated);
+                            },
+                          });
+                        }}
+                        className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                      >
+                        4. Прими врата во магацин
+                      </button>
+                    )}
+                    {allowSalesFinance && (
+                      <button
+                        type="button"
+                        disabled={!(project.warehouseReceived || procurementStatus === 'DELIVERED') || Boolean(project.dispatchIssued)}
+                        onClick={() => {
+                          setConfirmState({
+                            isOpen: true,
+                            title: 'Издај Испратница и Раздолжи Залиха',
+                            message: `Дали сте сигурни дека сакате да издадете испратница и да ја раздолжите залихата од магацин за проектот „${project.projectNumber}“?`,
+                            variant: 'warning',
+                            confirmLabel: 'Издај Испратница',
+                            onConfirm: () => {
+                              setConfirmState((prev) => ({ ...prev, isOpen: false }));
+                              const offer = project.offerId ? imfexStore.getOfferById(project.offerId) : project.offer;
+                              const draftNote = imfexStore.saveDispatchNote({
+                                id: `disp-${Date.now()}`,
+                                dispatchNumber: imfexStore.generateDispatchNumber(),
+                                status: 'DRAFT',
+                                customerId: project.customerId,
+                                customer: project.customer,
+                                projectId: project.id,
+                                offerId: project.offerId,
+                                issueDate: new Date().toISOString().split('T')[0],
+                                deliveryAddress: project.installationAddress || project.customer?.address,
+                                receivedBy: project.customer?.companyName || project.customer?.name,
+                                issuedBy: imfexStore.getCurrentUser()?.fullName || 'Магацин IMFEX',
+                                items: (offer?.items || []).map((it, i) => ({
+                                  id: `di-${Date.now()}-${i}`,
+                                  productId: it.productId,
+                                  title: it.customTitle || 'Врата и опрема',
+                                  quantity: Number(it.quantity || 1),
+                                })),
+                                stockDeducted: false,
+                                createdAt: new Date().toISOString(),
+                              });
+                              const issuedNote = imfexStore.confirmAndIssueDispatchNote(draftNote.id) || draftNote;
+                              const freshProj = imfexStore.getProjectById(project.id);
+                              if (freshProj) applyProjectData(freshProj);
+                              setPreviewDispatch(issuedNote);
+                            },
+                          });
+                        }}
+                        className="w-full h-8 px-3 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-medium disabled:opacity-45 cursor-pointer text-left transition-colors"
+                      >
+                        5. Издај испратница (PDF + залиха)
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -975,8 +1004,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </SectionCard>
 
-          {/* Card 2.8: Project Financial Summary (Pure TanStack Query Selector — IMP-08, BIZ-01 ex-VAT P&L) */}
-          {(() => {
+          {/* Card 2.8: Project Financial Summary (Pure TanStack Query Selector — Finance-visible roles only) */}
+          {showFinance && (() => {
             const fin = computeProjectFinancialSummary({
               project,
               offers: offersQuery.data ?? imfexStore.getOffers(),
@@ -1286,9 +1315,11 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <label className="font-bold text-foreground flex items-center gap-1.5">
                   <PenTool className="w-4 h-4 text-primary" /> {t('projects.signature')}
                 </label>
-                <button type="button" onClick={clearCanvas} className="text-red-500 font-bold hover:underline cursor-pointer">
-                  {t('projects.clear_signature')}
-                </button>
+                {allowOpsWrite && (
+                  <button type="button" onClick={clearCanvas} className="text-red-500 font-bold hover:underline cursor-pointer">
+                    {t('projects.clear_signature')}
+                  </button>
+                )}
               </div>
 
               <div className="border border-border rounded-xl bg-background p-2 flex flex-col items-center">
@@ -1325,13 +1356,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" /> {t('projects.upload_files')}
-              </button>
+              {allowOpsWrite && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all shadow-sm cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" /> {t('projects.upload_files')}
+                </button>
+              )}
 
               <input
                 ref={fileInputRef}
@@ -1343,7 +1376,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               />
             </div>
 
-            {/* Drag & Drop Upload Zone */}
+            {/* Drag & Drop Upload Zone (Operations write roles only) */}
+            {allowOpsWrite && (
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -1396,6 +1430,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
             </div>
+            )}
 
             {/* Category Filter Tabs */}
             {attachments.length > 0 && (
@@ -1544,14 +1579,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                             <Download className="w-4 h-4" />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAttachment(att)}
-                            className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-                            title={t('projects.file_delete')}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {allowDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAttachment(att)}
+                              className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
+                              title={t('projects.file_delete')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1607,7 +1644,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              {/* Add Internal Note Form */}
+              {/* Add Internal Note Form (Operations write roles only) */}
+              {allowOpsWrite && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -1638,6 +1676,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                   <span>{addNoteMutation.isPending ? t('projects.notes_adding') : t('projects.notes_add_btn')}</span>
                 </button>
               </form>
+              )}
 
               {/* Notes Feed */}
               <div className="space-y-2.5">

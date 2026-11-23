@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useI18n } from '@/lib/i18n-context';
 import { ConsumedPart, SalesInvoice, ServiceBillingType, ServicePriority, ServiceStatus, ServiceTicket } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canWriteOperations, canWriteSalesFinance } from '@/lib/rbac';
 import { apiClient } from '@/lib/api-client';
 import { getServiceSlaStatus, getWarrantyStatus } from '@/lib/selectors';
 import { generateServiceReportVectorPdf } from '@/lib/pdf-generator';
@@ -60,6 +61,10 @@ function statusBadgeVariant(status: ServiceStatus): BadgeVariant {
 
 export default function ServiceTicketDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { t, locale } = useI18n();
+  useImfexStore();
+  const currentRole = imfexStore.getCurrentRole();
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const allowSalesFinance = canWriteSalesFinance(currentRole);
   const resolvedParams = use(params);
   const router = useRouter();
   const ticketId = resolvedParams?.id;
@@ -368,15 +373,17 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               <Printer className="w-3.5 h-3.5 text-primary" />
               <span>{t('service.btn_pdf_report')}</span>
             </button>
-            <button
-              type="button"
-              onClick={handleScheduleAnnualMaintenance}
-              className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <CalendarPlus className="w-3.5 h-3.5 text-muted-foreground" />
-              <span>{t('service.btn_schedule_maint')}</span>
-            </button>
-            {status !== 'CLOSED' && (
+            {allowOpsWrite && (
+              <button
+                type="button"
+                onClick={handleScheduleAnnualMaintenance}
+                className="h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted text-foreground inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <CalendarPlus className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>{t('service.btn_schedule_maint')}</span>
+              </button>
+            )}
+            {allowOpsWrite && status !== 'CLOSED' && (
               <button
                 type="button"
                 onClick={() => handleSaveTicket('CLOSED')}
@@ -386,17 +393,25 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
                 <span>{t('service.close_ticket')}</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => handleSaveTicket()}
-              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>{t('projects.save_changes')}</span>
-            </button>
+            {allowOpsWrite && (
+              <button
+                type="button"
+                onClick={() => handleSaveTicket()}
+                className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{t('projects.save_changes')}</span>
+              </button>
+            )}
           </>
         }
       />
+
+      {!allowOpsWrite && (
+        <div className="px-4 py-3 rounded-xl border border-border bg-muted/50 text-muted-foreground text-xs font-medium">
+          {t('rbac.read_only_notice')}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Sticky Control Sidebar */}
@@ -472,7 +487,7 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
               </div>
             )}
 
-            {billingType === 'BILLABLE' && (
+            {billingType === 'BILLABLE' && allowSalesFinance && (
               <div className="pt-2 border-t border-border/70 space-y-2">
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-muted-foreground">{t('service.billable_total_net')}</span>
@@ -531,14 +546,16 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
             title={t('service.parts_consumed')}
             icon={<Wrench className="w-4 h-4" />}
             action={
-              <button
-                type="button"
-                onClick={handleAddPart}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{addPartCleanLabel} ({t('service.manual')})</span>
-              </button>
+              allowOpsWrite ? (
+                <button
+                  type="button"
+                  onClick={handleAddPart}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{addPartCleanLabel} ({t('service.manual')})</span>
+                </button>
+              ) : undefined
             }
           >
             <div className="space-y-3">
@@ -689,17 +706,19 @@ export default function ServiceTicketDetailPage({ params }: { params: Promise<{ 
             subtitle={t('service.photos_sub')}
             icon={<Camera className="w-4 h-4" />}
             action={
-              <label className="h-8 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer">
-                <Plus className="w-3.5 h-3.5" />
-                <span>{isUploadingPhoto ? '...' : t('service.upload_photo')}</span>
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,.pdf"
-                  onChange={handlePhotoUpload}
-                  disabled={isUploadingPhoto}
-                  className="hidden"
-                />
-              </label>
+              allowOpsWrite ? (
+                <label className="h-8 px-3 rounded-lg border border-border bg-background hover:bg-muted text-foreground font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isUploadingPhoto ? '...' : t('service.upload_photo')}</span>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf"
+                    onChange={handlePhotoUpload}
+                    disabled={isUploadingPhoto}
+                    className="hidden"
+                  />
+                </label>
+              ) : undefined
             }
           >
             {serviceDocs.length === 0 ? (

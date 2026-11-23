@@ -4,7 +4,8 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
 import { CalendarEvent, CalendarEventType } from '@/types';
-import { imfexStore } from '@/lib/store';
+import { imfexStore, useImfexStore } from '@/lib/store';
+import { canDeleteRecords, canWriteOperations } from '@/lib/rbac';
 import {
   useCalendarEventsQuery,
   useCustomersQuery,
@@ -82,6 +83,10 @@ function localizeCalendarDescription(rawDesc: string | undefined, locale: 'mk' |
 
 export default function CalendarPage() {
   const { t, locale } = useI18n();
+  useImfexStore();
+  const currentRole = imfexStore.getCurrentRole();
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const allowDelete = canDeleteRecords(currentRole);
   const calendarQuery = useCalendarEventsQuery();
   const customersQuery = useCustomersQuery();
   const profilesQuery = useProfilesQuery();
@@ -176,6 +181,7 @@ export default function CalendarPage() {
     Boolean(event.isSystemEvent || event.id.startsWith('proj-') || event.id.startsWith('serv-event-'));
 
   const handleOpenAddEventModal = (dateStr?: string) => {
+    if (!allowOpsWrite) return;
     setEditingEventId(null);
     setEventTitle('');
     setEventType('MEETING');
@@ -374,14 +380,16 @@ export default function CalendarPage() {
         subtitle={t('calendar.subtitle')}
         icon={<CalendarIcon className="w-5 h-5" />}
         actions={
-          <button
-            type="button"
-            onClick={() => handleOpenAddEventModal()}
-            className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('calendar.add_event')}</span>
-          </button>
+          allowOpsWrite ? (
+            <button
+              type="button"
+              onClick={() => handleOpenAddEventModal()}
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('calendar.add_event')}</span>
+            </button>
+          ) : undefined
         }
       />
 
@@ -513,17 +521,19 @@ export default function CalendarPage() {
                       {date.getDate()}
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenAddEventModal(dateStr);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
-                      title={t('calendar.add_event')}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    {allowOpsWrite && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenAddEventModal(dateStr);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-muted rounded text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
+                        title={t('calendar.add_event')}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="space-y-1 overflow-y-auto flex-1 max-h-24">
@@ -692,17 +702,19 @@ export default function CalendarPage() {
                     className="p-2.5 flex flex-col gap-2 hover:bg-muted/20 transition-colors cursor-pointer group"
                   >
                     <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenAddEventModal(dateStr);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
-                        title={t('calendar.add_event')}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                      {allowOpsWrite && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenAddEventModal(dateStr);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary transition-opacity cursor-pointer"
+                          title={t('calendar.add_event')}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                     {dayEvents.length === 0 ? (
                       <p className="text-xs text-muted-foreground/40 text-center py-6">—</p>
@@ -892,20 +904,24 @@ export default function CalendarPage() {
 
               {!isSystemAutoEvent(selectedEvent) && (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditEventModal(selectedEvent)}
-                    className="h-9 px-3 text-xs font-medium rounded-lg border border-border hover:bg-muted text-foreground cursor-pointer"
-                  >
-                    {locale === 'mk' ? 'Уреди' : 'Edit'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEventIdToDelete(selectedEvent.id)}
-                    className="h-9 px-3 text-xs font-medium rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 cursor-pointer"
-                  >
-                    {locale === 'mk' ? 'Избриши' : 'Delete'}
-                  </button>
+                  {allowOpsWrite && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditEventModal(selectedEvent)}
+                      className="h-9 px-3 text-xs font-medium rounded-lg border border-border hover:bg-muted text-foreground cursor-pointer"
+                    >
+                      {locale === 'mk' ? 'Уреди' : 'Edit'}
+                    </button>
+                  )}
+                  {allowDelete && (
+                    <button
+                      type="button"
+                      onClick={() => setEventIdToDelete(selectedEvent.id)}
+                      className="h-9 px-3 text-xs font-medium rounded-lg bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-500/20 cursor-pointer"
+                    >
+                      {locale === 'mk' ? 'Избриши' : 'Delete'}
+                    </button>
+                  )}
                 </>
               )}
             </div>

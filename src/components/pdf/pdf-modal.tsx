@@ -7,6 +7,7 @@ import { resolveOfferValidUntil } from '@/lib/date-format';
 import { Download, X, FileText, CheckCircle2, Mail, Loader2, Printer } from 'lucide-react';
 import { generateOfferVectorPdf } from '@/lib/pdf-generator';
 import { imfexStore } from '@/lib/store';
+import { canEmailOffers } from '@/lib/rbac';
 import { getApiUrl, authFetch } from '@/lib/api';
 import { useI18n } from '@/lib/i18n-context';
 import { toast } from '@/components/ui/toastr';
@@ -130,19 +131,21 @@ export const PdfModal: React.FC<PdfModalProps> = ({ isOpen, onClose, offer, prod
               {t('pdf_modal.print')}
             </button>
 
-            {/* Email Quote Button */}
-            <button
-              onClick={handleSendEmail}
-              disabled={emailStatus === 'sending'}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
-            >
-              <Mail className="w-4 h-4 text-blue-500" />
-              {emailStatus === 'sending'
-                ? t('pdf_modal.sending')
-                : emailStatus === 'sent'
-                ? t('pdf_modal.sent')
-                : t('pdf_modal.email_quote')}
-            </button>
+            {/* Email Quote Button (SUPER_ADMIN & SALES only) */}
+            {canEmailOffers(imfexStore.getCurrentRole()) && (
+              <button
+                onClick={handleSendEmail}
+                disabled={emailStatus === 'sending'}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
+              >
+                <Mail className="w-4 h-4 text-blue-500" />
+                {emailStatus === 'sending'
+                  ? t('pdf_modal.sending')
+                  : emailStatus === 'sent'
+                  ? t('pdf_modal.sent')
+                  : t('pdf_modal.email_quote')}
+              </button>
+            )}
 
             {/* PDF Download Button */}
             <button

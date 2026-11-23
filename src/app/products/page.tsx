@@ -3,8 +3,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useI18n } from '@/lib/i18n-context';
-import { Product, ProductStockType, UserRole, Project, SalesInvoice } from '@/types';
+import { Product, ProductStockType, Project, SalesInvoice } from '@/types';
 import { imfexStore, useImfexStore } from '@/lib/store';
+import {
+  canDeleteRecords,
+  canManageCatalog,
+  canViewPurchaseCosts,
+  canWriteFinance,
+  canWriteOffers,
+  canWriteOperations,
+  canWriteSalesFinance,
+} from '@/lib/rbac';
 import {
   useProductsQuery,
   useCategoriesQuery,
@@ -58,7 +67,6 @@ export default function ProductsPage() {
   const categories = useMemo(() => categoriesQuery.data ?? imfexStore.getCategories(), [categoriesQuery.data]);
   const projectsList = useMemo(() => projectsQuery.data ?? imfexStore.getProjects(), [projectsQuery.data]);
   const offersList = useMemo(() => offersQuery.data ?? imfexStore.getOffers(), [offersQuery.data]);
-  const [role, setRole] = useState<UserRole>('SUPER_ADMIN');
   const [activeTab, setActiveTab] = useState<ActiveTab>('catalog');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const selectedProductCodeRef = React.useRef<string | null>(null);
@@ -104,7 +112,6 @@ export default function ProductsPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setRole(imfexStore.getCurrentRole());
   }, []);
 
   useEffect(() => {
@@ -153,7 +160,13 @@ export default function ProductsPage() {
     return <PageLoadingSkeleton cards={3} rows={6} />;
   }
 
-  const isSuperAdmin = role === 'SUPER_ADMIN';
+  const currentRole = imfexStore.getCurrentRole();
+  const allowCatalogManage = canManageCatalog(currentRole);
+  const showPurchaseCost = canViewPurchaseCosts(currentRole);
+  const allowReorderPo = canWriteFinance(currentRole);
+  const allowOfferWrite = canWriteOffers(currentRole);
+  const allowOpsWrite = canWriteOperations(currentRole);
+  const allowSalesFinanceWrite = canWriteSalesFinance(currentRole);
 
   function getProductCatName(p: Product, catsList = categories): string {
     if (p.category?.name) return p.category.name;
@@ -409,7 +422,7 @@ export default function ProductsPage() {
         subtitle={t('products.subtitle')}
         icon={<Package className="w-5 h-5" />}
         actions={
-          isSuperAdmin ? (
+          allowCatalogManage ? (
             <>
               <button
                 type="button"
@@ -477,47 +490,49 @@ export default function ProductsPage() {
                 {lowStockItems.length > 4 ? ` +${lowStockItems.length - 4}` : ''}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                const poItems = lowStockItems.map((p, idx) => {
-                  const targetQty = Math.max(1, (p.minStockLevel ?? 3) * 2 - Math.max(0, (p.stockQuantity ?? 0) - (p.reservedQuantity ?? 0)));
-                  const unitCost = Number(p.purchasePrice || 0);
-                  return {
-                    id: `pi-low-${Date.now()}-${idx}`,
-                    itemType: 'STOCK' as const,
-                    productId: p.id,
-                    title: `${p.code} — ${p.name}`,
-                    quantity: targetQty,
-                    unitCost,
-                    totalCost: Math.round(unitCost * targetQty * 100) / 100,
-                  };
-                });
-                const subtotal = Math.round(poItems.reduce((s, it) => s + it.totalCost, 0) * 100) / 100;
-                const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
-                const po = imfexStore.savePurchaseInvoice({
-                  id: `pinv-${Date.now()}`,
-                  internalNumber: imfexStore.generatePurchaseNumber(),
-                  supplierId: '',
-                  supplierName: 'Добавувач (Дополнување залиха)',
-                  issueDate: new Date().toISOString().split('T')[0],
-                  status: 'DRAFT',
-                  receiptStatus: 'PENDING',
-                  taxRate: 18,
-                  subtotal,
-                  taxAmount,
-                  totalAmount: Math.round((subtotal + taxAmount) * 100) / 100,
-                  paidAmount: 0,
-                  notes: 'Автоматски нацрт-нарачка од аларм за ниска залиха.',
-                  items: poItems,
-                  createdAt: new Date().toISOString(),
-                });
-                toast.success(t('products.reorder_po_created'), `${po.internalNumber} (${poItems.length})`);
-              }}
-              className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 cursor-pointer shrink-0"
-            >
-              {t('products.btn_create_reorder_po')}
-            </button>
+            {allowReorderPo && (
+              <button
+                type="button"
+                onClick={() => {
+                  const poItems = lowStockItems.map((p, idx) => {
+                    const targetQty = Math.max(1, (p.minStockLevel ?? 3) * 2 - Math.max(0, (p.stockQuantity ?? 0) - (p.reservedQuantity ?? 0)));
+                    const unitCost = Number(p.purchasePrice || 0);
+                    return {
+                      id: `pi-low-${Date.now()}-${idx}`,
+                      itemType: 'STOCK' as const,
+                      productId: p.id,
+                      title: `${p.code} — ${p.name}`,
+                      quantity: targetQty,
+                      unitCost,
+                      totalCost: Math.round(unitCost * targetQty * 100) / 100,
+                    };
+                  });
+                  const subtotal = Math.round(poItems.reduce((s, it) => s + it.totalCost, 0) * 100) / 100;
+                  const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
+                  const po = imfexStore.savePurchaseInvoice({
+                    id: `pinv-${Date.now()}`,
+                    internalNumber: imfexStore.generatePurchaseNumber(),
+                    supplierId: '',
+                    supplierName: 'Добавувач (Дополнување залиха)',
+                    issueDate: new Date().toISOString().split('T')[0],
+                    status: 'DRAFT',
+                    receiptStatus: 'PENDING',
+                    taxRate: 18,
+                    subtotal,
+                    taxAmount,
+                    totalAmount: Math.round((subtotal + taxAmount) * 100) / 100,
+                    paidAmount: 0,
+                    notes: 'Автоматски нацрт-нарачка од аларм за ниска залиха.',
+                    items: poItems,
+                    createdAt: new Date().toISOString(),
+                  });
+                  toast.success(t('products.reorder_po_created'), `${po.internalNumber} (${poItems.length})`);
+                }}
+                className="h-8 px-3 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 cursor-pointer shrink-0"
+              >
+                {t('products.btn_create_reorder_po')}
+              </button>
+            )}
           </div>
         );
       })()}
@@ -574,7 +589,7 @@ export default function ProductsPage() {
                     <th className="py-3 px-5">{t('products.col_code')}</th>
                     <th className="py-3 px-4">{t('products.col_product')}</th>
                     <th className="py-3 px-4">{t('products.col_category')}</th>
-                    <th className="py-3 px-4">{t('products.purchase_cost_short')}</th>
+                    {showPurchaseCost && <th className="py-3 px-4">{t('products.purchase_cost_short')}</th>}
                     <th className="py-3 px-4">{t('products.base_price_short')}</th>
                     <th className="py-3 px-4">{t('products.col_physical_stock')}</th>
                     <th className="py-3 px-4">{t('products.col_reserved')}</th>
@@ -584,7 +599,7 @@ export default function ProductsPage() {
                 <tbody className="divide-y divide-border/70">
                   {filteredCatalog.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-10 text-center text-muted-foreground">
+                      <td colSpan={showPurchaseCost ? 8 : 7} className="py-10 text-center text-muted-foreground">
                         {t('products.empty_filtered')}
                       </td>
                     </tr>
@@ -617,9 +632,11 @@ export default function ProductsPage() {
                           <td className="py-3.5 px-4 text-muted-foreground">
                             {catName}
                           </td>
-                          <td className="py-3.5 px-4 tabular-nums text-muted-foreground whitespace-nowrap">
-                            {costPrice > 0 ? `€${costPrice.toFixed(2)}` : '—'}
-                          </td>
+                          {showPurchaseCost && (
+                            <td className="py-3.5 px-4 tabular-nums text-muted-foreground whitespace-nowrap">
+                              {costPrice > 0 ? `€${costPrice.toFixed(2)}` : '—'}
+                            </td>
+                          )}
                           <td className="py-3.5 px-4 tabular-nums font-semibold text-foreground whitespace-nowrap">
                             {baseSellPrice > 0 ? `€${baseSellPrice.toFixed(2)}` : '—'}
                           </td>
@@ -658,7 +675,7 @@ export default function ProductsPage() {
         {activeTab === 'config' && !selectedProduct && (
           <div className="p-8 text-center text-muted-foreground space-y-3">
             <p className="text-xs sm:text-sm">{t('products.empty_catalog')}</p>
-            {isSuperAdmin && (
+            {allowCatalogManage && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-primary text-primary-foreground hover:brightness-110 transition-all cursor-pointer"
@@ -812,13 +829,15 @@ export default function ProductsPage() {
                   >
                     <span>{t('products.open_sample_project')}</span>
                   </button>
-                  <Link
-                    href={`/offers/new?productId=${selectedProduct.id}`}
-                    className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-2"
-                  >
-                    <span>{t('products.create_offer_with_product')}</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
+                  {allowOfferWrite && (
+                    <Link
+                      href={`/offers/new?productId=${selectedProduct.id}`}
+                      className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all inline-flex items-center gap-2"
+                    >
+                      <span>{t('products.create_offer_with_product')}</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  )}
                 </div>
               </div>
             ) : (
@@ -836,21 +855,23 @@ export default function ProductsPage() {
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <button
-                      onClick={() => handleReceive(selectedProduct.id)}
-                      className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer"
-                    >
-                      {t('products.receive_one')}
-                    </button>
-                    <button
-                      onClick={() => handleSell(selectedProduct.id)}
-                      disabled={(selectedProduct.stockQuantity ?? 0) <= 0}
-                      className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {t('products.sell_one')}
-                    </button>
-                  </div>
+                  {allowCatalogManage && (
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        onClick={() => handleReceive(selectedProduct.id)}
+                        className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-bold hover:brightness-110 transition-all cursor-pointer"
+                      >
+                        {t('products.receive_one')}
+                      </button>
+                      <button
+                        onClick={() => handleSell(selectedProduct.id)}
+                        disabled={(selectedProduct.stockQuantity ?? 0) <= 0}
+                        className="px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {t('products.sell_one')}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 rounded-xl bg-primary/10 border border-primary/25 text-xs sm:text-sm text-foreground leading-relaxed">
@@ -865,7 +886,8 @@ export default function ProductsPage() {
                 <ProductEditor
                   product={selectedProduct}
                   onUpdate={refreshProducts}
-                  isSuperAdmin={isSuperAdmin}
+                  isSuperAdmin={allowCatalogManage}
+                  canViewCost={showPurchaseCost}
                 />
               </div>
             )}
@@ -995,21 +1017,25 @@ export default function ProductsPage() {
                     </div>
 
                     <div className="space-y-2.5 pt-1">
-                      <button
-                        onClick={handleStep1Accept}
-                        disabled={isAccepted}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
-                      >
-                        {t('products.step1_accept')}
-                      </button>
+                      {allowOpsWrite && (
+                        <button
+                          onClick={handleStep1Accept}
+                          disabled={isAccepted}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
+                        >
+                          {t('products.step1_accept')}
+                        </button>
+                      )}
 
-                      <button
-                        onClick={handleStep2Payment}
-                        disabled={!isAccepted || isPaid}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
-                      >
-                        {t('products.step2_advance')} {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
-                      </button>
+                      {allowSalesFinanceWrite && (
+                        <button
+                          onClick={handleStep2Payment}
+                          disabled={!isAccepted || isPaid}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
+                        >
+                          {t('products.step2_advance')} {imfexStore.getCompanySettings().defaultAdvancePercent ?? 50}%
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1030,29 +1056,35 @@ export default function ProductsPage() {
                     </div>
 
                     <div className="space-y-2.5 pt-1">
-                      <button
-                        onClick={handleStep3Order}
-                        disabled={!isPaid || isOrdered}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
-                      >
-                        {t('products.step3_order')}
-                      </button>
+                      {allowOpsWrite && (
+                        <button
+                          onClick={handleStep3Order}
+                          disabled={!isPaid || isOrdered}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
+                        >
+                          {t('products.step3_order')}
+                        </button>
+                      )}
 
-                      <button
-                        onClick={handleStep4ReceiveDoor}
-                        disabled={!isOrdered || isReceived}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
-                      >
-                        {t('products.step4_receive')}
-                      </button>
+                      {allowOpsWrite && (
+                        <button
+                          onClick={handleStep4ReceiveDoor}
+                          disabled={!isOrdered || isReceived}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
+                        >
+                          {t('products.step4_receive')}
+                        </button>
+                      )}
 
-                      <button
-                        onClick={handleStep5IssueDispatch}
-                        disabled={!isReceived || isIssued}
-                        className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
-                      >
-                        {t('products.step5_dispatch')}
-                      </button>
+                      {allowSalesFinanceWrite && (
+                        <button
+                          onClick={handleStep5IssueDispatch}
+                          disabled={!isReceived || isIssued}
+                          className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-semibold hover:brightness-110 transition-all cursor-pointer disabled:bg-muted disabled:text-muted-foreground disabled:border disabled:border-border disabled:opacity-70 disabled:hover:brightness-100 disabled:cursor-not-allowed block"
+                        >
+                          {t('products.step5_dispatch')}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1359,13 +1391,15 @@ function CategoriesModal({ onClose }: { onClose: () => void }) {
                 className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/20"
               >
                 <span className="font-bold">{c.name}</span>
-                <button
-                  onClick={() => setConfirmDeleteCat({ id: c.id, name: c.name })}
-                  className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors"
-                  title="Избриши категорија"
-                >
-                  <XCircle className="w-4 h-4" />
-                </button>
+                {canDeleteRecords(imfexStore.getCurrentRole()) && (
+                  <button
+                    onClick={() => setConfirmDeleteCat({ id: c.id, name: c.name })}
+                    className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+                    title="Избриши категорија"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ))
           )}

@@ -851,5 +851,13 @@
     "delivery_terms_placeholder": "пр. 4–6 недели по аванс",
     "warranty_terms": "Гаранција",
     "warranty_terms_placeholder": "пр. 24 месеци на врата и мотор"
+  },
+  "rbac": {
+    "access_denied_title": "Пристапот е ограничен",
+    "access_denied_desc": "Вашата корисничка улога нема дозвола за преглед на овој модул или извршување на оваа акција.",
+    "current_role": "Тековна улога",
+    "back_to_dashboard": "Назад на Контролна Табла",
+    "read_only_notice": "Само за преглед — вашата улога има пристап за читање без измени.",
+    "view_details": "Преглед"
   }
 }

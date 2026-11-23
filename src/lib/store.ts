@@ -37,6 +37,7 @@ import { formatTime24 } from '@/lib/formatters';
 import { getApiUrl, getAuthToken, authFetch, registerUnauthorizedHandler } from './api';
 import { apiClient } from './api-client';
 import { queryClient, queryKeys } from './query-client';
+import { canViewFinance, canViewOffers } from './rbac';
 
 export { getApiUrl, getAuthToken, authFetch, apiClient };
 
@@ -176,32 +177,35 @@ class ImfexStore {
         } catch (e) {}
       }
 
-      const storedPurchases = localStorage.getItem('imfex_purchase_invoices');
-      if (storedPurchases) {
-        try {
-          this.purchaseInvoices = JSON.parse(storedPurchases);
-        } catch (e) {}
-      }
+      const allowFinanceCache = canViewFinance(this.currentUser?.role);
+      if (allowFinanceCache) {
+        const storedPurchases = localStorage.getItem('imfex_purchase_invoices');
+        if (storedPurchases) {
+          try {
+            this.purchaseInvoices = JSON.parse(storedPurchases);
+          } catch (e) {}
+        }
 
-      const storedSales = localStorage.getItem('imfex_sales_invoices');
-      if (storedSales) {
-        try {
-          this.salesInvoices = JSON.parse(storedSales);
-        } catch (e) {}
-      }
+        const storedSales = localStorage.getItem('imfex_sales_invoices');
+        if (storedSales) {
+          try {
+            this.salesInvoices = JSON.parse(storedSales);
+          } catch (e) {}
+        }
 
-      const storedDispatches = localStorage.getItem('imfex_dispatch_notes');
-      if (storedDispatches) {
-        try {
-          this.dispatchNotes = JSON.parse(storedDispatches);
-        } catch (e) {}
-      }
+        const storedDispatches = localStorage.getItem('imfex_dispatch_notes');
+        if (storedDispatches) {
+          try {
+            this.dispatchNotes = JSON.parse(storedDispatches);
+          } catch (e) {}
+        }
 
-      const storedPayments = localStorage.getItem('imfex_payments');
-      if (storedPayments) {
-        try {
-          this.payments = JSON.parse(storedPayments);
-        } catch (e) {}
+        const storedPayments = localStorage.getItem('imfex_payments');
+        if (storedPayments) {
+          try {
+            this.payments = JSON.parse(storedPayments);
+          } catch (e) {}
+        }
       }
 
       const storedProjectAttachments = localStorage.getItem('imfex_project_attachments');
@@ -426,13 +430,28 @@ class ImfexStore {
       return;
     }
     const baseUrl = getApiUrl();
+    const role = this.currentUser?.role;
+    const allowOffers = canViewOffers(role);
+    const allowFinance = canViewFinance(role);
+
+    if (!allowOffers) {
+      this.offers = [];
+    }
+    if (!allowFinance) {
+      this.purchaseInvoices = [];
+      this.salesInvoices = [];
+      this.dispatchNotes = [];
+      this.payments = [];
+    }
+
     try {
       // Fetch in small batches of 4 to avoid exhausting Supabase Session Pooler connections
+      // Only request endpoints permitted for the active user's role (zero unauthorized 403 fetches)
       const [resCat, resProd, resCust, resOff] = await Promise.all([
         authFetch(`${baseUrl}/api/categories`).catch(() => null),
         authFetch(`${baseUrl}/api/products`).catch(() => null),
         authFetch(`${baseUrl}/api/customers`).catch(() => null),
-        authFetch(`${baseUrl}/api/offers`).catch(() => null),
+        allowOffers ? authFetch(`${baseUrl}/api/offers`).catch(() => null) : Promise.resolve(null),
       ]);
       const [resProj, resServ, resProf, resCal] = await Promise.all([
         authFetch(`${baseUrl}/api/projects`).catch(() => null),
@@ -443,12 +462,12 @@ class ImfexStore {
       const [resInst, resDocs, resPurchases, resSales] = await Promise.all([
         authFetch(`${baseUrl}/api/installed-items`).catch(() => null),
         authFetch(`${baseUrl}/api/client-documents`).catch(() => null),
-        authFetch(`${baseUrl}/api/purchase-invoices`).catch(() => null),
-        authFetch(`${baseUrl}/api/sales-invoices`).catch(() => null),
+        allowFinance ? authFetch(`${baseUrl}/api/purchase-invoices`).catch(() => null) : Promise.resolve(null),
+        allowFinance ? authFetch(`${baseUrl}/api/sales-invoices`).catch(() => null) : Promise.resolve(null),
       ]);
       const [resDispatches, resPayments, resMoves, resCompany] = await Promise.all([
-        authFetch(`${baseUrl}/api/dispatch-notes`).catch(() => null),
-        authFetch(`${baseUrl}/api/payments`).catch(() => null),
+        allowFinance ? authFetch(`${baseUrl}/api/dispatch-notes`).catch(() => null) : Promise.resolve(null),
+        allowFinance ? authFetch(`${baseUrl}/api/payments`).catch(() => null) : Promise.resolve(null),
         authFetch(`${baseUrl}/api/inventory-movements`).catch(() => null),
         authFetch(`${baseUrl}/api/company-settings`).catch(() => null),
       ]);
@@ -462,7 +481,7 @@ class ImfexStore {
             stockType: p.stockType || 'STOCK',
             stockQuantity: Number(p.stockQuantity ?? 0),
             reservedQuantity: Number(p.reservedQuantity ?? 0),
-            purchasePrice: Number(p.purchasePrice ?? 0),
+            ...(p.purchasePrice !== undefined ? { purchasePrice: Number(p.purchasePrice) } : {}),
           }));
         }
       }
@@ -837,6 +856,40 @@ class ImfexStore {
     }
   }
 
+  private clearInMemoryAndLocalCaches() {
+    this.categories = [];
+    this.products = [];
+    this.customers = [];
+    this.offers = [];
+    this.profiles = [];
+    this.projects = [];
+    this.serviceTickets = [];
+    this.installedItems = [];
+    this.documents = [];
+    this.calendarEvents = [];
+    this.movements = [];
+    this.purchaseInvoices = [];
+    this.salesInvoices = [];
+    this.dispatchNotes = [];
+    this.payments = [];
+    this.projectAttachments = {};
+    this.isLoadedFromBackend = false;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('imfex_purchase_invoices');
+      localStorage.removeItem('imfex_sales_invoices');
+      localStorage.removeItem('imfex_dispatch_notes');
+      localStorage.removeItem('imfex_payments');
+      localStorage.removeItem('imfex_client_documents');
+      localStorage.removeItem('imfex_project_attachments');
+      localStorage.removeItem('imfex_calendar_events');
+      localStorage.removeItem('imfex_inventory_movements');
+      localStorage.removeItem('imfex_stock_overlay');
+      localStorage.removeItem('imfex_project_flow_overlay');
+    }
+    void queryClient.cancelQueries();
+    queryClient.clear();
+  }
+
   // Pure REST API Authentication via Supabase Database
   async loginAsync(email: string, password?: string): Promise<UserProfile | null> {
     const cleanEmail = email.trim().toLowerCase();
@@ -856,6 +909,7 @@ class ImfexStore {
 
       if (res.ok) {
         const data = await res.json();
+        this.clearInMemoryAndLocalCaches();
         if (data.token) {
           sessionStorage.setItem('imfex_auth_token', data.token);
         }
@@ -883,7 +937,7 @@ class ImfexStore {
       sessionStorage.removeItem('imfex_auth_token');
       sessionStorage.removeItem('imfex_current_user');
     }
-    queryClient.clear();
+    this.clearInMemoryAndLocalCaches();
     this.notifyListeners();
   }
 
